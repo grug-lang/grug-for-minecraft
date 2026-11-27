@@ -1343,370 +1343,104 @@
 							}
 						}
 					]
+				},
+				{
+				"name": "screen_init",
+				"description": "Called by the game every time the screen opens and after every resize, so a mod lays its widgets out from the size the window has and re-declares them at the new size. A call to `add_button`, `add_slider`, `add_checkbox`, `add_text_field` or `add_list` is legal only here and only while this call is running: the widgets a screen has are the ones its `screen_init` declared, and nothing it does afterwards adds or removes one. It is the first call a screen gets, before its first `screen_render`, and a resize asks it again without `screen_closed` in between.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "ScreenInitContext"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_render",
+				"description": "Called by the game once per frame while the screen is open, after the background and the widgets the mod declared have been drawn. Everything the export draws through `ctx` lands in that frame and is thrown away with it, so a mod draws its titles, labels and counts here every frame. Drawing nothing is not an error. The context is an overlay's render context: `draw_text`, `draw_box`, `draw_item`, `draw_tooltip`, `text_width` and the geometry are the ones an overlay draws with, and a mod screen's GUI is the whole screen, so `gui_left` and `gui_top` are 0 and `gui_width` and `gui_height` are the screen's own size.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "OverlayRenderContext"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_click",
+				"description": "Called by the game when the mouse is pressed while the screen is open, before the widget under the mouse is offered the press. The position and the button are the ones the widget would receive, and `take()` keeps the press from reaching it, which is how a mod uses a click for something that is not a widget without the widget under it acting too. Return without taking it and the widget under the mouse handles the press as if the mod had not seen it. The context is an overlay's click context.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "OverlayClickContext"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_key",
+				"description": "Called by the game when a key is pressed or a character is typed while the screen is open, unless a text field of the screen has focus: the focused field gets the key instead, and this export is not asked at all while a field has focus, so typing into a field cannot be stolen by the mod. `take()` keeps the key from reaching the screen, and a key the mod does not take reaches the screen, where Escape closes it. The context is an overlay's key context, which carries the letter and digit keys, space, backspace, control and shift, and reports a typed character separately from its key, so a text field does not need it.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "OverlayKeyContext"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_scroll",
+				"description": "Called by the game when the mouse wheel is turned while the screen is open, before the list under the mouse gets the movement. `take()` keeps the movement from reaching the list, which then does not scroll, and returning without taking it scrolls the list under the mouse as the game would. The context is an overlay's scroll context.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "OverlayScrollContext"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_widget_changed",
+				"description": "Called by the game when the player uses one of the screen's widgets: a button pressed, a checkbox ticked or unticked, a slider dragged or clicked at a new position, a list row clicked, or a text field edited. `ctx.widget()` is the widget that was used, and it holds the value the action left, so one export can handle every widget the screen declared. A change the mod makes itself, through any of the Widget sets, never asks this, so a mod that writes a value does not hear its own write and cannot loop. A slider's drag asks once per value its handle passes through, which can be several times inside one frame.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "ScreenWidgetContext"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_list_row",
+				"description": "Called by the game once for each row of a list that the frame draws, to ask what that row shows. `ctx.index()` is the row's number from 0 and `ctx.widget()` is the list it belongs to, so one export can answer for several lists on one screen; the export answers with `set_text`, and may colour the row with `set_text_colour`. It is asked every frame, which is what lets a row whose text changes, such as a shape's block count while it generates, show its new text on the next frame. Only the visible rows are asked, so a list of a thousand entries costs what the rows on screen cost. An export that returns without answering is an err rather than an empty row.",
+				"engine_called": true,
+				"parameters": [
+				{
+				"name": "ctx",
+				"type": {
+				"name": "ListRowResponse"
+				}
+				}
+				]
+				},
+				{
+				"name": "screen_closed",
+				"description": "Called by the game when the screen goes away: the player pressed Escape, the mod called `close()`, another screen replaced it, or the world was left. It is the last call a screen gets, and the widgets it declared are no longer on it, so a mod that saves what its screen changed does it here. A screen that is opened again is asked to `screen_init` first and gets fresh widgets.",
+				"engine_called": true
 				}
 			]
-		},
-		"Screen": {
-			"description": "A screen the mod owns: the mod creates one at member scope with `Screen.new()`, opens and closes it with `open()` and `close()`, and the game then asks its exports. `init` lays the screen's widgets out at the size the window has, and is asked again after every resize; `render` draws once per frame over the background and the widgets; `click`, `key` and `scroll` pass the player's input on; `widget_changed` says that one of the host's widgets was used; `list_row` asks what each visible list row shows; and `closed` says that the screen has gone away. A screen belongs to the client only: it opens for the local player, nothing crosses the wire, and a dedicated server has neither the screen nor its exports, so every call here is refused there. It never pauses the game, because a mod's screen often previews the world behind it. The game draws the screen's own background and then the widgets the mod declared, and only then asks `render`, so a mod draws what is not a widget and leaves the rest to the host. Positions and sizes are GUI-scaled screen pixels, the unit the rest of the API uses. `open()` while a screen is already open replaces it: the open one is asked to `closed()` first and the new one's `init` follows.",
-			"export_functions": [
-				{
-					"name": "init",
-					"description": "Called by the game every time the screen opens and after every resize, so a mod lays its widgets out from the size the window has and re-declares them at the new size. A call to `add_button`, `add_slider`, `add_checkbox`, `add_text_field` or `add_list` is legal only here and only while this call is running: the widgets a screen has are the ones its `init` declared, and nothing it does afterwards adds or removes one. It is the first call a screen gets, before its first `render`, and a resize asks it again without `closed()` in between.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "ScreenInitContext"
-							}
-						}
-					]
-				},
-				{
-					"name": "render",
-					"description": "Called by the game once per frame while the screen is open, after the background and the widgets the mod declared have been drawn. Everything the export draws through `ctx` lands in that frame and is thrown away with it, so a mod draws its titles, labels and counts here every frame. Drawing nothing is not an error. The context is an overlay's render context: `draw_text`, `draw_box`, `draw_item`, `draw_tooltip`, `text_width` and the geometry are the ones an overlay draws with, and a mod screen's GUI is the whole screen, so `gui_left` and `gui_top` are 0 and `gui_width` and `gui_height` are the screen's own size.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "OverlayRenderContext"
-							}
-						}
-					]
-				},
-				{
-					"name": "click",
-					"description": "Called by the game when the mouse is pressed while the screen is open, before the widget under the mouse is offered the press. The position and the button are the ones the widget would receive, and `take()` keeps the press from reaching it, which is how a mod uses a click for something that is not a widget without the widget under it acting too. Return without taking it and the widget under the mouse handles the press as if the mod had not seen it. The context is an overlay's click context.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "OverlayClickContext"
-							}
-						}
-					]
-				},
-				{
-					"name": "key",
-					"description": "Called by the game when a key is pressed or a character is typed while the screen is open, unless a text field of the screen has focus: the focused field gets the key instead, and this export is not asked at all while a field has focus, so typing into a field cannot be stolen by the mod. `take()` keeps the key from reaching the screen, and a key the mod does not take reaches the screen, where Escape closes it. The context is an overlay's key context, which carries the letter and digit keys, space, backspace, control and shift, and reports a typed character separately from its key, so a text field does not need it.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "OverlayKeyContext"
-							}
-						}
-					]
-				},
-				{
-					"name": "scroll",
-					"description": "Called by the game when the mouse wheel is turned while the screen is open, before the list under the mouse gets the movement. `take()` keeps the movement from reaching the list, which then does not scroll, and returning without taking it scrolls the list under the mouse as the game would. The context is an overlay's scroll context.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "OverlayScrollContext"
-							}
-						}
-					]
-				},
-				{
-					"name": "widget_changed",
-					"description": "Called by the game when the player uses one of the screen's widgets: a button pressed, a checkbox ticked or unticked, a slider dragged or clicked at a new position, a list row clicked, or a text field edited. `ctx.widget()` is the widget that was used, and it holds the value the action left, so one export can handle every widget the screen declared. A change the mod makes itself, through any of the Widget sets, never asks this, so a mod that writes a value does not hear its own write and cannot loop. A slider's drag asks once per value its handle passes through, which can be several times inside one frame.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "ScreenWidgetContext"
-							}
-						}
-					]
-				},
-				{
-					"name": "list_row",
-					"description": "Called by the game once for each row of a list that the frame draws, to ask what that row shows. `ctx.index()` is the row's number from 0 and `ctx.widget()` is the list it belongs to, so one export can answer for several lists on one screen; the export answers with `set_text`, and may colour the row with `set_text_colour`. It is asked every frame, which is what lets a row whose text changes, such as a shape's block count while it generates, show its new text on the next frame. Only the visible rows are asked, so a list of a thousand entries costs what the rows on screen cost. An export that returns without answering is an err rather than an empty row.",
-					"engine_called": true,
-					"parameters": [
-						{
-							"name": "ctx",
-							"type": {
-								"name": "ListRowResponse"
-							}
-						}
-					]
-				},
-				{
-					"name": "closed",
-					"description": "Called by the game when the screen goes away: the player pressed Escape, the mod called `close()`, another screen replaced it, or the world was left. It is the last call a screen gets, and the widgets it declared are no longer on it, so a mod that saves what its screen changed does it here. A screen that is opened again is asked to `init` first and gets fresh widgets.",
-					"engine_called": true
-				}
-			],
-			"methods": {
-				"add_button": {
-					"description": "Declares a button labelled `text` at the position and size given, in GUI-scaled screen pixels, and answers its Widget. Only legal in `init`, while that call is running: a call from another export, or outside a call, is an err. A later `init` that declares the same name answers the same Widget, moved and relabelled from these arguments, so a mod keeps its handles in member variables and declares them again on every resize. A name this `init` has already declared, or one another kind declared in an earlier `init`, is an err naming the kind it was declared as. Pressing the button asks `widget_changed`, unless the button is not active or not visible.",
-					"return_type": {
-						"name": "Widget"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "text",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "width",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "height",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"add_checkbox": {
-					"description": "Declares a checkbox labelled `text`, ticked or not from `checked`, at the position given, and answers its Widget. The box is the game's own checkbox on the loaders that have one, drawn with its label to the right of the box, and it keeps the size the game gives it whatever width and height are asked for: the position is the box's own top-left corner. A later `init` that declares the same name answers the same Widget, moved and relabelled, and its tick is set from `checked` again. Ticking or unticking it asks `widget_changed`. The other rules are `add_button`'s: only in `init`, and the same name twice in one `init` or a name of another kind is an err.",
-					"return_type": {
-						"name": "Widget"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "text",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "checked",
-							"type": {
-								"name": "bool"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "width",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "height",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"add_list": {
-					"description": "Declares a scrolling list at the position and size given, with rows `row_height` pixels tall, and answers its Widget. It starts with no rows: `set_rows` says how many it has, and `list_row` is asked for the text of each row the frame draws. The list draws its background, row separators, selection highlight and scrollbar at the rectangle asked for, on every loader, and the wheel scrolls it while the mouse is over it. A click on a row selects it and asks `widget_changed`. A later `init` that declares the same name answers the same Widget, moved and resized, and keeps its rows and its selection, because only `set_rows` and `select` change those. The other rules are `add_button`'s: only in `init`, and the same name twice in one `init` or a name of another kind is an err.",
-					"return_type": {
-						"name": "Widget"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "width",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "height",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "row_height",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"add_slider": {
-					"description": "Declares a slider whose handle starts at `value` on the track from `min` to `max`, with `text` drawn as its message, and answers its Widget. The slider draws its message across a track and moves a handle along that track to the value a drag or a click on the track names, on every loader, whether it borrows the game's own widget or draws the track itself. The max has to be greater than the min and both have to be finite, or the handle has nowhere to move and it is an err; `value` may lie outside that range, and the handle is placed at the fraction of the track that names it. A later `init` that declares the same name answers the same Widget, moved and re-declared from these arguments. A drag or a click on the track asks `widget_changed` once per value the handle passes through. The other rules are `add_button`'s: only in `init`, and the same name twice in one `init` or a name of another kind is an err.",
-					"return_type": {
-						"name": "Widget"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "text",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "min",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "max",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "value",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "width",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "height",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"add_text_field": {
-					"description": "Declares a text field holding `text` at the position and size given, and answers its Widget. The field takes the keyboard while it has focus and gives the player a caret, a selection, the clipboard and the arrow, home and end keys to edit with, and a loader whose version has a game text field also keeps that field's keyboard layout and, where the version has one, its input method. The screen's `key` export is not asked while the field has focus, and clicking another widget or an empty spot of the screen takes its focus away. Editing it asks `widget_changed` once per change, with the field's new text readable through `text`. A later `init` that declares the same name answers the same Widget, moved and resized, and its text is set from `text` again. The other rules are `add_button`'s: only in `init`, and the same name twice in one `init` or a name of another kind is an err.",
-					"return_type": {
-						"name": "Widget"
-					},
-					"parameters": [
-						{
-							"name": "name",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "text",
-							"type": {
-								"name": "string"
-							}
-						},
-						{
-							"name": "x",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "y",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "width",
-							"type": {
-								"name": "number"
-							}
-						},
-						{
-							"name": "height",
-							"type": {
-								"name": "number"
-							}
-						}
-					]
-				},
-				"close": {
-					"description": "Closes this screen if it is the one that is open, which asks it to `closed()` and gives the game back its own screen. It is an err on a screen that is not open, because closing a screen that is not open would either do nothing silently or close the screen that is open instead, and both are mistakes in a mod."
-				},
-				"open": {
-					"description": "Opens this screen for the local player. A screen that is already open, if it is a mod's own, is asked to `closed()` first; then this screen's `init` is asked to lay its widgets out, and from then on every frame asks `render` and every input event reaches it. Opening a screen while no world is loaded is an err, because a mod screen is drawn over the world and there is nothing to draw it over. Opening the screen that is already open closes it and opens it again, with `closed()` before `init`, so a mod that reopens on a key press does not keep a screen that never started over. A dedicated server has no screen, so this is an err there."
-				}
-			},
-			"static_methods": {
-				"new": {
-					"description": "Creates a screen of the mod's own, which the mod keeps in a member variable and opens and closes as its player asks, the way the reference holds four screens and opens the one its key asks for. It is a member-scope call, so a script makes its screens when it loads, and everything a screen holds comes from its `init`, so one created screen can be opened and closed many times. A dedicated server has no screen, so this is an err there.",
-					"return_type": {
-						"name": "Screen"
-					},
-					"parameters": []
-				}
-			}
 		},
 		"Test": {
 			"description": "Utility functions for automated tests. The calls that drive or read a running test live on TestTickContext, handed to its tick(); the ones that describe the loader or the harness are methods of the test itself, called as me.method().",
@@ -2978,7 +2712,7 @@
 					]
 				},
 				"widget": {
-					"description": "The list the row belongs to, so one `list_row` can answer for several lists on one screen. It is one of the list Widgets the mod declared, and compares equal to the handle it kept from `init`.",
+					"description": "The list the row belongs to, so one `screen_list_row` can answer for several lists on one screen. It is one of the list Widgets the mod declared, and compares equal to the handle it kept from `screen_init`.",
 					"return_type": {
 						"name": "Widget"
 					}
@@ -4193,8 +3927,272 @@
 				}
 			}
 		},
+		"Screen": {
+			"description": "A screen the mod owns: the mod creates one at member scope with `Screen.new()`, opens and closes it with `open()` and `close()`, and declares its widgets with the five `add_*` calls, which are legal only while the overlay script's `screen_init` export runs. The rest of the screen's life belongs to that script's other `screen_*` exports, which receive the input, the frame and the widget callbacks of the open screen, so one script holds the screen code, the widgets it declared and the state they edit. `screen_init` lays the screen's widgets out at the size the window has and is asked again after every resize; `screen_render` draws once per frame over the background and the widgets; `screen_click`, `screen_key` and `screen_scroll` pass the player's input on; `screen_widget_changed` says that one of the host's widgets was used; `screen_list_row` asks what each visible list row shows; and `screen_closed` says that the screen has gone away. `open()` while a screen is already open replaces it: the open one's `screen_closed` runs first and the new one's `screen_init` follows. A screen belongs to the client only: it opens for the local player, nothing crosses the wire, and a dedicated server has neither the screen nor its exports, so every call here is refused there. It never pauses the game, because a mod's screen often previews the world behind it. The game draws the screen's own background and then the widgets the mod declared, and only then asks `screen_render`, so a mod draws what is not a widget and leaves the rest to the host. Positions and sizes are GUI-scaled screen pixels, the unit the rest of the API uses.",
+			"methods": {
+				"add_button": {
+					"description": "Declares a button labelled `text` at the position and size given, in GUI-scaled screen pixels, and answers its Widget. Only legal in `screen_init`, while that call is running: a call from another export, or outside a call, is an err. A later `screen_init` that declares the same name answers the same Widget, moved and relabelled from these arguments, so a mod keeps its handles in member variables and declares them again on every resize. A name this `screen_init` has already declared, or one another kind declared in an earlier `screen_init`, is an err naming the kind it was declared as. Pressing the button asks `screen_widget_changed`, unless the button is not active or not visible.",
+					"return_type": {
+						"name": "Widget"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_checkbox": {
+					"description": "Declares a checkbox labelled `text`, ticked or not from `checked`, at the position given, and answers its Widget. The box is the game's own checkbox on the loaders that have one, drawn with its label to the right of the box, and it keeps the size the game gives it whatever width and height are asked for: the position is the box's own top-left corner. A later `screen_init` that declares the same name answers the same Widget, moved and relabelled, and its tick is set from `checked` again. Ticking or unticking it asks `screen_widget_changed`. The other rules are `add_button`'s: only in `screen_init`, and the same name twice in one `screen_init` or a name of another kind is an err.",
+					"return_type": {
+						"name": "Widget"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "checked",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_list": {
+					"description": "Declares a scrolling list at the position and size given, with rows `row_height` pixels tall, and answers its Widget. It starts with no rows: `set_rows` says how many it has, and `screen_list_row` is asked for the text of each row the frame draws. The list draws its background, row separators, selection highlight and scrollbar at the rectangle asked for, on every loader, and the wheel scrolls it while the mouse is over it. A click on a row selects it and asks `screen_widget_changed`. A later `screen_init` that declares the same name answers the same Widget, moved and resized, and keeps its rows and its selection, because only `set_rows` and `select` change those. The other rules are `add_button`'s: only in `screen_init`, and the same name twice in one `screen_init` or a name of another kind is an err.",
+					"return_type": {
+						"name": "Widget"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "row_height",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_slider": {
+					"description": "Declares a slider whose handle starts at `value` on the track from `min` to `max`, with `text` drawn as its message, and answers its Widget. The slider draws its message across a track and moves a handle along that track to the value a drag or a click on the track names, on every loader, whether it borrows the game's own widget or draws the track itself. The max has to be greater than the min and both have to be finite, or the handle has nowhere to move and it is an err; `value` may lie outside that range, and the handle is placed at the fraction of the track that names it. A later `screen_init` that declares the same name answers the same Widget, moved and re-declared from these arguments. A drag or a click on the track asks `screen_widget_changed` once per value the handle passes through. The other rules are `add_button`'s: only in `screen_init`, and the same name twice in one `screen_init` or a name of another kind is an err.",
+					"return_type": {
+						"name": "Widget"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "min",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "max",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"add_text_field": {
+					"description": "Declares a text field holding `text` at the position and size given, and answers its Widget. The field takes the keyboard while it has focus and gives the player a caret, a selection, the clipboard and the arrow, home and end keys to edit with, and a loader whose version has a game text field also keeps that field's keyboard layout and, where the version has one, its input method. The `screen_key` export is not asked while the field has focus, and clicking another widget or an empty spot of the screen takes its focus away. Editing it asks `screen_widget_changed` once per change, with the field's new text readable through `text`. A later `screen_init` that declares the same name answers the same Widget, moved and resized, and its text is set from `text` again. The other rules are `add_button`'s: only in `screen_init`, and the same name twice in one `screen_init` or a name of another kind is an err.",
+					"return_type": {
+						"name": "Widget"
+					},
+					"parameters": [
+						{
+							"name": "name",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "x",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "y",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "width",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "height",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
+				"close": {
+					"description": "Closes this screen if it is the one that is open, which asks it to `screen_closed` and gives the game back its own screen. It is an err on a screen that is not open, because closing a screen that is not open would either do nothing silently or close the screen that is open instead, and both are mistakes in a mod."
+				},
+				"open": {
+					"description": "Opens this screen for the local player. A screen that is already open, if it is a mod's own, is asked to `screen_closed` first; then this screen's `screen_init` is asked to lay its widgets out, and from then on every frame asks `screen_render` and every input event reaches it. Opening a screen while no world is loaded is an err, because a mod screen is drawn over the world and there is nothing to draw it over. Opening the screen that is already open closes it and opens it again, with `screen_closed` before `screen_init`, so a mod that reopens on a key press does not keep a screen that never started over. A dedicated server has no screen, so this is an err there."
+				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "Creates a screen of the mod's own, which the mod keeps in a member variable and opens and closes as its player asks, the way the reference holds four screens and opens the one its key asks for. It is a member-scope call, so a script makes its screens when it loads, and everything a screen holds comes from its `screen_init`, so one created screen can be opened and closed many times. A dedicated server has no screen, so this is an err there.",
+					"return_type": {
+						"name": "Screen"
+					},
+					"parameters": []
+				}
+			}
+		},
 		"ScreenInitContext": {
-			"description": "The context of a screen's `init` call, passed to it every time the screen opens and after every resize. It tells the mod the size it has to lay its widgets out in, which is the one thing `init` is asked for that the screen cannot know itself. A context is only valid while its `init` call is running: saving it in a member variable and using it later is refused.",
+			"description": "The context of a screen's `screen_init` call, passed to it every time the screen opens and after every resize. It tells the mod the size it has to lay its widgets out in, which is the one thing `screen_init` is asked for that the screen cannot know itself. A context is only valid while its `screen_init` call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
 				"screen_height": {
 					"description": "The height of the screen in GUI-scaled pixels, which is the unit every y, height and widget position on it uses. It is the same measure `OverlayRenderContext.screen_height` answers while the screen draws, so a mod lays its widgets out to it once here rather than reading it again every frame.",
@@ -4214,7 +4212,7 @@
 			"description": "The context of a screen's `widget_changed` call, passed to it when the player uses one of the screen's widgets: a button pressed, a checkbox ticked, a slider dragged or clicked, a list row clicked, or a text field edited. A context is only valid while its `widget_changed` call is running: saving it in a member variable and using it later is refused.",
 			"methods": {
 				"widget": {
-					"description": "The Widget the player used, so one `widget_changed` can handle every widget a screen declared: compare it with the handles kept from `init`, which compare equal for the same widget, and read what it now holds through `text`, `value`, `checked` or `selected`.",
+					"description": "The Widget the player used, so one `screen_widget_changed` can handle every widget a screen declared: compare it with the handles kept from `screen_init`, which compare equal for the same widget, and read what it now holds through `text`, `value`, `checked` or `selected`.",
 					"return_type": {
 						"name": "Widget"
 					}
@@ -5891,7 +5889,7 @@
 			}
 		},
 		"Widget": {
-			"description": "One of the widgets on a mod's screen, answered by `Screen.add_button`, `add_slider`, `add_checkbox`, `add_text_field` and `add_list`, and used both for what the widget holds and for what it looks like. One class covers all five kinds because a mod holds its widgets in one list per property and the kind is part of what the name declared, so a method a widget's kind does not have is an err naming the kind: a button asked for `checked` says that it is a button. Every `set_*` is silent, changing what the next frame draws and never asking `widget_changed`, so a mod that writes a value does not hear its own write. A widget belongs to the screen that declared it and lives as long as that screen's open time: a later `init` that declares the same name answers the same Widget, which compares equal to the handle the mod kept, so a resize does not invalidate the handles in the mod's member variables.",
+			"description": "One of the widgets on a mod's screen, answered by `Screen.add_button`, `add_slider`, `add_checkbox`, `add_text_field` and `add_list`, and used both for what the widget holds and for what it looks like. One class covers all five kinds because a mod holds its widgets in one list per property and the kind is part of what the name declared, so a method a widget's kind does not have is an err naming the kind: a button asked for `checked` says that it is a button. Every `set_*` is silent, changing what the next frame draws and never asking `widget_changed`, so a mod that writes a value does not hear its own write. A widget belongs to the screen that declared it and lives as long as that screen's open time: a later `screen_init` that declares the same name answers the same Widget, which compares equal to the handle the mod kept, so a resize does not invalidate the handles in the mod's member variables.",
 			"methods": {
 				"checked": {
 					"description": "Whether a checkbox is ticked, which is what the reference reads to decide whether a shape is visible. Asking a widget that is not a checkbox is an err naming its kind.",
@@ -5939,7 +5937,7 @@
 					]
 				},
 				"set_position": {
-					"description": "Moves the widget's top-left corner to the position given, in GUI-scaled screen pixels, silently, and keeps its size. The reference moves a shape's property widgets up and down this way as the properties above them come and go, which is what an `init` cannot do because a `set_position` is legal outside it.",
+					"description": "Moves the widget's top-left corner to the position given, in GUI-scaled screen pixels, silently, and keeps its size. The reference moves a shape's property widgets up and down this way as the properties above them come and go, which is what a `screen_init` cannot do because a `set_position` is legal outside it.",
 					"parameters": [
 						{
 							"name": "x",
