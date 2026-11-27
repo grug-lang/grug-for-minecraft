@@ -6,6 +6,7 @@ import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOperatorStatus;
+import net.grug.minecraft.core.GrugRelitSections;
 import net.grug.minecraft.core.GrugRenderSettle;
 import net.grug.minecraft.core.GrugSavedDataSync;
 import net.grug.minecraft.core.GrugSide;
@@ -43,6 +44,7 @@ import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
 import net.grug.minecraft.ornithe.item.GrugItem;
 import net.grug.minecraft.ornithe.mixin.ItemInHandRendererAccess;
 import net.grug.minecraft.ornithe.mixin.SoundEngineAccess;
+import net.grug.minecraft.ornithe.mixin.WorldLightAccess;
 import net.grug.minecraft.ornithe.mixin.WorldNotifyAccess;
 import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
@@ -583,6 +585,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     @Override
     public void relightRoom(
             Object levelObj, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        // The frame hook settles this box again when a test's writes queue light after the build,
+        // so it is recorded before the sweep that can throw: a box of the room the test now holds.
+        relitSections.record(minX, minY, minZ, maxX, maxY, maxZ);
         OrnitheRoomLight.settle((World) levelObj, minX, minY, minZ, maxX, maxY, maxZ);
         OrnitheRoomRemeshClient.remesh(minX, minY, minZ, maxX, maxY, maxZ);
     }
@@ -1718,6 +1723,13 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private final GrugBlockSync blockSync = new GrugBlockSync();
 
     /**
+     * The box the last room relight swept, so that light a test queues after the build settled can
+     * be settled to the field the blocks define and marked for compiling again. See {@link
+     * #frameHadPendingWork} and #1825.
+     */
+    private final GrugRelitSections relitSections = new GrugRelitSections();
+
+    /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
      * to, a frame drawn before the world exists (a hotkey run's title screen), or a first-person
      * hand that was still moving.
@@ -1752,10 +1764,21 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         //
         // The drain is about the queue and not about the mesh. An update it runs changes the field
         // through the quiet setter, so a section it moved light in keeps the mesh it was baked with
-        // until a remesh marks it, and the field it leaves is not the one the blocks define. A test
-        // that writes blocks after the room build settled can therefore still capture light it
-        // moved; #1825 holds what that costs the a1 capture and the fix it needs here.
+        // until a remesh marks it, and the field it leaves is the one the engine's cascade reached
+        // from the changes in the order it saw them, not the one the blocks define. A test that
+        // writes blocks after the room build settled would therefore capture light it moved, and
+        // which sections are rebaked from that field would depend on the repeat. So the box the
+        // room build recorded is settled again and marked again here, the same pair relightRoom
+        // runs after a rebuild, and only when the queue had work in it. See #1825.
+        boolean lightQueued = !((WorldLightAccess) world).grug$lightUpdates().isEmpty();
         while (world.doLightUpdates()) {}
+        if (lightQueued) {
+            int[] box = relitSections.lastBox();
+            if (box.length == 6) {
+                OrnitheRoomLight.settle(world, box[0], box[1], box[2], box[3], box[4], box[5]);
+                OrnitheRoomRemeshClient.remesh(box[0], box[1], box[2], box[3], box[4], box[5]);
+            }
+        }
         for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {
             // Only the chunks the renderer is going to rebuild count as pending, and that is the
             // ones it can see within the distance compileChunks itself compiles within: a chunk

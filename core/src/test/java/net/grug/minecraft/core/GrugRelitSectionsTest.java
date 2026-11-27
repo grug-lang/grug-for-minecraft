@@ -63,6 +63,25 @@ class GrugRelitSectionsTest {
     }
 
     @Test
+    void theBoxIsEmptyBeforeARoomIsRelit() {
+        // A hook that asks for the box before any room was built has nothing to settle.
+        GrugRelitSections sections = new GrugRelitSections();
+        assertArrayEquals(new int[0], sections.lastBox());
+    }
+
+    @Test
+    void theBoxIsTheOneTheLastRelightSwept() {
+        // What a loader hands back to its light engine and its renderer once a test wrote blocks
+        // after the room's build settled: the same box the build relit, so the settle and the
+        // marks cover exactly the room. See #1825.
+        GrugRelitSections sections = new GrugRelitSections();
+        sections.record(-7, 60, -7, 7, 74, 7);
+        assertArrayEquals(new int[] {-7, 60, -7, 7, 74, 7}, sections.lastBox());
+        sections.record(2, 3, 4, 5, 6, 7);
+        assertArrayEquals(new int[] {2, 3, 4, 5, 6, 7}, sections.lastBox());
+    }
+
+    @Test
     void aBoxInsideOneSectionOwedThatWholeSection() {
         // The remesh a loader issues has to cover the section the box sits in, not only the box:
         // a face of the room is baked from cells the box leaves out.
