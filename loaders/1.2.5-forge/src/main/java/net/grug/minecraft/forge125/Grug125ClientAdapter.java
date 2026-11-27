@@ -155,14 +155,10 @@ public class Grug125ClientAdapter extends Grug125Adapter {
 
     @Override
     public void hideOwnedScreen(GrugOwnedScreen screen) {
-        Minecraft minecraft = ModLoader.getMinecraftInstance();
-        // Only the screen this loader made for this mod screen is taken away: another screen the
-        // player opened over it is theirs to keep. The empty screen is what this loader shows
-        // where another version shows null, so the headless client does not get its menu.
-        if (minecraft.currentScreen instanceof GrugOwnedScreenHost
-                && ((GrugOwnedScreenHost) minecraft.currentScreen).model() == screen) {
-            minecraft.displayGuiScreen(new GrugEmptyScreen());
-        }
+        // The host decides whether it is still the screen the game shows: only the screen this
+        // loader made for this mod screen is taken away, because another screen the player opened
+        // over it is theirs to keep.
+        GrugOwnedScreenHost.hideIfShowing(screen);
     }
 
     @Override
