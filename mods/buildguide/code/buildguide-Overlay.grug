@@ -89,6 +89,28 @@ c_random_default: Option[Widget] = Option.new()
 c_persistence: Option[Widget] = Option.new()
 c_persistence_default: Option[Widget] = Option.new()
 
+# VisualisationScreen's nineteen widgets: ten sliders that only a Set button reads, the six colour
+# buttons, the depth-test checkbox, and the two cube-size buttons beside their sliders.
+v_shape_r: Option[Widget] = Option.new()
+v_shape_g: Option[Widget] = Option.new()
+v_shape_b: Option[Widget] = Option.new()
+v_shape_a: Option[Widget] = Option.new()
+v_set_shape: Option[Widget] = Option.new()
+v_random_shape: Option[Widget] = Option.new()
+v_default_shape: Option[Widget] = Option.new()
+v_origin_r: Option[Widget] = Option.new()
+v_origin_g: Option[Widget] = Option.new()
+v_origin_b: Option[Widget] = Option.new()
+v_origin_a: Option[Widget] = Option.new()
+v_set_origin: Option[Widget] = Option.new()
+v_random_origin: Option[Widget] = Option.new()
+v_default_origin: Option[Widget] = Option.new()
+v_depth: Option[Widget] = Option.new()
+v_shape_cube: Option[Widget] = Option.new()
+v_origin_cube: Option[Widget] = Option.new()
+v_set_cube: Option[Widget] = Option.new()
+v_default_cube: Option[Widget] = Option.new()
+
 # The world facts of the last world frame: a screen's initCheck needs the level and the player's feet,
 # and a close saves the state under the world and dimension the player is in. render_world runs every
 # frame, with or without a screen, so these are current whenever a screen opens.
@@ -188,7 +210,7 @@ export screen_init(ctx: ScreenInitContext) {
         return
     }
     if active_screen == "visualisation" {
-        _chrome_init(visualisation_screen, width, "visualisation", _state_enabled())
+        _visualisation_init(width)
         return
     }
     if active_screen == "shapelist" {
@@ -206,6 +228,10 @@ export screen_render(ctx: OverlayRenderContext) {
     width: number = ctx.screen_width()
     if active_screen == "configuration" {
         _configuration_render(ctx, width)
+        return
+    }
+    if active_screen == "visualisation" {
+        _visualisation_render(ctx, width)
         return
     }
     _chrome_render(ctx, width)
@@ -242,6 +268,10 @@ export screen_widget_changed(ctx: ScreenWidgetContext) {
     widget: Widget = ctx.widget()
     if active_screen == "configuration" {
         _configuration_changed(widget)
+        return
+    }
+    if active_screen == "visualisation" {
+        _visualisation_changed(widget)
         return
     }
     _chrome_changed(widget)
@@ -3021,7 +3051,357 @@ local _chrome_render(ctx: OverlayRenderContext, width: number) {
     ctx.draw_text(total_title, right - Math.floor(total_width / 2), 5, white)
     ctx.draw_text(total_count, right - Math.floor(ctx.text_width(total_count) / 2), 20, white)
 }
+# VisualisationScreen's nineteen widgets. A slider only moves its own handle and label, which is the
+# reference's empty applyValue; every colour and cube size changes when a Set button reads the
+# sliders, and the depth-test checkbox writes its state flag at once. With no set, the eight colour
+# sliders and the six colour buttons are inactive, but the two cube sliders and their two buttons
+# stay usable although their callbacks do nothing, which is the reference's own disable block.
 
+local _visualisation_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    depth: Widget = v_depth.unwrap()
+    if equals(widget, depth) {
+        state = _state_with_field(state, "depthTest", _bool_text(widget.checked()))
+        return
+    }
+    set_shape: Widget = v_set_shape.unwrap()
+    if equals(widget, set_shape) {
+        _visual_set_shape_colour()
+        return
+    }
+    random_shape: Widget = v_random_shape.unwrap()
+    if equals(widget, random_shape) {
+        _visual_random_shape()
+        return
+    }
+    default_shape: Widget = v_default_shape.unwrap()
+    if equals(widget, default_shape) {
+        _visual_default_shape()
+        return
+    }
+    set_origin: Widget = v_set_origin.unwrap()
+    if equals(widget, set_origin) {
+        _visual_set_origin_colour()
+        return
+    }
+    random_origin: Widget = v_random_origin.unwrap()
+    if equals(widget, random_origin) {
+        _visual_random_origin()
+        return
+    }
+    default_origin: Widget = v_default_origin.unwrap()
+    if equals(widget, default_origin) {
+        _visual_default_origin()
+        return
+    }
+    set_cube: Widget = v_set_cube.unwrap()
+    if equals(widget, set_cube) {
+        _visual_set_cube_size()
+        return
+    }
+    default_cube: Widget = v_default_cube.unwrap()
+    if equals(widget, default_cube) {
+        _visual_default_cube_size()
+        return
+    }
+    _visual_slider_text(widget)
+}
+
+# VisualisationScreen.init after super.init, in the reference's add order: the shape colour sliders and
+# buttons at x 5, the origin ones at x 140, the depth-test checkbox under them, and the cube size
+# sliders and buttons at x 140 from y 235. Each slider's initial value is the current set's, capped
+# the way getShapeCubeSize caps it, or the ShapeSet default when there is no set. The disable block
+# runs before the widgets are added in the reference, and after here, which is the same state.
+
+local _visualisation_init(width: number) {
+    _chrome_init(visualisation_screen, width, "visualisation", _state_enabled())
+    available: bool = _state_set_count() > 0
+    shape_r: number = _visual_channel("shapeColour", 0, 1.0)
+    shape_g: number = _visual_channel("shapeColour", 1, 1.0)
+    shape_b: number = _visual_channel("shapeColour", 2, 1.0)
+    shape_a: number = _visual_channel("shapeColour", 3, 0.5)
+    origin_r: number = _visual_channel("originColour", 0, 1.0)
+    origin_g: number = _visual_channel("originColour", 1, 0.0)
+    origin_b: number = _visual_channel("originColour", 2, 0.0)
+    origin_a: number = _visual_channel("originColour", 3, 0.5)
+    shape_cube: number = _visual_cube("shapeCubeSize", 0.6)
+    origin_cube: number = _visual_cube("originCubeSize", 0.2)
+    s1: Widget = visualisation_screen.add_slider("shape_r", _visual_label("R", shape_r), 0.0, 1.0, shape_r, 5, 70, 120, 20)
+    v_shape_r.set(s1)
+    s2: Widget = visualisation_screen.add_slider("shape_g", _visual_label("G", shape_g), 0.0, 1.0, shape_g, 5, 90, 120, 20)
+    v_shape_g.set(s2)
+    s3: Widget = visualisation_screen.add_slider("shape_b", _visual_label("B", shape_b), 0.0, 1.0, shape_b, 5, 110, 120, 20)
+    v_shape_b.set(s3)
+    s4: Widget = visualisation_screen.add_slider("shape_a", _visual_label("A", shape_a), 0.0, 1.0, shape_a, 5, 130, 120, 20)
+    v_shape_a.set(s4)
+    b1: Widget = visualisation_screen.add_button("set_shape", "Set", 5, 150, 120, 20)
+    v_set_shape.set(b1)
+    b2: Widget = visualisation_screen.add_button("set_shape_random", "Set random", 5, 170, 120, 20)
+    v_random_shape.set(b2)
+    b3: Widget = visualisation_screen.add_button("default_shape", "Default", 5, 190, 120, 20)
+    v_default_shape.set(b3)
+    s5: Widget = visualisation_screen.add_slider("origin_r", _visual_label("R", origin_r), 0.0, 1.0, origin_r, 140, 70, 120, 20)
+    v_origin_r.set(s5)
+    s6: Widget = visualisation_screen.add_slider("origin_g", _visual_label("G", origin_g), 0.0, 1.0, origin_g, 140, 90, 120, 20)
+    v_origin_g.set(s6)
+    s7: Widget = visualisation_screen.add_slider("origin_b", _visual_label("B", origin_b), 0.0, 1.0, origin_b, 140, 110, 120, 20)
+    v_origin_b.set(s7)
+    s8: Widget = visualisation_screen.add_slider("origin_a", _visual_label("A", origin_a), 0.0, 1.0, origin_a, 140, 130, 120, 20)
+    v_origin_a.set(s8)
+    b4: Widget = visualisation_screen.add_button("set_origin", "Set", 140, 150, 120, 20)
+    v_set_origin.set(b4)
+    b5: Widget = visualisation_screen.add_button("set_origin_random", "Set random", 140, 170, 120, 20)
+    v_random_origin.set(b5)
+    b6: Widget = visualisation_screen.add_button("default_origin", "Default", 140, 190, 120, 20)
+    v_default_origin.set(b6)
+    depth: Widget = visualisation_screen.add_checkbox("depth_test", "", _visual_depth(), 5, 235, 20, 20)
+    v_depth.set(depth)
+    s9: Widget = visualisation_screen.add_slider("shape_cube", _visual_label("Shape", shape_cube), 0.0, 1.0, shape_cube, 140, 235, 120, 20)
+    v_shape_cube.set(s9)
+    s10: Widget = visualisation_screen.add_slider("origin_cube", _visual_label("Origin", origin_cube), 0.0, 1.0, origin_cube, 140, 255, 120, 20)
+    v_origin_cube.set(s10)
+    b7: Widget = visualisation_screen.add_button("set_cube", "Set", 140, 275, 120, 20)
+    v_set_cube.set(b7)
+    b8: Widget = visualisation_screen.add_button("default_cube", "Default", 140, 295, 120, 20)
+    v_default_cube.set(b8)
+    if not available {
+        s1.set_active(false)
+        s2.set_active(false)
+        s3.set_active(false)
+        s4.set_active(false)
+        s5.set_active(false)
+        s6.set_active(false)
+        s7.set_active(false)
+        s8.set_active(false)
+        b1.set_active(false)
+        b2.set_active(false)
+        b3.set_active(false)
+        b4.set_active(false)
+        b5.set_active(false)
+        b6.set_active(false)
+    }
+}
+
+# VisualisationScreen.render after super.render: two underlined headings over the colour columns, the
+# Rendering heading over the depth-test box, the box's label to its right, and the Cube size heading.
+
+local _visualisation_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    _draw_centred(ctx, "§nShape color", 65, 55, white)
+    _draw_centred(ctx, "§nOrigin color", 200, 55, white)
+    _draw_centred(ctx, "§nRendering", 65, 220, white)
+    ctx.draw_text("Depth test", 30, 240, white)
+    _draw_centred(ctx, "§nCube size", 200, 220, white)
+}
+
+# A slider's label follows its handle: the reference's updateMessage is `name + ": " + round(10v)/10`,
+# which a drag reaches through widget_changed. Every slider's own name is remembered here because the
+# host keeps the text, not the format.
+
+local _visual_slider_text(widget: Widget) {
+    if equals(widget, v_shape_r.unwrap()) {
+        _visual_put_slider(widget, "R", widget.value())
+    } else if equals(widget, v_shape_g.unwrap()) {
+        _visual_put_slider(widget, "G", widget.value())
+    } else if equals(widget, v_shape_b.unwrap()) {
+        _visual_put_slider(widget, "B", widget.value())
+    } else if equals(widget, v_shape_a.unwrap()) {
+        _visual_put_slider(widget, "A", widget.value())
+    } else if equals(widget, v_origin_r.unwrap()) {
+        _visual_put_slider(widget, "R", widget.value())
+    } else if equals(widget, v_origin_g.unwrap()) {
+        _visual_put_slider(widget, "G", widget.value())
+    } else if equals(widget, v_origin_b.unwrap()) {
+        _visual_put_slider(widget, "B", widget.value())
+    } else if equals(widget, v_origin_a.unwrap()) {
+        _visual_put_slider(widget, "A", widget.value())
+    } else if equals(widget, v_shape_cube.unwrap()) {
+        _visual_put_slider(widget, "Shape", widget.value())
+    } else {
+        _visual_put_slider(widget, "Origin", widget.value())
+    }
+}
+
+# ShapeSet.setShapeColour on the current set, and the other three setters the same way. A set the
+# state does not have is what isShapeAvailable refuses, so nothing is written then.
+
+local _visual_set_shape_colour() {
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeColour", _visual_colour_text(v_shape_r.unwrap().value(), v_shape_g.unwrap().value(), v_shape_b.unwrap().value(), v_shape_a.unwrap().value()))
+}
+
+# setShapeColour with three fresh draws and the slider's own alpha. The reference makes a new Random,
+# so its sequence is untouched; this port draws from the level, which about.json records (#1846).
+
+local _visual_random_shape() {
+    if _state_set_count() == 0 {
+        return
+    }
+    if not world_level.has() {
+        return
+    }
+    level: Level = world_level.unwrap()
+    r: number = level.random_float()
+    g: number = level.random_float()
+    b: number = level.random_float()
+    _visual_put_slider(v_shape_r.unwrap(), "R", r)
+    _visual_put_slider(v_shape_g.unwrap(), "G", g)
+    _visual_put_slider(v_shape_b.unwrap(), "B", b)
+    _visual_write("shapeColour", _visual_colour_text(r, g, b, v_shape_a.unwrap().value()))
+}
+
+# The Default button moves the four sliders whether or not a set is there, and writes the colour only
+# when one is, which is the reference's guard after the sliders.
+
+local _visual_default_shape() {
+    _visual_put_slider(v_shape_r.unwrap(), "R", 1.0)
+    _visual_put_slider(v_shape_g.unwrap(), "G", 1.0)
+    _visual_put_slider(v_shape_b.unwrap(), "B", 1.0)
+    _visual_put_slider(v_shape_a.unwrap(), "A", 0.5)
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeColour", "1.0,1.0,1.0,0.5")
+}
+
+local _visual_set_origin_colour() {
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("originColour", _visual_colour_text(v_origin_r.unwrap().value(), v_origin_g.unwrap().value(), v_origin_b.unwrap().value(), v_origin_a.unwrap().value()))
+}
+
+local _visual_random_origin() {
+    if _state_set_count() == 0 {
+        return
+    }
+    if not world_level.has() {
+        return
+    }
+    level: Level = world_level.unwrap()
+    r: number = level.random_float()
+    g: number = level.random_float()
+    b: number = level.random_float()
+    _visual_put_slider(v_origin_r.unwrap(), "R", r)
+    _visual_put_slider(v_origin_g.unwrap(), "G", g)
+    _visual_put_slider(v_origin_b.unwrap(), "B", b)
+    _visual_write("originColour", _visual_colour_text(r, g, b, v_origin_a.unwrap().value()))
+}
+
+local _visual_default_origin() {
+    _visual_put_slider(v_origin_r.unwrap(), "R", 1.0)
+    _visual_put_slider(v_origin_g.unwrap(), "G", 0.0)
+    _visual_put_slider(v_origin_b.unwrap(), "B", 0.0)
+    _visual_put_slider(v_origin_a.unwrap(), "A", 0.5)
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("originColour", "1.0,0.0,0.0,0.5")
+}
+
+# setCubeSize writes both sizes at once, from the two sliders, with no cap: the cap is getCubeSize's,
+# and an uncapped 1.0 still draws at the capped size.
+
+local _visual_set_cube_size() {
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeCubeSize", String.from_double(v_shape_cube.unwrap().value()))
+    _visual_write("originCubeSize", String.from_double(v_origin_cube.unwrap().value()))
+}
+
+local _visual_default_cube_size() {
+    _visual_put_slider(v_shape_cube.unwrap(), "Shape", 0.6)
+    _visual_put_slider(v_origin_cube.unwrap(), "Origin", 0.2)
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeCubeSize", "0.6")
+    _visual_write("originCubeSize", "0.2")
+}
+
+# One field of the current set, replaced in the state. The setters above all end here, so a set the
+# state does not have is the only case left out.
+
+local _visual_write(key: string, value: string) {
+    count: number = _state_set_count()
+    if count == 0 {
+        return
+    }
+    index: number = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, count - 1)
+    set: string = _state_set_at(state, index)
+    set = _set_with_field(set, key, value)
+    state = _state_with_set(state, index, set)
+}
+
+# Four slider values as ShapeSet stores them: each narrowed to a float, then Float.toString.
+
+local _visual_colour_text(r: number, g: number, b: number, a: number) string {
+    return String.concat(String.concat(String.from_float(r), ","), String.concat(String.concat(String.from_float(g), ","), String.concat(String.concat(String.from_float(b), ","), String.from_float(a))))
+}
+
+# A slider's handle and label together, which is what the reference's setSliderValue plus updateText
+# do in that order.
+
+local _visual_put_slider(slider: Widget, name: string, value: number) {
+    slider.set_value(value)
+    slider.set_text(_visual_label(name, value))
+}
+
+# `name + ": " + Math.round(10.0 * value) / 10.0`, the message SliderImpl builds. Math.round of NaN
+# is 0, and of an infinity is the long's end, which is why the scaled value is clamped there.
+
+local _visual_label(name: string, value: number) string {
+    return String.concat(String.concat(name, ": "), _tenth(value))
+}
+
+local _tenth(value: number) string {
+    scaled: number = 0.0
+    if value == value {
+        scaled = Math.floor(value * 10.0 + 0.5)
+        if scaled > 9223372036854775807.0 {
+            scaled = 9223372036854775807.0
+        } else if scaled < -9223372036854775808.0 {
+            scaled = -9223372036854775808.0
+        }
+    }
+    return String.from_double(scaled / 10.0)
+}
+
+# One channel of the current set's colour, or the ShapeSet default when the state has no set. The
+# sliders ask this on every init, so a reopened screen shows the set's colours again.
+
+local _visual_channel(key: string, index: number, fallback: number) number {
+    if _state_set_count() == 0 {
+        return fallback
+    }
+    return _value_float(_set_field_value(_state_current_set(), key), index)
+}
+
+# A cube-size slider's initial value, capped the way ShapeSet.getShapeCubeSize caps it.
+
+local _visual_cube(key: string, fallback: number) number {
+    if _state_set_count() == 0 {
+        return fallback
+    }
+    return _cube_size(_state_current_set(), key, fallback)
+}
+
+local _visual_depth() bool {
+    return _state_field(state, "depthTest", "true") == "true"
+}
+
+# drawShadowCentred: the text's top-left is half its width left of the centre, floored as Java's
+# integer division floors it.
+
+local _draw_centred(ctx: OverlayRenderContext, text: string, x: number, y: number, colour: Color) {
+    ctx.draw_text(text, x - Math.floor(ctx.text_width(text) / 2), y, colour)
+}
 # The count as the reference prints it: the number, then how many whole stacks of 64 it is and what
 # is left over, which is Java's `n + " (" + (n / 64) + " x 64 + " + (n % 64) + ")"` for an int.
 

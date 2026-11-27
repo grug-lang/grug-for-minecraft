@@ -58,8 +58,16 @@ export tick(ctx: TestTickContext) {
 
     if not tabbed {
         # The Configuration tab is the fourth chrome button, at x 380 to 500 and y 30 to 50 in
-        # GUI-scaled pixels, as the reference lays the four tabs out.
-        ctx.click_screen(440, 40, 0)
+        # GUI-scaled pixels, as the reference lays the four tabs out. The window is 426 scaled pixels
+        # wide at the CI client's own scale, so the tab is cut off there and its visible part is
+        # clicked; 416 is inside it at any width of 426 or more.
+        width: number = ctx.screen_width()
+        ctx.assert(width >= 400, "The window should be wide enough to show the fourth tab.")
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
         tabbed = true
         waited = 0
         ctx.not_done()

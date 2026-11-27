@@ -1,0 +1,450 @@
+# Slice 3 of #1752's screens on the Visualisation tab: a click on a slider's track moves its handle
+# and changes nothing else, the Set button is what writes the set's colour, and a close saves what
+# was written. The click stands in for a drag, because the host asks screen_widget_changed for a click
+# on the track the way it does for a drag, and the reference's slider effect is empty, so neither
+# writes on its own. The depth-test checkbox is the tab's one checkbox and writes its state line at
+# once. Persistence is turned on for the saves and put back as the run found it, and the colour and
+# depth test are restored to their defaults, so a later capture test sees the default white guide.
+step: number = 0
+waited: number = 0
+was_persistent: bool = false
+
+export tick(ctx: TestTickContext) {
+    if step == 0 {
+        if not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        # The persistence value the config file holds before the test. Every save below needs it on,
+        # because a reference screen close only writes the state when persistence is enabled.
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
+        step = 1
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should open Build Guide's screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Configuration tab is the fourth chrome button, at x 380 to 500 and y 30 to 50. The CI
+        # window is 426 scaled pixels wide at the client's own scale, so the tab is cut off there and
+        # its visible part is clicked.
+        width: number = ctx.screen_width()
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if was_persistent {
+            step = 4
+            ctx.not_done()
+            return
+        }
+        # The persistence checkbox is ConfigurationScreen's third box, at (255, 160).
+        ctx.click_screen(262, 168, 0)
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Ticking persistence should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0, "Ticking persistence should write its value.")
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        # The Visualization tab is the second chrome button, at x 130 to 250 and y 30 to 50.
+        ctx.click_screen(140, 40, 0)
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Visualization tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Default puts the four shape-colour sliders back to 1, 1, 1, 0.5 and writes that colour,
+        # which is the state the read-only drag is shown not to change.
+        ctx.click_screen(65, 200, 0)
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_shape_colour(state) == "1.0,1.0,1.0,0.5", "The Default button should write the default shape colour before the slider moves.")
+        step = 8
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        # The tab is remembered between openings, so a second visit lands on the Visualization screen;
+        # the tab is clicked anyway so the test does not depend on what an earlier test left open.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(140, 40, 0)
+        step = 9
+        ctx.not_done()
+        return
+    }
+
+    if step == 9 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Visualization screen should draw again.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The shape R slider is at (5, 70) and 120 wide, so a click at its left end moves the handle
+        # to the bottom of the track. The drag only moves the handle and its label.
+        ctx.click_screen(10, 80, 0)
+        step = 10
+        ctx.not_done()
+        return
+    }
+
+    if step == 10 {
+        # Set reads the four sliders and writes the colour.
+        ctx.click_screen(65, 160, 0)
+        step = 11
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        # The depth-test box at (5, 235) is unticked next, which writes its own state line.
+        ctx.click_screen(10, 243, 0)
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 13
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after Set.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        r: number = _colour_r(state)
+        ctx.assert(r >= 0, "The saved state should hold the set's shape colour.")
+        ctx.assert(r < 0.2, "A click at the slider's left end and then Set should write a small red channel.")
+        ctx.assert(String.index_of(state, "depthTest=false") >= 0, "Unticking the depth test should write its state line.")
+        step = 14
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        # A second click on the slider's track, this time at its right end, and no Set: the saved
+        # colour must still be the small red channel, which proves the click alone writes nothing.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the read-only step.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(140, 40, 0)
+        step = 15
+        ctx.not_done()
+        return
+    }
+
+    if step == 15 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Visualization screen should draw for the read-only step.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(120, 80, 0)
+        step = 16
+        ctx.not_done()
+        return
+    }
+
+    if step == 16 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 17
+        ctx.not_done()
+        return
+    }
+
+    if step == 17 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the read-only click.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        r: number = _colour_r(state)
+        ctx.assert(r >= 0, "The saved state should still hold the set's shape colour.")
+        ctx.assert(r < 0.2, "A slider click without Set should leave the saved colour alone.")
+        ctx.assert(String.index_of(state, "depthTest=false") >= 0, "A slider click should leave the depth test alone.")
+        step = 18
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 18 {
+        # Put the colour and the depth test back to ShapeSet's defaults for the tests after this one.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the restore.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(140, 40, 0)
+        step = 19
+        ctx.not_done()
+        return
+    }
+
+    if step == 19 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Visualization screen should draw for the restore.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 200, 0)
+        step = 20
+        ctx.not_done()
+        return
+    }
+
+    if step == 20 {
+        ctx.click_screen(10, 243, 0)
+        step = 21
+        ctx.not_done()
+        return
+    }
+
+    if step == 21 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 22
+        ctx.not_done()
+        return
+    }
+
+    if step == 22 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the restore.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_shape_colour(state) == "1.0,1.0,1.0,0.5", "The restore should write the default shape colour.")
+        ctx.assert(String.index_of(state, "depthTest=true") >= 0, "The restore should tick the depth test again.")
+        if was_persistent {
+            return
+        }
+        step = 23
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 23 {
+        # The run found persistence off, so the Configuration tab's box is ticked back off.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen to put persistence back.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        width: number = ctx.screen_width()
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
+        step = 24
+        ctx.not_done()
+        return
+    }
+
+    if step == 24 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(262, 168, 0)
+        step = 25
+        ctx.not_done()
+        return
+    }
+
+    if step == 25 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
+        ctx.press_screen_key(256, false, false, true)
+        step = 26
+        ctx.not_done()
+        return
+    }
+
+    if step == 26 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the Configuration screen.")
+            ctx.not_done()
+            return
+        }
+    }
+}
+
+# The state text the mod saved for this world, which is the one file under buildguide that holds a
+# set. A test that runs before the first save gets an empty directory and fails the assertion.
+
+local _saved_state(ctx: TestTickContext) string {
+    files: File = File.open(r"files")
+    count: number = files.entry_count("buildguide")
+    i: number = 0
+    while i < count {
+        name: string = files.entry_name("buildguide", i)
+        text: Option[string] = files.read_text(String.concat("buildguide/", name))
+        if text.has() {
+            state: string = text.unwrap()
+            if String.index_of(state, "shapeSet=") >= 0 {
+                return state
+            }
+        }
+        i = i + 1
+    }
+    ctx.assert(false, "The close should have saved a state with a set.")
+    return ""
+}
+
+# The shapeColour field's four values, from the saved state, as one text.
+
+local _shape_colour(state: string) string {
+    at: number = String.index_of(state, "shapeColour=")
+    if at < 0 {
+        return ""
+    }
+    rest: string = String.substring(state, at + 12, String.length(state))
+    semicolon: number = String.index_of(rest, ";")
+    if semicolon < 0 {
+        return ""
+    }
+    return String.substring(rest, 0, semicolon)
+}
+
+# The shape colour's red channel, or -1 when the state holds none.
+
+local _colour_r(state: string) number {
+    text: string = _shape_colour(state)
+    comma: number = String.index_of(text, ",")
+    if comma < 0 {
+        return -1
+    }
+    parsed: Option[number] = String.to_float(String.substring(text, 0, comma))
+    if parsed.has() {
+        return parsed.unwrap()
+    }
+    return -1
+}
