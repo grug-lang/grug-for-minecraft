@@ -3722,6 +3722,9 @@ local _shapelist_init(width: number, height: number) {
     _shapelist_active()
     _shapelist_rows()
     _shapelist_fields()
+    n_open.unwrap().set_visible(not dropdown_open)
+    n_close.unwrap().set_visible(dropdown_open)
+    n_list.unwrap().set_visible(dropdown_open)
     if dropdown_open {
         _shapelist_dropdown_visible()
     }
@@ -4188,6 +4191,9 @@ local _shape_init(width: number, height: number) {
     _shape_active(_shape_available())
     _shape_fields()
     _shape_relayout()
+    q_open.unwrap().set_visible(not dropdown_open)
+    q_close.unwrap().set_visible(dropdown_open)
+    q_list.unwrap().set_visible(dropdown_open)
     if dropdown_open {
         _shape_dropdown_visible()
     }
