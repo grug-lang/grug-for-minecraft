@@ -97,6 +97,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     /**
+     * A dedicated server has no screen to show, so a mod's {@code Screen.new()} is refused here
+     * rather than reaching the client-only host the base adapter makes.
+     */
+    @Override
+    public boolean ownedScreensSupported() {
+        return false;
+    }
+
+    /**
      * Opens the block entity's GUI as this server's own menu and has the joined client show it
      * (#1098). Beta's {@code GUI.open} used to build the screen on the client alone, so a click
      * from it carried slot ids for a menu this server did not have; now both sides build the same
