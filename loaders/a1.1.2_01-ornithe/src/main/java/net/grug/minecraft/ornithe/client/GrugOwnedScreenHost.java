@@ -31,11 +31,11 @@ import java.util.Map;
  *
  * <p>Core owns the lifecycle, the widget model and the ordering: this class adds only what this
  * version has to add. A button is a vanilla {@link ButtonWidget}, and a slider subclasses it with
- * the same face, its label and a handle drawn on top, because this version's own slider is a game
- * option's widget. This version has no checkbox, no text field and no placeable list at all, so all
- * three are drawn and edited by hand from the model, and the wheel is taken in this class's own
- * mouse handler, which overrides the one the shared mixin hooks. The text field gets the caret, the
- * selection and Ctrl+A, C, X and V that a mod expects, against the contract {@code
+ * the same face and label, drawing its handle between the two, because this version's own slider is
+ * a game option's widget. This version has no checkbox, no text field and no placeable list at all,
+ * so all three are drawn and edited by hand from the model, and the wheel is taken in this class's
+ * own mouse handler, which overrides the one the shared mixin hooks. The text field gets the caret,
+ * the selection and Ctrl+A, C, X and V that a mod expects, against the contract {@code
  * Screen.add_text_field} promises.
  *
  * <p>The press reaches {@code screen_click} before the widget under the mouse, and {@code take()}
@@ -76,6 +76,13 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
 
     /** The tick inside a checked box. */
     private static final int CHECKBOX_MARK = 0xFFFFFFFF;
+
+    /**
+     * The side of a checkbox's own box. The box keeps this size whatever width and height the mod
+     * declared, as {@code mod_api.json} promises for the game's own checkbox, which is 9 + 8 on
+     * 1.20.6; the label sits four pixels to its right.
+     */
+    private static final int CHECKBOX_BOX = 17;
 
     /** The border and interior of the hand-drawn text field, as this version's own field draws. */
     private static final int FIELD_BORDER = 0xFFA0A0A0;
@@ -299,7 +306,7 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         syncWidgets();
         for (GrugWidget widget : screen.widgets()) {
             if (!widget.visible() || !widget.active()) continue;
-            if (!widget.contains(x, y)) continue;
+            if (!pressReaches(widget, x, y)) continue;
             if (widget.kind() == GrugWidgetKind.TEXT_FIELD) {
                 Field field = fields.get(widget);
                 if (field != null) {
@@ -564,23 +571,44 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
 
     // --- Drawing the widgets this version has none of -------------------------------------------
 
-    /** The hand-drawn checkbox: this version has none, so its box and tick are drawn here. */
+    /**
+     * Whether a press at this point is on the widget the frame drew. A checkbox is a square of the
+     * box's own size with its label beside it, whatever rectangle the mod declared, so the empty
+     * space past a wide declaration is not part of it, as it is not on the game's own checkbox.
+     * Every other widget draws the rectangle it was given.
+     */
+    private boolean pressReaches(GrugWidget widget, int x, int y) {
+        if (widget.kind() != GrugWidgetKind.CHECKBOX) return widget.contains(x, y);
+        String label = widget.text();
+        int width = CHECKBOX_BOX + 4;
+        if (label != null && !label.isEmpty()) {
+            width += textRenderer.getWidth(label);
+        }
+        int left = round(widget.x());
+        int top = round(widget.y());
+        return x >= left && x < left + width && y >= top && y < top + CHECKBOX_BOX;
+    }
+
+    /**
+     * The hand-drawn checkbox: this version has none, so its box and tick are drawn here, at the
+     * box's own size whatever rectangle the mod declared.
+     */
     private void drawCheckbox(GrugWidget widget) {
         int left = round(widget.x());
         int top = round(widget.y());
-        int right = left + Math.max(1, round(widget.width()));
-        int bottom = top + Math.max(1, round(widget.height()));
+        int right = left + CHECKBOX_BOX;
+        int bottom = top + CHECKBOX_BOX;
         fill(left, top, right, bottom, CHECKBOX_BORDER);
         fill(left + 1, top + 1, right - 1, bottom - 1, CHECKBOX_INTERIOR);
         if (widget.checked()) {
-            drawTick(left, top, right - left, bottom - top);
+            drawTick(left, top, CHECKBOX_BOX, CHECKBOX_BOX);
         }
         String label = widget.text();
         if (label != null && !label.isEmpty()) {
             textRenderer.drawWithShadow(
                     label,
                     right + 4,
-                    top + (bottom - top - 8) / 2,
+                    top + (CHECKBOX_BOX - 8) / 2,
                     widget.active() ? LABEL : LABEL_DISABLED);
         }
     }
@@ -771,9 +799,12 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             return 0;
         }
 
+        /**
+         * Draws the handle where this version's own slider does: inside the button's own render,
+         * before the label is drawn over it, so a label that crosses the handle stays readable.
+         */
         @Override
-        public void render(Minecraft minecraft, int mouseX, int mouseY) {
-            super.render(minecraft, mouseX, mouseY);
+        protected void renderBackground(Minecraft minecraft, int mouseX, int mouseY) {
             if (!this.visible) return;
             GL11.glBindTexture(3553, minecraft.textureManager.load("/gui/gui.png"));
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
