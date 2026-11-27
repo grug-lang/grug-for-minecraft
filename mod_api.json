@@ -4063,7 +4063,7 @@
 					]
 				},
 				"add_slider": {
-					"description": "Declares a slider whose handle starts at `value` on the track from `min` to `max`, with `text` drawn as its message, and answers its Widget. The slider draws its message across a track and moves a handle along that track to the value a drag or a click on the track names, on every loader, whether it borrows the game's own widget or draws the track itself. The max has to be greater than the min and both have to be finite, or the handle has nowhere to move and it is an err; `value` may lie outside that range, and the handle is placed at the fraction of the track that names it. A later `screen_init` that declares the same name answers the same Widget, moved and re-declared from these arguments. A drag or a click on the track asks `screen_widget_changed` once per value the handle passes through. The other rules are `add_button`'s: only in `screen_init`, and the same name twice in one `screen_init` or a name of another kind is an err.",
+					"description": "Declares a slider whose handle starts at `value` on the track from `min` to `max`, with `text` drawn as its message, and answers its Widget. The slider draws its message across a track and moves a handle along that track to the value a drag or a click on the track names, on every loader, whether it borrows the game's own widget or draws the track itself. The max has to be greater than the min and both have to be finite, or the handle has nowhere to move and it is an err; `value` is brought into that range, so a value below the min starts at the min and one above the max starts at the max, which is what the game's own slider does with a value it is given. A later `screen_init` that declares the same name answers the same Widget, moved and re-declared from these arguments. A drag or a click on the track asks `screen_widget_changed` once per value the handle passes through. The other rules are `add_button`'s: only in `screen_init`, and the same name twice in one `screen_init` or a name of another kind is an err.",
 					"return_type": {
 						"name": "Widget"
 					},
@@ -5277,6 +5277,12 @@
 						"name": "bool"
 					}
 				},
+				"list_row_error": {
+					"description": "Test only: the first err any screen_list_row export of the most recent frame that asked for a row reported, or the empty string when no row that frame asked for broke a rule. A row export is asked by the screen's frame pass, between two ticks of the test, so an err it reports outside a call of the test's own cannot be matched with expect_error; this answers instead, which is how a test says that an export answering twice, answering a row it already answered, using the response after the call returned or returning without answering was reported. The answer belongs to the most recent frame that asked for a row of a screen this mod opened, and a frame that asks for no row keeps the answer of the last frame that did. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "string"
+					}
+				},
 				"load_nbt": {
 					"description": "Test only: writes a block entity's NBT, applies the edits staged for it in the order they were staged, and has the world load a block entity from the result as a chunk load does: the old block entity is removed, and a new one is created from the NBT before it enters the world, so a mod whose block entity depends on that order loads as it would from a save. The handle names the removed block entity afterwards, so get the block entity at its position again. A path that does not fit the NBT and a block entity with nothing staged are reported, and then nothing is replaced. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [
@@ -5981,7 +5987,7 @@
 					]
 				},
 				"set_value": {
-					"description": "Moves a slider's handle to the point on its track that `value` names, silently, with no clamp: a value above the max puts the handle past the end of the track and `value()` answers that value, which is what the reference's own `setSliderValue` does, so a mod clamps its value before it sets one. Asking a widget that is not a slider is an err naming its kind.",
+					"description": "Moves a slider's handle to `value`, silently, brought into the slider's range: a value above the max moves the handle to the max and `value()` answers the max, and a value below the min answers the min, which is what the game's own slider does with a value it is given. The min and the max do not move. Asking a widget that is not a slider is an err naming its kind.",
 					"parameters": [
 						{
 							"name": "value",

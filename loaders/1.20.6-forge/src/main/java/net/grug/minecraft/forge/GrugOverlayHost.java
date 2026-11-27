@@ -18,6 +18,7 @@ import net.grug.minecraft.grug.GrugMetadata;
 import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOverlayScripts;
+import net.grug.minecraft.grug.GrugOwnedScreens;
 import net.grug.minecraft.grug.GrugScreenBox;
 import net.grug.minecraft.grug.GrugScreenItemDraw;
 import net.grug.minecraft.grug.GrugScreenText;
@@ -38,6 +39,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ScreenEvent;
@@ -152,32 +154,40 @@ public final class GrugOverlayHost {
                 }
             }
 
-            for (GrugScreenItemDraw item : geometry.items()) {
-                graphics.renderItem(
-                        new ItemStack((Item) item.item()), (int) item.x(), (int) item.y());
-            }
-            for (GrugScreenText text : geometry.texts()) {
-                graphics.drawString(
-                        Minecraft.getInstance().font,
-                        text.text(),
-                        (int) text.x(),
-                        (int) text.y(),
-                        0xFF000000 | text.rgb());
-            }
-            for (GrugScreenBox box : geometry.boxes()) {
-                graphics.fill(
-                        (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
-            }
-            // The tooltip goes last, so it lies over the screen and over the overlay's own drawing.
-            // This version's own tooltip is the look: its default positioner flips one that would
-            // run off the window, as vanilla's does.
-            for (GrugScreenTooltip tooltip : geometry.tooltips()) {
-                graphics.renderTooltip(
-                        Minecraft.getInstance().font,
-                        Component.literal(tooltip.text()),
-                        (int) tooltip.x(),
-                        (int) tooltip.y());
-            }
+            drawGeometry(graphics, geometry);
+        }
+    }
+
+    /**
+     * Draws what one render pass recorded: the item icons, texts, highlight boxes and tooltips, in
+     * the order it drew them. An overlay's pass and a mod screen's {@code screen_render} both land
+     * here, so the two draws look the same and the tooltip stays over everything else.
+     */
+    public static void drawGeometry(GuiGraphics graphics, GrugOverlayGeometry geometry) {
+        for (GrugScreenItemDraw item : geometry.items()) {
+            graphics.renderItem(new ItemStack((Item) item.item()), (int) item.x(), (int) item.y());
+        }
+        for (GrugScreenText text : geometry.texts()) {
+            graphics.drawString(
+                    Minecraft.getInstance().font,
+                    text.text(),
+                    (int) text.x(),
+                    (int) text.y(),
+                    0xFF000000 | text.rgb());
+        }
+        for (GrugScreenBox box : geometry.boxes()) {
+            graphics.fill(
+                    (int) box.x1(), (int) box.y1(), (int) box.x2(), (int) box.y2(), HIGHLIGHT);
+        }
+        // The tooltip goes last, so it lies over the screen and over the overlay's own drawing.
+        // This version's own tooltip is the look: its default positioner flips one that would run
+        // off the window, as vanilla's does.
+        for (GrugScreenTooltip tooltip : geometry.tooltips()) {
+            graphics.renderTooltip(
+                    Minecraft.getInstance().font,
+                    Component.literal(tooltip.text()),
+                    (int) tooltip.x(),
+                    (int) tooltip.y());
         }
     }
 
@@ -190,6 +200,17 @@ public final class GrugOverlayHost {
         if (eligible(event.getScreen()) == null) return;
         heldKey = -1;
         GrugOverlay.screenOpened();
+    }
+
+    /**
+     * Ends a mod screen's open time before the world it draws over goes away, so its {@code
+     * screen_closed} runs while the world still exists. The game tears the screen down moments
+     * later, and telling core here rather than from the teardown is what lets a mod save what its
+     * screen changed with the world still readable.
+     */
+    @SubscribeEvent
+    public static void onPlayerLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+        GrugOwnedScreens.worldUnloaded();
     }
 
     /**
@@ -345,7 +366,7 @@ public final class GrugOverlayHost {
      * bar and of backspace, and GLFW's own codes of the keys with no character of their own, which
      * are the API's numbers from 256 up, so every loader gives the same number.
      */
-    static int overlayKey(int glfwKey) {
+    public static int overlayKey(int glfwKey) {
         if (glfwKey == GLFW_KEY_BACKSPACE) return GrugOverlay.KEY_BACKSPACE;
         if (glfwKey == GLFW_KEY_SPACE) return GrugOverlay.KEY_SPACE;
         // GLFW's own codes for the keys with no character are the API's, so they pass through.
@@ -400,7 +421,7 @@ public final class GrugOverlayHost {
      * The modifier bit that counts as control for the hotkey: Command on macOS and Control
      * elsewhere, which is what {@code Screen.hasControlDown} (and JEI's CONTROL_OR_COMMAND) tests.
      */
-    static int controlModifier() {
+    public static int controlModifier() {
         return Minecraft.ON_OSX ? GLFW_MOD_SUPER : GLFW_MOD_CONTROL;
     }
 
@@ -409,7 +430,7 @@ public final class GrugOverlayHost {
      * together they say the event is that keyboard layout's character and not a control chord
      * (#1741).
      */
-    static int altModifier() {
+    public static int altModifier() {
         return GLFW_MOD_ALT;
     }
 
@@ -417,7 +438,7 @@ public final class GrugOverlayHost {
      * The GLFW modifier bit for shift, which a text field extends its selection with and which a
      * control chord reads beside control.
      */
-    static int shiftModifier() {
+    public static int shiftModifier() {
         return GLFW_MOD_SHIFT;
     }
 

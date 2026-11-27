@@ -914,6 +914,20 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: the err the most recent {@code screen_list_row} export reported, or the empty
+     * string when the row it was asked for broke no rule.
+     *
+     * <p>The host asks for a row from the screen's frame pass, between two of the test's ticks, so
+     * an export that leaves its response unanswered or answers it twice reports with no call of the
+     * test's own to fail and {@code expect_error} cannot match it. The answer is the record {@link
+     * GrugListRowResponse} keeps instead; see #1760.
+     */
+    public static String TestTickContext_list_row_error(long contextId) {
+        if (!requireTickContext("TestTickContext.list_row_error", contextId)) return "";
+        return GrugListRowResponse.lastDefect();
+    }
+
+    /**
      * Test only: whether this loader ever asked an overlay's exports, which is how a test tells a
      * loader that draws overlays on the inventory and container screens from one that does not. The
      * answer stays false on a loader with no overlay, so a test that needs the overlay to have
@@ -5086,8 +5100,25 @@ public class HostFunctions {
     /**
      * The widget {@code widgetId} names, or null after reporting an id that no longer resolves,
      * which is what a handle saved from a screen whose open time ended holds.
+     *
+     * <p>Such an id is dropped by the screen's own end rather than collected, so it is reported as
+     * what it is: a widget of a screen that closed, not an object the collector took while the
+     * script still held it.
      */
     private static GrugWidget widgetOrReport(String method, long widgetId) {
+        String dropped = GrugOwnedScreens.droppedWidgetName(widgetId);
+        if (dropped != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": The widget \""
+                            + dropped
+                            + "\" id "
+                            + widgetId
+                            + " no longer resolves, because the screen it was declared on was"
+                            + " closed and its widgets were dropped.");
+            return null;
+        }
         return withEntity(method, "widget", widgetId, object -> (GrugWidget) object, null);
     }
 

@@ -98,6 +98,7 @@ public final class GrugOwnedScreen {
      */
     void dropWidgets() {
         for (GrugWidget widget : widgets.values()) {
+            GrugOwnedScreens.widgetDropped(widget.entityId, widget.name());
             GrugEntities.removeEntity(widget.entityId, roots);
         }
         widgets.clear();
@@ -202,7 +203,9 @@ public final class GrugOwnedScreen {
         widget.setText(text);
         widget.min = min;
         widget.max = max;
-        widget.value = value;
+        // The game's own slider clamps the value it is given, so a declaration starts at the value
+        // the handle would be drawn at, and value() answers that.
+        widget.value = GrugSliderMath.clamp(value, min, max);
         return Declared.of(widget);
     }
 

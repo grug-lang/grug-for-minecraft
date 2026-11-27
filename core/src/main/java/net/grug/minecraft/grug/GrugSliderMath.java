@@ -7,8 +7,9 @@ package net.grug.minecraft.grug;
  * <p>The reference's slider is the rule: the handle sits at {@code (value - min) / (max - min)},
  * the value is {@code min + fraction * (max - min)}, and the message is the widget's text followed
  * by the value rounded to tenths, {@code Math.round(10.0 * value) / 10.0}. A value outside the
- * range is not clamped, because the API says the handle is placed past the end of the track and
- * {@code value()} answers what was set; only the drawing is clamped.
+ * range is clamped into it, because the reference is a vanilla slider, whose {@code setValue}
+ * clamps, and this API's value is the value the handle is drawn at. The drawing clamp is then only
+ * a guard against a range that is not usable, which {@link #rangeProblem} refuses anyway.
  */
 public final class GrugSliderMath {
 
@@ -42,6 +43,18 @@ public final class GrugSliderMath {
     /** The value a fraction of the track names, unclamped. */
     public static double value(double fraction, double min, double max) {
         return min + fraction * (max - min);
+    }
+
+    /**
+     * The value brought into the slider's range, which is the value the handle is drawn at. A range
+     * that is not usable is left alone, because {@link #rangeProblem} refuses one before any value
+     * is applied to it.
+     */
+    public static double clamp(double value, double min, double max) {
+        if (!Double.isFinite(min) || !Double.isFinite(max) || !(max > min)) return value;
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
     }
 
     /**

@@ -17,12 +17,14 @@ import net.grug.minecraft.core.GrugTestScreens;
 import net.grug.minecraft.core.GrugUseBlockFace;
 import net.grug.minecraft.forge.block.GrugBlock;
 import net.grug.minecraft.forge.block.entity.GrugBlockEntity;
+import net.grug.minecraft.forge.gui.GrugOwnedScreenHost;
 import net.grug.minecraft.forge.mixin.GuiSavingIndicatorAccessor;
 import net.grug.minecraft.forge.mixin.ItemInHandRendererAccessor;
 import net.grug.minecraft.grug.Grug;
 import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugLevelKey;
 import net.grug.minecraft.grug.GrugOverlay;
+import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.grug.GrugScreenshots;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
@@ -936,6 +938,31 @@ public class ClientForgeAdapter extends ForgeAdapter {
         return isScreenOpenForTest()
                 ? GrugTestScreens.identityOf(Minecraft.getInstance().screen)
                 : 0;
+    }
+
+    @Override
+    public boolean ownedScreensSupported() {
+        return true;
+    }
+
+    @Override
+    public void showOwnedScreen(GrugOwnedScreen screen) {
+        // A test ticks on the server thread, so the screen is handed to the client thread and is
+        // up, with its screen_init asked, by the time this returns.
+        onClientThread(() -> Minecraft.getInstance().setScreen(new GrugOwnedScreenHost(screen)));
+    }
+
+    @Override
+    public void hideOwnedScreen(GrugOwnedScreen screen) {
+        onClientThread(
+                () -> {
+                    // Only the screen this loader made for this mod screen is taken away: another
+                    // screen the player opened over it is theirs to keep.
+                    Screen current = Minecraft.getInstance().screen;
+                    if (current instanceof GrugOwnedScreenHost host && host.model() == screen) {
+                        Minecraft.getInstance().setScreen(null);
+                    }
+                });
     }
 
     @Override
