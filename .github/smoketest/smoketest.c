@@ -199,18 +199,13 @@ static union grug_value fail(const char* fmt, ...) {
 // Java's (int) cast of a double, defined with the other converts below.
 static int32_t java_int(double d);
 
-// The three coordinates of a call, floored and narrowed as the Java host narrows a position:
-// (int) Math.floor(x), which saturates at the int ends instead of refusing a finite coordinate. A
-// finite coordinate past 2^31 therefore reads the same block in both hosts (#1849). A non-finite one
-// is still refused by name rather than floored to 0, so a test that passes NaN fails loudly; that
-// refusal already differed from Level.get_block and is not the range this pins.
-static bool pos_arg(const union grug_value a[], long out[3], const char* who) {
-    for (int i = 0; i < 3; i++) {
-        double d = a[1 + i]._number;
-        if (!isfinite(d)) { fail("%s: a coordinate is not a finite number", who); return false; }
-        out[i] = java_int(floor(d));
-    }
-    return true;
+// The three coordinates of a call, floored and narrowed exactly as the Java host narrows a block
+// position: (int) Math.floor(x). java_int answers NaN as 0, saturates both infinities, and saturates
+// every value past the int ends, so no finite or non-finite double reads a different block in the two
+// hosts (#1849). C's floor leaves a non-finite value unchanged and java_int converts it, which is the
+// JDK's own cast.
+static void pos_arg(const union grug_value a[], long out[3]) {
+    for (int i = 0; i < 3; i++) out[i] = java_int(floor(a[1 + i]._number));
 }
 
 // Strings handed to grug must outlive the call; a test's strings are freed with its arena.
@@ -551,7 +546,7 @@ REGISTER(NULL, "set_operator", hf_set_operator);
 static union grug_value Level_is_air(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.is_air")) return none();
+    pos_arg(a, p);
     struct block* b = find_block(p[0], p[1], p[2]);
     return boolean(!b || strcmp(b->name, "minecraft:air") == 0);
 }
@@ -559,7 +554,7 @@ REGISTER("Level", "is_air", Level_is_air);
 static union grug_value Level_get_block(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.get_block")) return none();
+    pos_arg(a, p);
     struct block* b = find_block(p[0], p[1], p[2]);
     return str(b ? b->name : "minecraft:air");
 }
@@ -569,14 +564,14 @@ REGISTER("Level", "get_block", Level_get_block);
 static union grug_value Level_get_block_light(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.get_block_light")) return none();
+    pos_arg(a, p);
     return num(toy_block_light(p[0], p[1], p[2]));
 }
 REGISTER("Level", "get_block_light", Level_get_block_light);
 static union grug_value Level_get_sky_light(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.get_sky_light")) return none();
+    pos_arg(a, p);
     return num(toy_sky_light(p[0], p[1], p[2]));
 }
 REGISTER("Level", "get_sky_light", Level_get_sky_light);
@@ -586,7 +581,7 @@ REGISTER("Level", "get_hostile_block_light_limit", Level_get_hostile_block_light
 static union grug_value Level_is_hostile_spawn_space(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.is_hostile_spawn_space")) return none();
+    pos_arg(a, p);
     return boolean(toy_spawn_space(p[0], p[1], p[2]));
 }
 REGISTER("Level", "is_hostile_spawn_space", Level_is_hostile_spawn_space);
@@ -595,7 +590,7 @@ static long resolve_block_fwd(const char* name);
 static union grug_value Level_place_block(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.place_block")) return none();
+    pos_arg(a, p);
     double x = a[1]._number, y = a[2]._number, z = a[3]._number;
     // expect_place_block_out_of_range-Test asserts the "place_block: the game did not put" text; the
     // 256 limit is the Alpha and Beta height, the tightest of the loaders.
@@ -648,7 +643,7 @@ REGISTER("Level", "explode", Level_explode);
 static union grug_value Level_has_neighbor_signal(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.has_neighbor_signal")) return none();
+    pos_arg(a, p);
     static const long d[6][3] = {{0,-1,0},{0,1,0},{-1,0,0},{1,0,0},{0,0,-1},{0,0,1}};
     bool powered = false;
     for (int i = 0; i < 6; i++) {
@@ -1944,7 +1939,7 @@ static void tick_bes(void) {
 static union grug_value Level_get_block_entity(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a, p, "Level.get_block_entity")) return none();
+    pos_arg(a, p);
     struct be* b = be_at(p[0], p[1], p[2]);
     uint64_t o = new_obj(K_OPTION);
     if (b) { objs[o - 1].has = true; objs[o - 1].val = id(BE_BASE + (uint64_t)(b - bes)); }
@@ -2668,7 +2663,7 @@ REGISTER("TestTickContext", "tick_block_entity", TTC_tick_block_entity);
 static union grug_value TTC_notify_neighbors(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a + 1, p, "TestTickContext.notify_neighbors")) return none();  // SMOKETEST_EXCL: no committed test
+    pos_arg(a + 1, p);
     static const long d[6][3] = {{0,-1,0},{0,1,0},{-1,0,0},{1,0,0},{0,0,-1},{0,0,1}};
     for (int i = 0; i < 6; i++) {
         struct be* b = be_at(p[0] + d[i][0], p[1] + d[i][1], p[2] + d[i][2]);
@@ -2958,7 +2953,7 @@ static union grug_value TTC_use_block(ARGS) {
     if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.use_block: not a Level");  // SMOKETEST_EXCL: no committed test
     // pos_arg reads the coordinates from a[1..3], so shift by one.
     union grug_value shifted[4] = {a[1], a[2], a[3], a[4]};
-    if (!pos_arg(shifted, p, "TestTickContext.use_block")) return none();  // SMOKETEST_EXCL: no committed test clicks a non-finite position
+    pos_arg(shifted, p);
     struct block* b = find_block(p[0], p[1], p[2]);
     const char* name = b ? b->name : "minecraft:air";
     bool handled = false;
@@ -3102,7 +3097,7 @@ static union grug_value TTC_block_collision(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_LEVEL)) return fail("TestTickContext.block_collision: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
     long p[3];
-    if (!pos_arg(a + 1, p, "TestTickContext.block_collision")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test asks at a non-finite position
+    pos_arg(a + 1, p);
     const double area[6] = {a[5]._number, a[6]._number, a[7]._number, a[8]._number, a[9]._number, a[10]._number};
     static const double cube[6] = {0, 0, 0, 1, 1, 1};
     struct block* b = find_block(p[0], p[1], p[2]);
@@ -3301,7 +3296,7 @@ static union grug_value hf_drop_inventory(ARGS) {
     UNUSED;
     if (!get_obj(a[0]._id, K_LEVEL)) return fail("drop_inventory: not a Level");  // SMOKETEST_EXCL_BRANCH: no committed test passes anything but a Level
     long p[3];
-    if (!pos_arg(a, p, "drop_inventory")) return none();  // SMOKETEST_EXCL_BRANCH: no committed test drops at a non-finite position
+    pos_arg(a, p);
     struct be* b = be_at(p[0], p[1], p[2]);
     if (!b) return fail("drop_inventory: there is no block entity with an inventory at that position");  // SMOKETEST_EXCL_BRANCH: no committed test drops where there is none
     stubbed = true;
@@ -3330,7 +3325,7 @@ static bool block_drops_nothing(const char* name) {
 static union grug_value TTC_break_block(ARGS) {
     UNUSED;
     long p[3];
-    if (!pos_arg(a + 1, p, "TestTickContext.break_block")) return none();
+    pos_arg(a + 1, p);
     struct block* b = find_block(p[0], p[1], p[2]);
     // A cell no test wrote reads as air, which is how Level.get_block and Level.is_air answer it.
     const char* name = b ? b->name : "minecraft:air";
