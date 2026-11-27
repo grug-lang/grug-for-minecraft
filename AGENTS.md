@@ -146,7 +146,9 @@ revision goes to `main`. The measurement follows the evidence rules like any oth
   whole diff, and asked to report defects with the file and line and how each is triggered. It is a
   second pair of eyes, not a gate: the orchestrator still reads the diff itself and verifies a
   finding before acting on it. Non-trivial means code, a workflow or a script; prose alone and a
-  one-line documentation edit do not need it.
+  one-line documentation edit do not need it. A pull request that adds or replaces goldens gets the
+  same review with every PNG opened, each loader's beside the others', because that look is the only
+  check a defect on one loader can fail.
 - **A port's API additions are checked for overlap.** Ports land in parallel and ask the host for the
   same things, so a review of one reads its `mod_api.json` and `smoketest.c` additions against every
   entry already in the tree and against the other ports in flight: a new entry that duplicates an
@@ -390,7 +392,11 @@ with `NoClassDefFoundError` (#1246).
   `loader-<loader>-goldens`, red or not; merge the loaders' `mods/*/screenshots` trees. It replaces a
   loader's existing reference when the rendering moved too, so review every PNG, and count them: a
   loader the test runs on with no PNG of its own fails every later run of that leg (#1797), so the
-  list must hold one per loader, not only the ones the dispatch reached.
+  list must hold one per loader, not only the ones the dispatch reached. Reading them means opening
+  them: no test compares two loaders' goldens, so a loader that draws a face missing or a shape
+  hollow keeps passing. The comparison is each loader's PNG of the same capture beside the others', a
+  replaced one beside its own previous PNG in git, and, for a port with a reference, beside the
+  reference job's live capture.
 - Coverage stays at 100% on `core`, and comes from `mods/coverage/` alone: cover a host function
   with a grug test there first, then a Java test, and `@GrugGenerated` only as a last resort.
   The gate counts only the unit tests, each game run's boot and `mods/coverage/`'s tests, so
@@ -691,7 +697,9 @@ use.
   them). Do not flag them as a licensing problem; a report about them from Mojang or Microsoft goes
   to the maintainer, and an agent never closes it.
 - A rendering difference between Minecraft versions is usually vanilla, not a port bug, such as
-  Alpha's GUI captures sitting one pixel right. Check the vanilla code before "fixing" the port.
+  Alpha's GUI captures sitting one pixel right. Check the vanilla code before "fixing" the port, and
+  a difference that vanilla does not explain, such as a face one loader draws and another misses, is
+  the port's to fix.
 - Only the reference's `runtime` is a strict graphical reference. BuildCraft and most mods never
   shipped for Alpha or Beta, so outside GUI elements nothing there says how a port should render:
   choose what players and modders would prefer, keep it the same across loaders where you can, and
