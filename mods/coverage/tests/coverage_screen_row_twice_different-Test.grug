@@ -67,6 +67,16 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
+        # A capture reads the last frame the client drew, so on a loader that does not wait for a
+        # frame after the ask it can be the one from before the screen opened: waiting for a drawn
+        # frame makes the crop the screen's own. The runner can pass 10 ticks per frame, so the open
+        # and the capture would otherwise share one.
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is captured.")
+            ctx.not_done()
+            return
+        }
         normal.set(_shot(ctx))
         ctx.close_screen()
         waited = 0
@@ -105,6 +115,13 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
+        # The same drawn-frame wait as the first capture, because every capture needs it.
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is captured.")
+            ctx.not_done()
+            return
+        }
         twice.set(_shot(ctx))
         waited = 0
         step = 6
@@ -122,7 +139,6 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        print2("row defect: ", reported)
         ctx.assert(String.index_of(reported, "already been answered") >= 0, "Answering a row twice should report that it was already answered.")
         ctx.assert(twice.unwrap().change_from(normal.unwrap()) < 1, "The row should still show the first answer, because a second one is refused.")
         ctx.close_screen()
@@ -160,6 +176,13 @@ export tick(ctx: TestTickContext) {
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "H should open the coverage screen in the other-text mode.")
+            ctx.not_done()
+            return
+        }
+        # The same drawn-frame wait as the first capture, because every capture needs it.
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is captured.")
             ctx.not_done()
             return
         }
