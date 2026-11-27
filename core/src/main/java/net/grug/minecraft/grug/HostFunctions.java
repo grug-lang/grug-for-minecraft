@@ -999,6 +999,16 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether this host draws frames a test can capture and compare, which a test asks
+     * before it asserts that two captures differ. Every loader draws them through its own {@code
+     * Screenshot.capture}; the logic smoketest paints nothing, so it answers false and a test skips
+     * a rendering assertion there instead of failing for a host that draws nothing.
+     */
+    public static boolean Test_screenshots_supported(long testId) {
+        return true;
+    }
+
+    /**
      * Test only: whether a frame has drawn the running test's own overlay on the eligible screen
      * that is open now, which a test waits for before it clicks. The mark is cleared when an
      * eligible screen opens, so a test waits for a frame of its own screen rather than for one

@@ -383,6 +383,12 @@ static bool not_done_called;
 static char* expected_error;
 static bool quiet;
 static bool stubbed;  // the running test called a graphics or capability stub, so a pass proves less
+// The defect a broken screen_list_row response rule reported in the most recent frame, the first of
+// the frame, or empty. The row export runs between two ticks with no call of the test around it, so
+// its defect is bounded to the frame and reported to the test through
+// TestTickContext.list_row_error, as GrugListRowResponse.lastDefect does in the game.
+static char last_row_error[4096];
+static bool frame_asked_a_row;
 
 struct impl { const char* cls; const char* name; host_fn fn; };
 // An implementation registers itself where it is defined, with REGISTER right after its function,
@@ -4143,6 +4149,15 @@ static union grug_value Test_world_overlay_supported(ARGS) { UNUSED; return bool
 REGISTER("Test", "world_overlay_supported", Test_world_overlay_supported);
 static union grug_value Test_overlay_supported(ARGS) { UNUSED; return boolean(true); }
 REGISTER("Test", "overlay_supported", Test_overlay_supported);
+// A mod-owned screen is the Screen API's own machinery, which this host runs for real: it opens
+// the screen, calls screen_init, draws frames and routes presses, keys and wheels through it. A
+// test that asks for one belongs here and runs rather than skipping.
+static union grug_value Test_owned_screens_supported(ARGS) { UNUSED; return boolean(true); }
+REGISTER("Test", "owned_screens_supported", Test_owned_screens_supported);
+// The smoketest paints nothing, so every capture is blank and two captures never differ. A test
+// that would assert a rendering difference asks this and skips the assertion.
+static union grug_value Test_screenshots_supported(ARGS) { UNUSED; return boolean(false); }
+REGISTER("Test", "screenshots_supported", Test_screenshots_supported);
 // The forced-normalization hook is GL state for a capture. The smoketest draws nothing, so it answers
 // what a loader whose item draw inherits the state reports and marks the run STUBBED (#1137).
 static union grug_value TTC_normalization_forced(ARGS) { UNUSED; stubbed = true; return boolean(true); }
@@ -4309,6 +4324,7 @@ static void render_overlays(void) {
 static void note_screen_opened(void) {
     overlay_screen_serial += 1;
     overlay_drawn = false;
+    last_row_error[0] = 0;
     overlay_first_frame_recorded = false;
     overlay_first_frame_cleared = false;
     overlay_key_held = false;
@@ -4327,6 +4343,11 @@ static union grug_value TTC_open_inventory(ARGS) {
 REGISTER("TestTickContext", "open_inventory", TTC_open_inventory);
 static union grug_value TTC_overlay_drawn(ARGS) { UNUSED; return boolean(overlay_drawn); }
 REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
+// The defect the most recent frame's screen_list_row export reported, or empty when none did. A
+// row response used after its call, answered twice, or left unanswered is that frame's defect and
+// does not fail the run, which is what GrugListRowResponse.lastDefect answers in the game.
+static union grug_value TTC_list_row_error(ARGS) { UNUSED; return str(last_row_error); }
+REGISTER("TestTickContext", "list_row_error", TTC_list_row_error);
 static union grug_value TTC_overlay_first_frame_cleared(ARGS) { UNUSED; return boolean(overlay_first_frame_cleared); }
 REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_frame_cleared);
 // The point a test parks the cursor at so a capture shows a hover. The smoketest has no window and
@@ -4649,8 +4670,8 @@ static struct owned_screen* widget_screen_running;
 // True only around grug_create_entity for an Overlay file, which is the member scope a screen may be
 // made in. A block entity's or a test's member scope is refused, as the host refuses it.
 static bool creating_overlay_script;
-// An unanswered list row is an err raised by the asking host, which is a frame-level defect rather
-// than a grug call's own error, so it is recorded and fails the test after its frame.
+// A screen export's own err, which is a frame-level defect rather than a grug call's error: it is
+// recorded and fails the test after its frame.
 static char screen_defect[4096];
 // The Overlay script's screen_* exports, looked up once for every script.
 static uint64_t screen_init_fn = UINT64_MAX, screen_render_fn = UINT64_MAX, screen_click_fn = UINT64_MAX;
@@ -4736,6 +4757,8 @@ static void clear_screens(void) {
     widget_screen_running = NULL;
     creating_overlay_script = false;
     screen_defect[0] = 0;
+    last_row_error[0] = 0;
+    frame_asked_a_row = false;
 }
 static void screen_creation_begin(void) { creating_overlay_script = true; }
 static void screen_creation_end(void* entity) {
@@ -5227,25 +5250,46 @@ REGISTER("Widget", "value", Widget_value);
 // ListRowResponse: an answer to screen_list_row, held in the object's own fields: x is the list's
 // widget handle and y its row number. It is answered once with set_text, a second answer is an err
 // even when it repeats the first, and set_text_colour is legal but is not an answer.
+//
+// A broken rule here is the frame's defect, not the run's: the game reports it the way a mod's own
+// err is reported and keeps drawing, so the test reads it through list_row_error rather than
+// failing at the call.
+static void row_defect(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
+static void row_defect(const char* fmt, ...) {
+    if (last_row_error[0]) return;  // the first defect of the frame, as GrugListRowResponse keeps it
+    __builtin_va_list ap;
+    __builtin_va_start(ap, fmt);
+    vsnprintf(last_row_error, sizeof last_row_error, fmt, ap);
+    __builtin_va_end(ap);
+}
+static bool row_response_open(struct obj* r, const char* method) {
+    if (r && r->open) return true;
+    row_defect("%s: the response is only valid during the screen_list_row call it was passed to, and that call has returned.", method);
+    return false;
+}
 static union grug_value LRR_index(ARGS) {
     UNUSED;
     struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
-    if (!r || !r->open) return fail("ListRowResponse.index: the response is only valid during the screen_list_row call it was passed to, and that call has returned.");
+    if (!row_response_open(r, "ListRowResponse.index")) return num(0);
     return num(r->y);
 }
 REGISTER("ListRowResponse", "index", LRR_index);
 static union grug_value LRR_widget(ARGS) {
     UNUSED;
     struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
-    if (!r || !r->open) return fail("ListRowResponse.widget: the response is only valid during the screen_list_row call it was passed to, and that call has returned.");
+    if (!row_response_open(r, "ListRowResponse.widget")) return id(0);
     return id((uint64_t) r->x);
 }
 REGISTER("ListRowResponse", "widget", LRR_widget);
 static union grug_value LRR_set_text(ARGS) {
     UNUSED;
     struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
-    if (!r) return fail("ListRowResponse.set_text: not a ListRowResponse");
-    if (!begin_answer(r, "ListRowResponse.set_text", "screen_list_row")) return none();
+    if (!row_response_open(r, "ListRowResponse.set_text")) return none();
+    if (r->has) {
+        row_defect("ListRowResponse.set_text: screen_list_row has already been answered, and a response is answered once.");
+        return none();
+    }
+    r->has = true;
     // The text is what the frame draws, and the smoketest paints nothing, so it is not recorded.
     return none();
 }
@@ -5253,7 +5297,7 @@ REGISTER("ListRowResponse", "set_text", LRR_set_text);
 static union grug_value LRR_set_text_colour(ARGS) {
     UNUSED;
     struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
-    if (!r || !r->open) return fail("ListRowResponse.set_text_colour: the response is only valid during the screen_list_row call it was passed to, and that call has returned.");
+    if (!row_response_open(r, "ListRowResponse.set_text_colour")) return none();
     if (!get_obj(a[1]._id, K_COLOR)) return fail("ListRowResponse.set_text_colour: the color id no longer resolves, because the object behind it was collected while the script still held it.");
     return none();
 }
@@ -5426,16 +5470,24 @@ static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
     r->open = true;
     r->has = false;
     union grug_value arg = id(rid);
+    // The first row asked in a frame forgets the previous frame's defect, as
+    // GrugOwnedScreens.prepareFrame clears it before its first ask, and this has to happen before
+    // the export runs or the defect this very row reports would be the one cleared. A frame that
+    // asks no row keeps it, so a test can still read the last frame that asked.
+    if (!frame_asked_a_row) {
+        last_row_error[0] = 0;
+        frame_asked_a_row = true;
+    }
     call_screen_export(s, screen_list_row_fn, &arg, 1);
     r = &objs[rid - 1];
     r->open = false;
-    bool answered = r->has;
-    if (!answered && !screen_defect[0])
-        snprintf(screen_defect, sizeof screen_defect, "screen_list_row returned without answering its response, and every response has to be answered before the call returns.");
+    if (!r->has)
+        row_defect("screen_list_row returned without answering its response, and every response has to be answered before the call returns.");
 }
 static void mod_screen_render(void) {
     struct owned_screen* s = open_owned_screen;
     if (!s || !s->open) return;
+    frame_asked_a_row = false;
     struct owned_widget** widgets = NULL;
     size_t nwidgets = 0, capwidgets = 0;
     for (size_t i = 0; i < s->nwidgets; i++) {
@@ -5469,10 +5521,11 @@ static void mod_screen_render(void) {
     if (screen_render_fn != UINT64_MAX) {
         uint64_t c = new_obj(K_OVERLAY_RENDER);
         union grug_value arg = id(c);
-        // A mod-owned screen is not a screen an overlay draws on, so this pass does not set the
-        // overlay drawn mark that TestTickContext.overlay_drawn reads; that mark is the container
-        // screen's overlay pass. What this pass draws is the screen's own frame.
+        // A mod-owned screen's own frame is what its test waits on: the game marks the overlay
+        // drawn when it draws such a frame (GrugOwnedScreens.noteScreenFrame), not when a container
+        // screen draws an overlay, so this pass sets the same mark after it draws the screen.
         call_screen_export(s, screen_render_fn, &arg, 1);
+        overlay_drawn = true;
     }
 }
 
