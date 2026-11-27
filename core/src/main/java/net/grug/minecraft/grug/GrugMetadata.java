@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -390,24 +391,31 @@ public final class GrugMetadata {
         }
         if (renamed.isEmpty()) return options;
         String[] lines = options.split("\n", -1);
+        // A line under an old label is one this migration is about, not the stable name it might
+        // textually equal: another binding's stable name can be this binding's label, and that old
+        // line must not hide the append the other binding needs.
         Set<String> present = new HashSet<>();
         for (String line : lines) {
             String name = optionName(line);
-            if (name != null) present.add(name);
+            if (name != null && !renamed.containsKey(name)) present.add(name);
         }
-        List<String> appended = new ArrayList<>();
+        // The game applies the file's lines in order, so a name's last line is the one it uses. A
+        // duplicated old line therefore contributes its last value, which is the value the game
+        // was reading, not the first.
+        Map<String, String> values = new LinkedHashMap<>();
         for (String line : lines) {
             // A trailing '\r' is part of the line's ending, so a value never carries it.
             String body = line.endsWith("\r") ? line.substring(0, line.length() - 1) : line;
             int colon = body.indexOf(':');
             String target = colon > 0 ? renamed.get(body.substring(0, colon)) : null;
             // The old line is never renamed or dropped, because it may belong to the game or to
-            // another mod; the stable line is a new one beside it (see the javadoc). Marking the
-            // target present keeps a repeated declaration from appending it twice.
-            if (target != null && !present.contains(target)) {
-                appended.add(target + body.substring(colon));
-                present.add(target);
-            }
+            // another mod; the stable line is a new one beside it (see the javadoc).
+            if (target != null) values.put(target, body.substring(colon));
+        }
+        List<String> appended = new ArrayList<>();
+        for (Map.Entry<String, String> value : values.entrySet()) {
+            if (present.contains(value.getKey())) continue;
+            appended.add(value.getKey() + value.getValue());
         }
         if (appended.isEmpty()) return options;
         String ending = options.contains("\r\n") ? "\r\n" : "\n";
@@ -434,12 +442,16 @@ public final class GrugMetadata {
     public static void migrateSavedKeys(File optionsFile, List<DeclaredKey> declared) {
         if (declared.isEmpty()) return;
         try {
-            // The game writes this file through a FileWriter, which uses the platform's charset, so
-            // reading and writing it the same way leaves every other line's bytes as they were.
-            String options = new String(Files.readAllBytes(optionsFile.toPath()));
+            // The game writes this file with the platform's charset, but a line can hold bytes
+            // that charset cannot decode (a resource pack name or a language, say). ISO-8859-1
+            // maps every byte to one character and back unchanged, so every line this migration
+            // does not append keeps its exact bytes whatever the platform's charset is.
+            String options =
+                    new String(
+                            Files.readAllBytes(optionsFile.toPath()), StandardCharsets.ISO_8859_1);
             String migrated = migrateSavedKeys(options, declared);
             if (!migrated.equals(options)) {
-                Files.write(optionsFile.toPath(), migrated.getBytes());
+                Files.write(optionsFile.toPath(), migrated.getBytes(StandardCharsets.ISO_8859_1));
             }
         } catch (IOException | RuntimeException e) {
             // See the javadoc.
