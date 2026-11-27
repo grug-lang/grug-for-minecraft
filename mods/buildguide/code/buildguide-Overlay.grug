@@ -3758,11 +3758,11 @@ local _shapelist_render(ctx: OverlayRenderContext, width: number) {
     _draw_centred(ctx, "§nShapes", 250, 55, white)
 }
 
-# Every widget of the tab. A row click moves the state's current set and refreshes the fields, which
-# is the reference's setSelected; Add appends a set, selects it and enables the buttons; Delete
-# removes the selected set and selects the row below it, else the one above; the shift buttons move
-# every set and rewrite the field they moved; a Set button parses its field and turns it red when it
-# cannot.
+# Every widget of the tab. A row click moves the state's current set, refreshes the fields and
+# corrects the visible box from that set, which is the reference's setSelected; Add appends a set,
+# selects it and enables the buttons; Delete removes the selected set and selects the row below it,
+# else the one above; the shift buttons move every set and rewrite the field they moved; a Set button
+# parses its field and turns it red when it cannot.
 
 local _shapelist_changed(widget: Widget) {
     if _chrome_changed(widget) {
@@ -3965,7 +3965,9 @@ local _shapelist_set_visible(checked: bool) {
 }
 
 # The three fields, in white, from the current set's origin, and the visible box from its flag. With
-# no set the fields hold "-" and the box keeps what it had, as the reference's update closure does.
+# no set the fields hold "-". This is the reference's list update closure: the shape list selects the
+# current row as it is built, which runs the closure, so the box is read from the state on open too
+# and not only when the player later selects a row.
 
 local _shapelist_fields() {
     set: string = _state_current_set()
@@ -5288,11 +5290,10 @@ local _prop_widget(row: number, slot: number) Widget {
 
 # ---------------------------------------------------------------- the two dropdowns
 
-# DropdownOverlayScreen is a screen shown over its parent, and the host's Screen cannot hold a second
-# one, so the fallback #1760 leaves is the same list inside the parent: the V hides itself, the X
-# and the list take its place, and the parent's own widgets and texts go away while it is up. A row
-# or the X puts them back. The reference's quirk of leaving by a tab and coming back to a missing V
-# (map section 8) cannot be reproduced, because every open declares the parent's button again.
+# DropdownOverlayScreen is a screen shown over its parent, with its own chrome, close button and tab
+# states, and the host's Screen cannot hold a second one, so the fallback #1760 leaves is the same
+# list inside the parent: the V hides itself, the X and the list take its place, and the parent's own
+# widgets and texts go away while it is up. A row or the X puts them back.
 
 local _dropdown_open() {
     dropdown_open = true

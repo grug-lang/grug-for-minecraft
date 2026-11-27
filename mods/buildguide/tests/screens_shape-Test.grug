@@ -1,6 +1,8 @@
 # The Shape tab of #1752's screens: the shape row adds a set so the tab starts from a known shape,
 # then its origin row shifts that set and its Set button takes the field beside it, and its property
-# panel steps a float, wraps an enum, toggles a checkbox and refuses a field it cannot parse.
+# panel steps a float, wraps an enum, toggles a checkbox and refuses a field it cannot parse. Last,
+# its Radius field takes a typed 1e20 and the screen's next frame still draws, because a cell loop
+# that cannot step past a huge radius stops instead of stalling.
 # Every proof is read back from the saved state, because the widgets and their positions are the
 # host's and no test entry reads their pixels; a click a hidden or missing widget ignored therefore
 # shows up as a value the state did not take.
@@ -266,17 +268,193 @@ export tick(ctx: TestTickContext) {
         state: string = _saved_state(ctx)
         ctx.assert(_shape_values(state, "ShapeCircle") == "Y,4.0,1,true", "The panel should write the enum, the float step and the checkbox it was driven with.")
         ctx.assert(_origin_x(state) == (start_origin_x + 1) * 10, "The origin row's + should shift the set and its Set should take the typed field.")
-        if was_persistent {
-            return
-        }
-        step = 19
+        # The huge radius runs while persistence is still on, so the closings it does write the
+        # state it reads; the restore to the run's own persistence comes after it, at step 45.
+        step = 29
+        ctx.not_done()
+        return
+    }
+
+    if step == 29 {
+        step = 30
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
-    if step == 19 {
+    if step == 30 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the huge radius.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(65, 40, 0)
+        step = 31
+        ctx.not_done()
+        return
+    }
+
+    if step == 31 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the huge radius.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Radius is row 1; its field is at (290, 90), 50 wide and 20 high.
+        ctx.click_screen(315, 100, 0)
+        step = 32
+        ctx.not_done()
+        return
+    }
+
+    if step == 32 {
+        # Home puts the caret before the field's "4.0", and three Deletes remove it so the typed
+        # value is the whole text, as a player clearing the field would write it.
+        ctx.press_screen_key(268, false, false, true)
+        step = 33
+        ctx.not_done()
+        return
+    }
+
+    if step == 33 {
+        ctx.press_screen_key(261, false, false, true)
+        step = 34
+        ctx.not_done()
+        return
+    }
+
+    if step == 34 {
+        ctx.press_screen_key(261, false, false, true)
+        step = 35
+        ctx.not_done()
+        return
+    }
+
+    if step == 35 {
+        ctx.press_screen_key(261, false, false, true)
+        step = 36
+        ctx.not_done()
+        return
+    }
+
+    if step == 36 {
+        ctx.press_screen_key(49, false, false, true)
+        step = 37
+        ctx.not_done()
+        return
+    }
+
+    if step == 37 {
+        ctx.press_screen_key(69, false, false, true)
+        step = 38
+        ctx.not_done()
+        return
+    }
+
+    if step == 38 {
+        ctx.press_screen_key(50, false, false, true)
+        step = 39
+        ctx.not_done()
+        return
+    }
+
+    if step == 39 {
+        ctx.press_screen_key(48, false, false, true)
+        step = 40
+        ctx.not_done()
+        return
+    }
+
+    if step == 40 {
+        # The radius row's Set button is at (340, 90), 30 wide and 20 high.
+        ctx.click_screen(355, 100, 0)
+        step = 41
+        ctx.not_done()
+        return
+    }
+
+    if step == 41 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 42
+        ctx.not_done()
+        return
+    }
+
+    if step == 42 {
+        # A press the field keeps is tried again rather than failing the test on it, as step 18 does.
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the huge radius.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_shape_values(state, "ShapeCircle") == "Y,1.0E20,1,true", "The Radius field should take 1e20 and the set should keep it.")
+        step = 43
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 43 {
+        # Opening the screen clears the drawn mark, and this screen's world frame counts every set's
+        # cells, so a cell loop that cannot step past 1e20 stalls the frame that would set the mark
+        # and this test never gets past it. Reaching step 44 is the proof that a frame with the
+        # huge radius ran.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen that holds the huge radius.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with a 1e20 radius should still draw.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.press_screen_key(256, false, false, true)
+        step = 44
+        ctx.not_done()
+        return
+    }
+
+    if step == 44 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the huge frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if was_persistent {
+            return
+        }
+        step = 45
+        ctx.not_done()
+        return
+    }
+
+    if step == 45 {
         # The run found persistence off, so the Configuration tab's box is ticked back off.
+        step = 46
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 46 {
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "The binding should reopen the screen to put persistence back.")
@@ -294,12 +472,12 @@ export tick(ctx: TestTickContext) {
             tab_x = width - 10
         }
         ctx.click_screen(tab_x, 40, 0)
-        step = 20
+        step = 47
         ctx.not_done()
         return
     }
 
-    if step == 20 {
+    if step == 47 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
@@ -308,23 +486,23 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.click_screen(262, 168, 0)
-        step = 21
+        step = 48
         ctx.not_done()
         return
     }
 
-    if step == 21 {
+    if step == 48 {
         files: File = File.open(r"files")
         config: Option[string] = files.read_text("config/buildguide.cfg")
         ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
         ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
         ctx.press_screen_key(256, false, false, true)
-        step = 22
+        step = 49
         ctx.not_done()
         return
     }
 
-    if step == 22 {
+    if step == 49 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the Configuration screen.")

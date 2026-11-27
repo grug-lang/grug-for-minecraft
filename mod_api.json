@@ -3379,12 +3379,6 @@
 							}
 						}
 					]
-				},
-				"time_millis": {
-					"description": "The milliseconds on the wall clock, from the same clock the reference reads with `System.currentTimeMillis`, which it uses to fade a completed shape's list colour and to spin the progress indicator of a shape that is still generating. It is the wall clock and not the game's tick count, so two calls a tick apart differ by however long the frame took, and it can go backwards when the system clock is set. A difference of two readings is what a mod animates with, never a reading itself. Only legal on the context render() was passed, while that call is running: a context saved for later is refused.",
-					"return_type": {
-						"name": "number"
-					}
 				}
 			}
 		},
