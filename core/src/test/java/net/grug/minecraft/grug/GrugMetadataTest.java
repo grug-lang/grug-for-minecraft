@@ -1,5 +1,6 @@
 package net.grug.minecraft.grug;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -340,6 +341,81 @@ class GrugMetadataTest {
                 GrugMetadata.migrateSavedKeys(saved, declared),
                 "The stable line is already in the file, so the old line is left as whatever "
                         + "binding owns it and nothing is appended or dropped.");
+    }
+
+    @Test
+    void aDuplicatedOldLabelMigratesTheLastLinesValue() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        String saved = "key_Toggle:30\nkey_Toggle:31\n";
+        assertEquals(
+                "key_Toggle:30\nkey_Toggle:31\nkey_key.grug.only.toggle:31\n",
+                GrugMetadata.migrateSavedKeys(saved, declared),
+                "The game reads a name's last line, so a duplicated old label migrates the value "
+                        + "the game was using, not the first one.");
+    }
+
+    @Test
+    void anOldLabelThatTextuallyEqualsAnotherBindingsStableNameStillAppendsBoth() throws Exception {
+        File alpha = mods.resolve("alpha").toFile();
+        File beta = mods.resolve("beta").toFile();
+        assertTrue(alpha.mkdirs());
+        assertTrue(beta.mkdirs());
+        Files.write(
+                new File(alpha, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"x\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                new File(beta, "about.json").toPath(),
+                ("{\"keys\": [{\"id\": \"y\", \"name\": \"key.grug.alpha.x\","
+                                + " \"default_key\": \"L\"}]}")
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        String saved = "key_Toggle:30\nkey_key.grug.alpha.x:31\n";
+        assertEquals(
+                "key_Toggle:30\n"
+                        + "key_key.grug.alpha.x:31\n"
+                        + "key_key.grug.alpha.x:30\n"
+                        + "key_key.grug.beta.y:31\n",
+                GrugMetadata.migrateSavedKeys(saved, declared),
+                "beta's old label is alpha's stable name, so that line is an old label rather "
+                        + "than alpha's saved line and neither append may be skipped.");
+    }
+
+    @Test
+    void anOptionsFileWithBytesThePlatformCharsetCannotDecodeKeepsThem() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+        File options = mods.resolve("options.txt").toFile();
+        // 0xE9 alone is not valid UTF-8, which is the platform charset on most CI runners.
+        byte[] saved =
+                "music:1.0\nname:caf\u00e9\nkey_Toggle:30\n".getBytes(StandardCharsets.ISO_8859_1);
+        Files.write(options.toPath(), saved);
+
+        GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
+
+        byte[] expected =
+                "music:1.0\nname:caf\u00e9\nkey_Toggle:30\nkey_key.grug.only.toggle:30\n"
+                        .getBytes(StandardCharsets.ISO_8859_1);
+        assertArrayEquals(
+                expected,
+                Files.readAllBytes(options.toPath()),
+                "0xE9 is not valid UTF-8, so ISO-8859-1 keeps that byte while the stable line is "
+                        + "appended.");
     }
 
     @Test
