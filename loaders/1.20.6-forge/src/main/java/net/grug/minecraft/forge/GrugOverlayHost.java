@@ -680,6 +680,11 @@ public final class GrugOverlayHost {
      */
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) {
+            // A screen the game took away last tick ends before this tick's keys can open another.
+            GrugOwnedScreens.runGameRemovals();
+            return;
+        }
         if (event.phase != TickEvent.Phase.END) return;
         Minecraft minecraft = Minecraft.getInstance();
         // The state is recorded on every tick, with no level loaded too, so a key still held when a

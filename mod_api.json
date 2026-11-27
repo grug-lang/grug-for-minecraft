@@ -1385,7 +1385,7 @@
 				},
 				{
 				"name": "screen_key",
-				"description": "Called by the game when a key is pressed or a character is typed while the screen is open, unless a text field of the screen has focus: the focused field gets the key instead, and this export is not asked at all while a field has focus, so typing into a field cannot be stolen by the mod. `take()` keeps the key from reaching the screen, and a key the mod does not take reaches the screen, where Escape closes it. The context is an overlay's key context, which carries the letter and digit keys, space, backspace, control and shift, and reports a typed character separately from its key, so a text field does not need it.",
+				"description": "Called by the game when a key is pressed or a character is typed while the screen is open, unless a text field of the screen has focus: the focused field gets the key instead, and this export is not asked at all while a field has focus, so typing into a field cannot be stolen by the mod. Escape is the exception, because the game closes the screen with it: the export is always asked for Escape, so a screen whose own close saves its state runs that close whatever has focus. `take()` keeps the key from reaching the screen, and a key the mod does not take reaches the screen, where Escape closes it. The context is an overlay's key context, which carries the letter and digit keys, space, backspace, control and shift, and reports a typed character separately from its key, so a text field does not need it.",
 				"engine_called": true,
 				"parameters": [
 				{

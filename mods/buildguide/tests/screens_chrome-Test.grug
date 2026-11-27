@@ -100,21 +100,25 @@ export tick(ctx: TestTickContext) {
 
     if not closed {
         # Escape is the screen's own close, which reaches BaseScreen.onScreenClosed through
-        # screen_closed. The host's own Escape handling would close the screen without the save.
-        ctx.press_screen_key(256, false, false, true)
+        # screen_closed, and the screen takes it even with a text field focused.
+        took: bool = ctx.press_screen_key(256, false, false, true)
+        ctx.assert(took, "The screen should take Escape, so its close and save run.")
+        ctx.assert(not ctx.screen_open(), "Taking Escape should close the screen.")
         closed = true
         ctx.not_done()
         return
     }
 
-    if ctx.screen_open() {
-        waited = waited + 1
-        ctx.assert(waited < 200, "Escape should close the screen.")
-        ctx.not_done()
-        return
-    }
-
     if not saved {
+        if ctx.screen_open() {
+            # A close the game completes on a later tick is waited for here, before the file is
+            # checked. The wait cannot run again afterwards, because the test's own reopen below
+            # opens a screen on purpose.
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen.")
+            ctx.not_done()
+            return
+        }
         # The close saved the state, and initCheck put the one set a fresh state gets into it, so
         # the file the world's name and dimension name holds a shapeSet line with no refused-shape
         # marker. The directory is listed rather than its file named, so the test does not repeat
