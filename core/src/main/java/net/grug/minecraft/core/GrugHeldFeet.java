@@ -1,11 +1,8 @@
-package net.grug.minecraft.stationapi.server;
-
-import net.grug.minecraft.core.GrugPlayerFloor;
-import net.grug.minecraft.core.GrugServerRunArms;
+package net.grug.minecraft.core;
 
 /**
- * The feet height a b1.7.3 dedicated run holds its test player at, and the height a snap saved for
- * the player to be put back at when the test ends.
+ * The feet height a dedicated run holds its test player at, and the height a snap saved for the
+ * player to be put back at when the test ends.
  *
  * <p>Whether the run holds a height yet is its own flag rather than a height of 0: a test may move
  * the player to feet 0, and 0 is then a height the run holds like any other. Reading a zero as "no

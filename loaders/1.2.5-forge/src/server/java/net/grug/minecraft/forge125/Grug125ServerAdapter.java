@@ -431,7 +431,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
         double held = GrugServerRun.heldFeetY();
         boolean hasHold =
                 GrugLinkArms.deliverIf(
-                        GrugForge125Arms.holds(held), player, p -> buildOnHold(p, held, radius));
+                        GrugServerRun.holdsFeetHeight(), player, p -> buildOnHold(p, held, radius));
         GrugForge125Arms.unlessDone(hasHold, radius, this::buildWithoutHold);
     }
 
@@ -449,7 +449,7 @@ public class Grug125ServerAdapter extends Grug125Adapter {
                 this,
                 getLevel(),
                 player.posX,
-                GrugPlayerFloor.buildAnchor(player.boundingBox.minY, held),
+                GrugServerRun.buildAnchor(player.boundingBox.minY),
                 player.posZ,
                 radius,
                 false);

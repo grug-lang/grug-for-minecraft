@@ -1,4 +1,4 @@
-package net.grug.minecraft.stationapi.server;
+package net.grug.minecraft.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -7,13 +7,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * The feet height a b1.7.3 dedicated run holds its test player at (#1847).
+ * The feet height a dedicated run holds its test player at (#1847).
  *
  * <p>Whether a height is held is a flag of its own, so a move to feet 0 is a real height and later
  * moves are still tracked. A snap saves the height it found, so a test's move is put back before
- * the next test's room is built.
+ * the next test's room is built. The b1.7.3-stationapi, 1.2.5-forge and a1.1.2_01-ornithe dedicated
+ * runs all hold their player through this one class.
  */
 class GrugHeldFeetTest {
+    @Test
+    void holdingFeetZeroIsARealHeight() {
+        GrugHeldFeet held = new GrugHeldFeet();
+        held.hold(0.0);
+
+        assertTrue(held.isHeld(), "a run that starts with the player at feet 0 still holds them");
+        assertEquals(0.0, held.feetY(), 0.0);
+    }
+
     @Test
     void aMoveToFeetZeroIsHeldAndLaterMovesStillTrack() {
         GrugHeldFeet held = new GrugHeldFeet();

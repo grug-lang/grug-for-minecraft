@@ -107,21 +107,10 @@ class GrugForge125ArmsTest {
     }
 
     @Test
-    void heldFeetIsZeroBeforeTheRunAndNeverAsksForAPlayer() {
-        assertEquals(
-                0.0,
-                GrugForge125Arms.heldFeet(
-                        0,
-                        () -> {
-                            throw new AssertionError("no player yet");
-                        }));
-        // Written out here rather than subtracted through heldFeet, so the value is pinned: a
-        // constant that drifts back to the decimal 1.62 makes this 68.5 against the 68.499999995
-        // the game's own float height gives, where the old 68.5 literal passed either way.
-        assertEquals(
-                70.12 - 1.6200000047683716,
-                GrugForge125Arms.heldFeet(70.12, () -> GrugTestOrigin.EYE_HEIGHT),
-                0.0);
+    void theStartHeightHoldRunsForAHeldZeroAndSkipsAfterTheFloorHold() {
+        assertTrue(GrugForge125Arms.holdsStartHeight(false, -0.5, 0.0, 0.25));
+        assertFalse(GrugForge125Arms.holdsStartHeight(true, 60.0, 70.0, 0.25));
+        assertFalse(GrugForge125Arms.holdsStartHeight(false, 69.9, 70.0, 0.25));
     }
 
     @Test
@@ -272,13 +261,6 @@ class GrugForge125ArmsTest {
         assertEquals(0b1, GrugForge125Arms.sectionMask(-5, 10));
         assertEquals(0b10000000, GrugForge125Arms.sectionMask(120, 100));
         assertEquals(0, GrugForge125Arms.sectionMask(200, 4));
-    }
-
-    @Test
-    void aHeldHeightIsOneThatIsNotZero() {
-        assertFalse(GrugForge125Arms.holds(0));
-        assertTrue(GrugForge125Arms.holds(64.5));
-        assertTrue(GrugForge125Arms.holds(-3));
     }
 
     @Test
