@@ -1,7 +1,9 @@
 # The Shape list tab of #1752's screens: Add appends a set and selects it, a row click makes the set
 # under it current, the shift buttons move every set, and Delete removes the current one and selects
-# the row below it. Every proof is read back from the saved state, because the list, the fields and
-# the checkbox are the host's widgets and no test entry reads their pixels. A typed origin field
+# the row below it. A set hidden by the visible box reads back hidden when the tab opens, because
+# building the list selects the current row and runs the reference's update closure, so one click
+# makes it visible again. Every proof is read back from the saved state, because the list, the fields
+# and the checkbox are the host's widgets and no test entry reads their pixels. A typed origin field
 # cannot be driven headlessly either, so this test proves the shift buttons, which write the same
 # origins the Set buttons write.
 # Persistence is turned on for the saves and put back as the run found it, so a later test sees the
@@ -335,10 +337,9 @@ export tick(ctx: TestTickContext) {
         state: string = _saved_state(ctx)
         ctx.assert(_set_count(state) == start_count, "Delete should remove the current set and leave the rest.")
         ctx.assert(_field(state, "iShapeSet") == "0", "After removing row 0 of two, the row that moved up should be current.")
-        if was_persistent {
-            return
-        }
-        step = 22
+        # The visible box case runs while persistence is still on, so the closings it does write
+        # the state it reads; the restore to the run's own persistence comes after it, at step 22.
+        step = 30
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
@@ -346,6 +347,13 @@ export tick(ctx: TestTickContext) {
 
     if step == 22 {
         # The run found persistence off, so the Configuration tab's box is ticked back off.
+        step = 23
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 23 {
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "The binding should reopen the screen to put persistence back.")
@@ -363,12 +371,12 @@ export tick(ctx: TestTickContext) {
             tab_x = width - 10
         }
         ctx.click_screen(tab_x, 40, 0)
-        step = 23
+        step = 24
         ctx.not_done()
         return
     }
 
-    if step == 23 {
+    if step == 24 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
@@ -377,29 +385,145 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.click_screen(262, 168, 0)
-        step = 24
-        ctx.not_done()
-        return
-    }
-
-    if step == 24 {
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
-        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
-        ctx.press_screen_key(256, false, false, true)
         step = 25
         ctx.not_done()
         return
     }
 
     if step == 25 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
+        ctx.press_screen_key(256, false, false, true)
+        step = 26
+        ctx.not_done()
+        return
+    }
+
+    if step == 26 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the Configuration screen.")
             ctx.not_done()
             return
         }
+    }
+
+    if step == 30 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the visible box.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(265, 40, 0)
+        step = 31
+        ctx.not_done()
+        return
+    }
+
+    if step == 31 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw for the visible box.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The visible box is at (5, 135), 20 by 20, and the set is visible, so one click hides it.
+        ctx.click_screen(15, 145, 0)
+        step = 32
+        ctx.not_done()
+        return
+    }
+
+    if step == 32 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 33
+        ctx.not_done()
+        return
+    }
+
+    if step == 33 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after hiding the set.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_set_visible(state, 0) == "false", "The visible box should hide the current set and the close should save it.")
+        step = 34
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 34 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen after hiding the set.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(265, 40, 0)
+        step = 35
+        ctx.not_done()
+        return
+    }
+
+    if step == 35 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw after hiding the set.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The box shows the set's own false on open, because building the list selects the current
+        # row and runs the update closure. One click therefore makes the set visible again; a stale
+        # box would write false here and the assertion after the close would fail.
+        ctx.click_screen(15, 145, 0)
+        step = 36
+        ctx.not_done()
+        return
+    }
+
+    if step == 36 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 37
+        ctx.not_done()
+        return
+    }
+
+    if step == 37 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after showing the set.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_set_visible(state, 0) == "true", "The box should show the hidden set on open, so one click makes it visible.")
+        if was_persistent {
+            return
+        }
+        step = 22
+        ctx.not_done()
+        return
     }
 }
 
@@ -460,6 +584,23 @@ local _field(state: string, key: string) string {
 
 local _origin_x(state: string) number {
     return _origin_piece(_set_line(state, 0), 0)
+}
+
+# A set's visible field, from its ;visible=...; entry, or an empty text when it has none.
+
+local _set_visible(state: string, index: number) string {
+    set: string = _set_line(state, index)
+    needle: string = "visible="
+    at: number = String.index_of(set, needle)
+    if at < 0 {
+        return ""
+    }
+    rest: string = String.substring(set, at + String.length(needle), String.length(set))
+    end: number = String.index_of(rest, ";")
+    if end < 0 {
+        return rest
+    }
+    return String.substring(rest, 0, end)
 }
 
 # Whether every set's origin X is the value given, which proves the shift reached all of them.
