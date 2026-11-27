@@ -523,7 +523,7 @@ local _current_index(state: string) number {
     if at < 0 {
         return -1
     }
-    rest: string = String.substring(state, at + 9, String.length(state))
+    rest: string = String.substring(state, at + 10, String.length(state))
     end: number = String.index_of(rest, String.from_character(10))
     if end >= 0 {
         rest = String.substring(rest, 0, end)
