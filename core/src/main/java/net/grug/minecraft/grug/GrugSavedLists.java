@@ -155,34 +155,74 @@ public final class GrugSavedLists {
     /**
      * Saves {@code value} under {@code key} in {@code record}, which the caller read with {@link
      * #record} or added with {@link #append} and so knows exists.
+     *
+     * <p>Nothing is marked when the record already holds that value, because a script may save the
+     * same value every tick, and a machine's tick is not a change to the saved data. The comparison
+     * is {@link Double#equals}, which is the equality of the numbers the canonical text in {@link
+     * net.grug.minecraft.core.GrugSavedDataSync} writes with {@code Double.toString}: {@code 0.0}
+     * and {@code -0.0} differ and every NaN equals every other.
      */
     public static void setNumber(Object blockEntity, Record record, String key, double value) {
+        boolean changed;
         synchronized (GrugSavedLists.class) {
+            Double stored = record.numbers.get(key);
+            changed = stored == null || !stored.equals(value);
             record.numbers.put(key, value);
         }
-        markChanged(blockEntity);
+        if (changed) {
+            markChanged(blockEntity);
+        }
     }
 
     /**
      * Puts {@code item} in {@code record}, replacing the item that was there. The caller read the
      * record with {@link #record} or added it with {@link #append} and so knows it exists.
+     *
+     * <p>Nothing is marked when the record already holds that item, for the reason {@link
+     * #setNumber} gives. Items are compared by the text {@code String.valueOf} answers, which is
+     * what the canonical text in {@link net.grug.minecraft.core.GrugSavedDataSync} writes for a
+     * record's item, so an item the snapshot would consider the same is never marked as a change.
      */
     public static void setItem(Object blockEntity, Record record, Object item) {
+        boolean changed;
         synchronized (GrugSavedLists.class) {
+            changed = !sameItem(record.item, item);
             record.item = item;
         }
-        markChanged(blockEntity);
+        if (changed) {
+            markChanged(blockEntity);
+        }
     }
 
     /**
      * Saves {@code text} in {@code record}, replacing the text that was there. The caller read the
      * record with {@link #record} or added it with {@link #append} and so knows it exists.
+     *
+     * <p>Nothing is marked when the record already holds that text, for the reason {@link
+     * #setNumber} gives, and a record whose text was absent counts as holding none.
      */
     public static void setText(Object blockEntity, Record record, String text) {
+        boolean changed;
         synchronized (GrugSavedLists.class) {
+            changed = text == null ? record.text != null : !text.equals(record.text);
             record.text = text;
         }
-        markChanged(blockEntity);
+        if (changed) {
+            markChanged(blockEntity);
+        }
+    }
+
+    /**
+     * Whether the snapshot would write the same text for these two items, either of them absent.
+     */
+    private static boolean sameItem(Object stored, Object item) {
+        if (stored == item) {
+            return true;
+        }
+        if (stored == null || item == null) {
+            return false;
+        }
+        return String.valueOf(stored).equals(String.valueOf(item));
     }
 
     /**
