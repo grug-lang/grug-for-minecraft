@@ -5,9 +5,26 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class GrugSpriteSlotsTest {
+
+    /**
+     * Drains the fatal an exhausted allocator provoked. {@code Grug.fatal} remembers the first
+     * error per thread and rethrows it at the next native call boundary, so leaving one set would
+     * fail the next test on this JVM that drives an export function, for a reason unrelated to that
+     * test.
+     */
+    @AfterEach
+    void drainPendingFatal() {
+        try {
+            GrugErrors.throwPendingFatal();
+        } catch (IllegalStateException expected) {
+            // The fatal the test provoked, cleared so it cannot outlive the test.
+        }
+    }
+
     @Test
     void theAnimatedWaterAndLavaSlotsAreRefused() {
         // Each flowing frame is replicated over a 2x2 block of tiles (DynamicTexture.replicate).
