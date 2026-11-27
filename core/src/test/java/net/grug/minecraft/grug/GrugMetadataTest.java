@@ -254,7 +254,7 @@ class GrugMetadataTest {
     }
 
     @Test
-    void anOldLabelsSavedRebindMigratesToTheDeclaringModAndKeyId() throws Exception {
+    void anOldLabelsSavedRebindIsAppendedUnderTheDeclaringModAndKeyId() throws Exception {
         File beta = mods.resolve("beta").toFile();
         File alpha = mods.resolve("alpha").toFile();
         assertTrue(beta.mkdirs());
@@ -278,16 +278,49 @@ class GrugMetadataTest {
         String migrated = GrugMetadata.migrateSavedKeys(saved, declared);
         assertEquals(
                 "music:1.0\n"
+                        + "key_Toggle:30\n"
+                        + "key_Toggle (beta.toggle):31\n"
+                        + "key_Sprint:32\n"
                         + "key_key.grug.alpha.toggle:30\n"
-                        + "key_key.grug.beta.toggle:31\n"
-                        + "key_Sprint:32\n",
+                        + "key_key.grug.beta.toggle:31\n",
                 migrated,
-                "Each old label, plain or carrying its mod and id, moves to its own stable name, "
-                        + "and a line that is not a declared binding is left alone.");
+                "Each old label gets a stable line appended after the file's own lines, which keep "
+                        + "their bytes and their values.");
         assertEquals(
                 migrated,
                 GrugMetadata.migrateSavedKeys(migrated, declared),
-                "A second start finds no old label and writes the same text.");
+                "A second start finds the stable lines and writes the same text, even with the old "
+                        + "lines still there.");
+    }
+
+    @Test
+    void anAlphaBindingWhoseNameMatchesALabelKeepsItsLine() throws Exception {
+        File mod = mods.resolve("alpha").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                ("{\"keys\": [{\"id\": \"forward\", \"name\": \"Forward\","
+                                + " \"default_key\": \"W\"}]}")
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        String saved = "key_Forward:30\n";
+        String migrated = GrugMetadata.migrateSavedKeys(saved, declared);
+        assertEquals(
+                "key_Forward:30\nkey_key.grug.alpha.forward:30\n",
+                migrated,
+                "The game's own Forward binding keeps its line, and the declared binding's rebind "
+                        + "is appended under its stable name.");
+        assertEquals(
+                migrated,
+                GrugMetadata.migrateSavedKeys(migrated, declared),
+                "The second start finds the stable line, so the old line is left and nothing is "
+                        + "appended again.");
+        assertEquals(
+                "key_Forward:30\nkey_key.grug.alpha.forward:30",
+                GrugMetadata.migrateSavedKeys("key_Forward:30", declared),
+                "A file with no trailing newline gains one before the appended line.");
     }
 
     @Test
@@ -303,10 +336,10 @@ class GrugMetadataTest {
         java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
         String saved = "key_Toggle:30\r\nkey_key.grug.only.toggle:40\r\n";
         assertEquals(
-                "key_key.grug.only.toggle:40\r\n",
+                saved,
                 GrugMetadata.migrateSavedKeys(saved, declared),
-                "The stable line is the one the game reads last, so the old line is dropped and "
-                        + "the file's line endings are kept.");
+                "The stable line is already in the file, so the old line is left as whatever "
+                        + "binding owns it and nothing is appended or dropped.");
     }
 
     @Test
@@ -325,15 +358,35 @@ class GrugMetadataTest {
         GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
 
         assertEquals(
-                "music:1.0\nkey_key.grug.only.toggle:30\n",
-                new String(Files.readAllBytes(options.toPath()), StandardCharsets.UTF_8));
+                "music:1.0\nkey_Toggle:30\nkey_key.grug.only.toggle:30\n",
+                new String(Files.readAllBytes(options.toPath()), StandardCharsets.UTF_8),
+                "The old line stays and the stable line is appended after it.");
 
         assertTrue(options.setLastModified(1000L));
         GrugMetadata.migrateSavedKeys(options, GrugMetadata.declaredKeys());
         assertEquals(
                 1000L,
                 options.lastModified(),
-                "A start that finds no old label does not write the file.");
+                "A start that finds the stable line does not write the file.");
+    }
+
+    @Test
+    void aCrlfOptionsFileKeepsItsLineEndingsWhenTheStableLineIsAppended() throws Exception {
+        File mod = mods.resolve("only").toFile();
+        assertTrue(mod.mkdirs());
+        Files.write(
+                new File(mod, "about.json").toPath(),
+                "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle\", \"default_key\": \"K\"}]}"
+                        .getBytes(StandardCharsets.UTF_8));
+        installAdapter(mods.toFile());
+
+        java.util.List<GrugMetadata.DeclaredKey> declared = GrugMetadata.declaredKeys();
+        String saved = "music:1.0\r\nkey_Toggle:30\r\n";
+        assertEquals(
+                "music:1.0\r\nkey_Toggle:30\r\nkey_key.grug.only.toggle:30\r\n",
+                GrugMetadata.migrateSavedKeys(saved, declared),
+                "The appended line uses the file's own line ending, and every existing byte is "
+                        + "kept.");
     }
 
     @Test
@@ -357,6 +410,10 @@ class GrugMetadataTest {
                 "key_Toggle:30\n",
                 GrugMetadata.migrateSavedKeys("key_Toggle:30\n", java.util.Collections.emptyList()),
                 "No declared binding means no label to migrate.");
+        assertEquals(
+                "",
+                GrugMetadata.migrateSavedKeys("", GrugMetadata.declaredKeys()),
+                "An empty options file has no old line and is returned as it is.");
 
         File noBindings = mods.resolve("options.txt").toFile();
         Files.write(noBindings.toPath(), "key_Toggle:30\n".getBytes(StandardCharsets.UTF_8));

@@ -40,8 +40,8 @@ public class ClientInitListener {
     public void registerKeyBindings(KeyBindingRegisterEvent event) {
         GrugOverlayHost.init(InitListener.overlayFiles, InitListener.overlayMods);
         // StationAPI posts this from the game options constructor, just before the options file is
-        // read, so a rebind saved under a label an older build registered is moved to the stable
-        // name before the game looks for it.
+        // read, so a rebind saved under a label an older build registered gets a stable line before
+        // the game looks for it.
         java.util.List<GrugMetadata.DeclaredKey> declaredKeys = GrugMetadata.declaredKeys();
         GrugMetadata.migrateSavedKeys(
                 new File(FabricLoader.getInstance().getGameDir().toFile(), "options.txt"),
