@@ -5,6 +5,10 @@
 # leaves the bucket in the hand, because BlockTank.b returns true for every bucket in its table. Any
 # other held item is declined, so it is used or placed against the tank as usual. The port maps a
 # bucket to its liquid with the reference's table, which registers water and lava; it has no oil.
+# The tanks stand at the eye's own lifted row, three, sqrt(13) and five blocks from the eye, so
+# 1.20.6's 5.5 block interaction range reaches all three; the far one stands in the room's wall
+# column, as decline_use_places-Test's fixture does. A row of tanks further away is never clicked,
+# because the server drops a use packet from out of reach and the wait then only times out.
 # On 1.20.6 a click reaches the block by a packet, so each step waits for the tank and the hand it
 # asked for rather than counting ticks (#688).
 step: number = 0
@@ -14,7 +18,7 @@ export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
     x: number = origin.x()
-    y: number = origin.y() + 22
+    y: number = origin.y()
     z: number = origin.z()
     player: Player = ctx.get_player()
 
