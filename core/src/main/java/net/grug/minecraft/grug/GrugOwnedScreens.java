@@ -1,10 +1,13 @@
 package net.grug.minecraft.grug;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.ModLoaderAdapter;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The screens the overlay scripts created, which one of them is open, and the export calls that
@@ -91,6 +94,22 @@ public final class GrugOwnedScreens {
      */
     private static final List<GrugObject> frameRowRoots = new ArrayList<>();
 
+    /**
+     * The names of the widgets an ended open time dropped, by id, so a call on a saved handle
+     * reports that its screen closed rather than claiming the widget was collected. The ids are
+     * never handed out twice, and the oldest are forgotten once the map holds {@value
+     * #DROPPED_WIDGETS_REMEMBERED} of them, which is more handles than a script keeps.
+     */
+    private static final Map<Long, String> droppedWidgets =
+            new LinkedHashMap<Long, String>() {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Long, String> eldest) {
+                    return size() > DROPPED_WIDGETS_REMEMBERED;
+                }
+            };
+
+    private static final int DROPPED_WIDGETS_REMEMBERED = 256;
+
     @GrugGenerated("utility class: never instantiated")
     private GrugOwnedScreens() {}
 
@@ -157,6 +176,11 @@ public final class GrugOwnedScreens {
     /**
      * Drops the screens of an overlay script that is going away, closing the open one first so a
      * mod hears {@code screen_closed} while its script still runs.
+     *
+     * <p>The open screen's host is taken away here too, because nothing else will: unlike {@link
+     * #close}, this path has no call that hides it, so a hot reload of a mod whose screen was open
+     * would run {@code screen_closed}, drop the widgets and leave an empty game screen up until
+     * Escape. A loader that cannot show a screen has nothing displayed to hide.
      */
     static void scriptDropped(GrugOverlayScripts.Script script) {
         for (Iterator<GrugOwnedScreen> iterator = screens.iterator(); iterator.hasNext(); ) {
@@ -164,6 +188,12 @@ public final class GrugOwnedScreens {
             if (screen.script() != script) continue;
             if (openScreen == screen) {
                 endOpenTime(screen);
+                ModLoaderAdapter adapter = GrugCore.getAdapter();
+                // The hide only takes away the host this model is showing, so it is safe even when
+                // screen_closed opened another screen: that screen's host is not this one.
+                if (adapter != null && adapter.ownedScreensSupported()) {
+                    adapter.hideOwnedScreen(screen);
+                }
             }
             GrugEntities.removeEntity(screen.entityId(), script.owner);
             iterator.remove();
@@ -206,7 +236,13 @@ public final class GrugOwnedScreens {
     private static void closeOpen(ModLoaderAdapter adapter) {
         GrugOwnedScreen screen = openScreen;
         endOpenTime(screen);
-        adapter.hideOwnedScreen(screen);
+        // screen_closed may have opened a screen again, this one included, and the loader is now
+        // showing that one: hiding it here would take away a screen that is still open. The
+        // loader's hide only takes away the host whose model is this screen, so a screen_closed
+        // that opened another screen leaves the old host already gone and this call a no-op.
+        if (openScreen != screen) {
+            adapter.hideOwnedScreen(screen);
+        }
     }
 
     /**
@@ -392,6 +428,7 @@ public final class GrugOwnedScreens {
         GrugStateLock.lock();
         try {
             GrugEntities.clearRoots(frameRowRoots);
+            GrugListRowResponse.clearLastDefect();
             for (GrugWidget widget : screen.widgets()) {
                 widget.clearFrameRows();
             }
@@ -405,6 +442,9 @@ public final class GrugOwnedScreens {
                                 widget.scroll(), rows, widget.rowHeight(), widget.height());
                 for (int index = first; index <= last; index++) {
                     askRow(screen, widget, index);
+                    // screen_list_row may close the screen, which is the last call it hears, so
+                    // the rows after it are not asked: the list it was answering for is gone.
+                    if (openScreen != screen) return;
                 }
             }
         } finally {
@@ -458,7 +498,13 @@ public final class GrugOwnedScreens {
         return widget.applyScroll(delta);
     }
 
-    /** The list under the point, in declaration order, or null when no visible list is there. */
+    /**
+     * The first visible list under the point, in declaration order, or null when there is none.
+     *
+     * <p>A list that is visible answers even when it is not active: the wheel over it is absorbed
+     * there and does not reach a list behind it, and {@link #scrollList} then refuses to move it,
+     * which is what {@code Widget.set_active} means by a list that is not active not scrolling.
+     */
     public static GrugWidget listAt(GrugOwnedScreen screen, double x, double y) {
         for (GrugWidget widget : screen.widgets()) {
             if (!widget.is(GrugWidgetKind.LIST) || !widget.visible()) continue;
@@ -526,6 +572,22 @@ public final class GrugOwnedScreens {
         }
     }
 
+    // --- The widgets an ended open time dropped -----------------------------------------------
+
+    /** Records that a widget was dropped because its screen's open time ended. */
+    static void widgetDropped(long widgetId, String name) {
+        droppedWidgets.put(widgetId, name);
+    }
+
+    /**
+     * The name of the widget an ended open time dropped and no screen declares now, or null when
+     * the id names no such widget. It is what lets a call on a saved handle say its screen closed,
+     * which is true, rather than that the object was collected, which is not.
+     */
+    static String droppedWidgetName(long widgetId) {
+        return droppedWidgets.get(widgetId);
+    }
+
     // --- What a unit test drives the lifecycle through ----------------------------------------
 
     /** Replaces what the exports are called through, and answers the one in use. */
@@ -545,6 +607,7 @@ public final class GrugOwnedScreens {
         widgetContext = null;
         creating = null;
         GrugEntities.clearRoots(frameRowRoots);
+        droppedWidgets.clear();
         calls = NATIVE;
     }
 }

@@ -1,0 +1,96 @@
+# A row response used after its screen_list_row call returned is an err (#1760): a response is valid
+# only during the call it was passed to. The overlay's stale mode answers the row "first", keeps the
+# response in a member, and reads its index from screen_render, which the same frame runs after
+# screen_list_row has returned. A capture is the frame barrier: the row export runs in a frame
+# between two of the test's ticks, so the test asks for a frame and then reads the screen's record of
+# what the export reported.
+# The screen host exists only on 1.20.6 so far, and the answer the row reported is the record of the
+# side whose screen asked it, so the gate goes when every loader has a host (#1760). The same test
+# ends early on the dedicated server, whose joined client owns the screen while the record read here
+# belongs to the server.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+# Settling, opening the screen once or three times and waiting for its frames passes the
+# default 200 ticks.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # F is the overlay's stale mode.
+        ctx.press_world_key(70, false)
+        waited = 0
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        ctx.press_world_key(72, false)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        # The frame barrier: this capture waits for a frame drawn after the ask, and that frame is
+        # the one whose screen_list_row answered and whose screen_render used the answer after.
+        _shot(ctx)
+        waited = 0
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        reported: string = ctx.list_row_error()
+        if String.length(reported) == 0 {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Using the row response after its call should report the stale response.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(String.index_of(reported, "only valid during the screen_list_row call") >= 0, "A response used after its call returned should report that the call has returned.")
+        ctx.close_screen()
+    }
+}
+
+# A crop of the first row's text, used only as the frame barrier, so its contents do not matter: the
+# capture waits for a frame drawn after the ask.
+local _shot(ctx: TestTickContext) Screenshot {
+    width: number = ctx.screen_width()
+    scale: number = Math.floor(1280 / width + 0.5)
+    return ctx.screenshot().capture((width - 145) * scale, 131 * scale, (width - 100) * scale, 140 * scale)
+}

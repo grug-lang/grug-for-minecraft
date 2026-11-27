@@ -1,0 +1,99 @@
+# A screen of the coverage mod's own, which the screen API's tests drive: one widget of each kind,
+# a list whose rows answer in the mode a test asks for, and a world key that opens it. The mode is a
+# world key because a screen export cannot be reached from a test directly and a world key is
+# delivered to this overlay on the client, so the test presses the mode's key and then H to open.
+# The list responds in five modes, one per rule of the response class that `screen_list_row` is
+# passed: the two rules of answering twice, a use after the call returned, and the answer it has to
+# give. What the stale mode keeps is used by `screen_render`, which runs later in the same frame
+# after `screen_list_row` has returned. See #1760.
+screen: Screen = Screen.new()
+
+# The handles of the five widgets, kept from `screen_init` so a later init can declare the same
+# widgets again and so `screen_widget_changed` could tell them apart.
+button: Option[Widget] = Option.new()
+checkbox: Option[Widget] = Option.new()
+slider: Option[Widget] = Option.new()
+field: Option[Widget] = Option.new()
+list: Option[Widget] = Option.new()
+
+# What `screen_list_row` does: 0 answers "first", 1 answers "first" and then "second", 2 answers
+# "first" twice, 3 answers "first" and keeps the response so `screen_render` can use it after the
+# call returned, 4 returns without answering, and 5 answers "second". A test sets one with a world
+# key before it opens the screen: C normal, D twice changing, E twice the same, F stale, G
+# unanswered, X the other text.
+row_mode: number = 0
+
+# The response the last stale-mode row kept. It is only used in the frame that asked it, because
+# every frame clears the responses it rooted.
+kept_row: Option[ListRowResponse] = Option.new()
+
+# The mode keys are world keys because a screen export cannot be reached from a test directly. H
+# opens the screen, which is only legal while no screen is open, so a test closes between openings.
+export world_key(ctx: OverlayWorldKeyContext) {
+    key: number = ctx.key()
+    if key == 67 {
+        row_mode = 0
+    } else if key == 68 {
+        row_mode = 1
+    } else if key == 69 {
+        row_mode = 2
+    } else if key == 70 {
+        row_mode = 3
+    } else if key == 71 {
+        row_mode = 4
+    } else if key == 88 {
+        row_mode = 5
+    } else if key == 72 {
+        screen.open()
+    }
+}
+
+export screen_init(ctx: ScreenInitContext) {
+    width: number = ctx.screen_width()
+    button.set(screen.add_button("press", "Press", 10, 10, 70, 20))
+    checkbox.set(screen.add_checkbox("tick", "Tick", false, 10, 40, 70, 20))
+    slider.set(screen.add_slider("slide", "Slide", 0, 10, 5, 10, 70, 100, 20))
+    field.set(screen.add_text_field("type", "text", 10, 100, 160, 20))
+    # The list sits a fixed height down the screen, because the widget hit tests the game does are
+    # in GUI-scaled pixels and the rows have to be inside the smallest window a run uses.
+    list.set(screen.add_list("rows", width - 150, 130, 140, 80, 10))
+    list.unwrap().set_rows(3)
+}
+
+# Draws a title and, in stale mode, uses the row response the same frame's `screen_list_row` kept.
+# The use is after that call returned, so it is the err the class's first rule names, and it is
+# reported while this export's own call is still running, with no test call around it.
+export screen_render(ctx: OverlayRenderContext) {
+    ctx.draw_text("coverage screen", 10, ctx.screen_height() - 20, Color.rgb(255, 255, 255))
+    if row_mode == 3 and kept_row.has() {
+        index: number = kept_row.unwrap().index()
+        ctx.draw_text(String.from_number(index), 160, ctx.screen_height() - 20, Color.rgb(255, 255, 255))
+    }
+}
+
+# Answers each visible row in the mode the test set. The first answer is the row's text; a second
+# answer is an err and does not replace it, which is why the row the list draws stays the first
+# text whatever mode asked it.
+export screen_list_row(ctx: ListRowResponse) {
+    if row_mode == 1 {
+        ctx.set_text("first")
+        ctx.set_text("second")
+        return
+    }
+    if row_mode == 2 {
+        ctx.set_text("first")
+        ctx.set_text("first")
+        return
+    }
+    if row_mode == 4 {
+        return
+    }
+    if row_mode == 5 {
+        ctx.set_text("second")
+        return
+    }
+    ctx.set_text("first")
+    if row_mode == 3 {
+        kept_row.set(ctx)
+    }
+}

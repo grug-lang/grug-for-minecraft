@@ -168,7 +168,7 @@ public final class GrugWidget {
         return GrugSliderMath.label(text, value);
     }
 
-    /** The fraction of the slider's track the handle is drawn at, clamped for the drawing. */
+    /** The fraction of the slider's track the handle is drawn at. The value is already in range. */
     public double sliderFraction() {
         return GrugSliderMath.drawnFraction(GrugSliderMath.fraction(value, min, max));
     }
@@ -179,11 +179,16 @@ public final class GrugWidget {
     }
 
     /**
-     * Records what a player's click on the list selected, then answers whether that changed the
-     * selection, which is what asks {@code screen_widget_changed}.
+     * Records what a player's click on the list selected, then answers whether the index named a
+     * row of it, which is what asks {@code screen_widget_changed}.
+     *
+     * <p>A click on the row that is already selected is still a click the mod hears: the
+     * reference's row callback runs on every click, so it can close a dropdown and re-apply the
+     * row's value even when the selection did not move. Only an index outside the rows is not a
+     * click on the list.
      */
     boolean applyListClick(int index) {
-        if (index < 0 || index >= rows || index == selected) return false;
+        if (index < 0 || index >= rows) return false;
         selected = index;
         return true;
     }
@@ -201,7 +206,7 @@ public final class GrugWidget {
      */
     boolean applySliderFraction(double fraction) {
         double before = value;
-        value = GrugSliderMath.value(fraction, min, max);
+        value = GrugSliderMath.clamp(GrugSliderMath.value(fraction, min, max), min, max);
         return value != before;
     }
 
@@ -264,9 +269,13 @@ public final class GrugWidget {
         checked = nowChecked;
     }
 
-    /** A mod's own {@code set_value}, which does not clamp and does not move the min or the max. */
+    /**
+     * A mod's own {@code set_value}, brought into the slider's range, which does not move the min
+     * or the max. The game's own slider clamps a value it is given, so this answers the value the
+     * handle is drawn at rather than the value a mod named.
+     */
     void setValue(double newValue) {
-        value = newValue;
+        value = GrugSliderMath.clamp(newValue, min, max);
     }
 
     /** A mod's own {@code set_text_colour}, which keeps the colour without its alpha. */

@@ -426,6 +426,7 @@ String.trim(text: string) string
 .high_block_round_trip() number
 .hot_reload_count(relative_path: string) number
 .light_applied(x: number, y: number, z: number) bool
+.list_row_error() string
 .load_nbt(block_entity: BlockEntity)
 .mining_crack(level: Level, x: number, y: number, z: number) bool
 .normalization_forced() bool

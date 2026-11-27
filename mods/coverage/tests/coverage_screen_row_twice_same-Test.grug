@@ -1,0 +1,136 @@
+# A row response answered twice with the same text is an err too (#1760): the rule is that a response
+# is answered once, not that the second answer has to differ. The row the list draws is unchanged,
+# which the crop compares with the normal mode's own first row, so a second answer that slipped
+# through and redrew the row would show.
+# The screen host exists only on 1.20.6 so far, and the answer the row reported is the record of the
+# side whose screen asked it, so the gate goes when every loader has a host (#1760). The same test
+# ends early on the dedicated server, whose joined client owns the screen while the record read here
+# belongs to the server.
+started: bool = false
+step: number = 0
+waited: number = 0
+normal: Option[Screenshot] = Option.new()
+twice: Option[Screenshot] = Option.new()
+
+# Settling, opening the screen once or three times and waiting for its frames passes the
+# default 200 ticks.
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # C is the overlay's normal mode, which answers every row "first".
+        ctx.press_world_key(67, false)
+        waited = 0
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        ctx.press_world_key(72, false)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        normal.set(_shot(ctx))
+        ctx.close_screen()
+        waited = 0
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Closing the screen should leave no screen open.")
+            ctx.not_done()
+            return
+        }
+        # E answers every row "first" twice, which the rule refuses even though the text repeats.
+        ctx.press_world_key(69, false)
+        waited = 0
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        ctx.press_world_key(72, false)
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen in the twice-same mode.")
+            ctx.not_done()
+            return
+        }
+        twice.set(_shot(ctx))
+        waited = 0
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        # The row exports run between two of the test's ticks, so the err is read from the screen's
+        # own record: a frame that has just cleared it answers empty, and the next frame asks again.
+        reported: string = ctx.list_row_error()
+        if String.length(reported) == 0 {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The row answered twice should report the second answer.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(String.index_of(reported, "already been answered") >= 0, "Answering a row twice should report that it was already answered, even with the same text.")
+        ctx.assert(twice.unwrap().change_from(normal.unwrap()) < 1, "The row should still show the first answer, because a second one is refused.")
+        ctx.close_screen()
+    }
+}
+
+# The first row's text, from the list's left padding to past the end of "first", and from the text's
+# first pixel to its last. The list is 140 scaled pixels wide at the screen's right edge, and its row
+# height is 10, so this crop holds no other row and no scrollbar.
+local _shot(ctx: TestTickContext) Screenshot {
+    width: number = ctx.screen_width()
+    scale: number = Math.floor(1280 / width + 0.5)
+    return ctx.screenshot().capture((width - 145) * scale, 131 * scale, (width - 100) * scale, 140 * scale)
+}

@@ -489,11 +489,53 @@ class HostFunctionsScreenTest {
         HostFunctions.Widget_set_checked(id[0], true);
         HostFunctions.Widget_set_value(id[1], 42.0);
         assertTrue(HostFunctions.Widget_checked(id[0]));
-        assertEquals(42.0, HostFunctions.Widget_value(id[1]));
+        assertEquals(10.0, HostFunctions.Widget_value(id[1]), "the value is brought into range");
         assertEquals(
                 1.0,
                 screen.widget("slider").sliderFraction(),
-                "the drawing stays on the track even for a value past its end");
+                "the handle is drawn at the end of the track");
+    }
+
+    @Test
+    void aSliderValueIsBroughtIntoItsRangeWhereverItComesFrom() {
+        long[] id = new long[1];
+        recorder.onInit =
+                () ->
+                        id[0] =
+                                HostFunctions.Screen_add_slider(
+                                        screen.entityId(),
+                                        "slider",
+                                        "level",
+                                        0,
+                                        10,
+                                        25.0,
+                                        0,
+                                        0,
+                                        100,
+                                        20);
+        init();
+        assertEquals(10.0, HostFunctions.Widget_value(id[0]), "a start past the end is the max");
+        assertNull(reported());
+
+        recorder.onInit =
+                () -> {
+                    long again =
+                            HostFunctions.Screen_add_slider(
+                                    screen.entityId(),
+                                    "slider",
+                                    "level",
+                                    0,
+                                    10,
+                                    -3.0,
+                                    0,
+                                    0,
+                                    100,
+                                    20);
+                    assertEquals(id[0], again, "the same name answers the same Widget");
+                };
+        init();
+        assertEquals(0.0, HostFunctions.Widget_value(id[0]), "a redeclared value below the min");
+        assertEquals(0.0, screen.widget("slider").sliderFraction());
     }
 
     @Test
@@ -524,7 +566,7 @@ class HostFunctionsScreenTest {
     }
 
     @Test
-    void aWidgetWhoseEntityIsGoneIsAnErr() {
+    void aWidgetWhoseScreenClosedIsAnErrSayingSo() {
         long[] id = new long[1];
         recorder.onInit = () -> id[0] = button("button");
         init();
@@ -533,7 +575,11 @@ class HostFunctionsScreenTest {
         assertFalse(HostFunctions.Widget_checked(0));
         assertTrue(reported().contains("no longer resolves"));
         assertEquals("", HostFunctions.Widget_text(id[0]));
-        assertTrue(reported().contains("no longer resolves"));
+        String report = reported();
+        assertTrue(report.contains("no longer resolves"), report);
+        assertTrue(report.contains("\"button\""), report);
+        assertTrue(report.contains("screen it was declared on was closed"), report);
+        assertFalse(report.contains("collected"), report);
     }
 
     @Test

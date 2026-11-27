@@ -333,6 +333,25 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void aClosedHandlerThatOpensTheSameScreenAgainLeavesItOpen() {
+        GrugOwnedScreen screen = openScreen();
+        recorder.onClosed =
+                () -> {
+                    recorder.onClosed = null;
+                    GrugOwnedScreens.open(loader.adapter(), screen);
+                };
+        assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
+
+        // The end of the open time asked screen_closed, which opened the screen again. Hiding it
+        // afterwards would take away a screen that is up and the mod still owns.
+        assertTrue(screen.open());
+        assertSame(screen, GrugOwnedScreens.openScreen());
+        assertEquals(1, recorder.count(script.screenClosedFnId));
+        assertEquals(2, loader.shown.size());
+        assertTrue(loader.hidden.isEmpty());
+    }
+
+    @Test
     void closingAScreenThatIsNotOpenIsAnErr() {
         GrugOwnedScreen screen = createScreen();
         String problem = GrugOwnedScreens.close(loader.adapter(), screen);
@@ -386,6 +405,8 @@ class GrugOwnedScreensTest {
         assertNull(GrugEntities.entityData.get(open.entityId()));
         assertNull(GrugEntities.entityData.get(other.entityId()));
         assertNull(GrugOwnedScreens.openScreen());
+        assertEquals(1, loader.hidden.size(), "the loader is not left showing the dropped screen");
+        assertSame(open, loader.hidden.get(0));
     }
 
     // --- Declaring the widgets ----------------------------------------------------------------
@@ -584,7 +605,7 @@ class GrugOwnedScreensTest {
     }
 
     @Test
-    void clickingARowSelectsItAndAsksOnlyWhenTheSelectionMoved() {
+    void clickingARowSelectsItAndAsksOnEveryClickOfARow() {
         GrugOwnedScreen screen = openScreen();
         GrugWidget[] list = new GrugWidget[1];
         recorder.onInit =
@@ -597,10 +618,15 @@ class GrugOwnedScreensTest {
         GrugOwnedScreens.listRowClicked(screen, list[0], 1);
         assertEquals(1, list[0].selected());
         assertEquals(1, recorder.count(script.screenWidgetChangedFnId));
+        // A click on the row that is already selected is still a click the mod hears, because the
+        // reference's row callback closes a dropdown and re-applies the row's value on every click.
         GrugOwnedScreens.listRowClicked(screen, list[0], 1);
-        assertEquals(1, recorder.count(script.screenWidgetChangedFnId));
+        assertEquals(1, list[0].selected());
+        assertEquals(2, recorder.count(script.screenWidgetChangedFnId));
+        // An index that is not a row is not a click on the list at all.
         GrugOwnedScreens.listRowClicked(screen, list[0], 9);
         assertEquals(1, list[0].selected());
+        assertEquals(2, recorder.count(script.screenWidgetChangedFnId));
     }
 
     @Test
@@ -654,6 +680,30 @@ class GrugOwnedScreensTest {
         lists[0].setVisible(false);
         assertSame(lists[1], GrugOwnedScreens.listAt(screen, 5, 5));
         assertNull(GrugOwnedScreens.listAt(screen, 500, 500));
+    }
+
+    @Test
+    void anInactiveListAnswersForTheWheelWithoutMoving() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] lists = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    lists[0] = screen.declareList("one", 0, 0, 100, 20, 10).widget;
+                    lists[0].applyRows(10);
+                };
+        init(screen, 320, 240);
+
+        GrugWidget list = GrugOwnedScreens.listAt(screen, 5, 5);
+        assertSame(lists[0], list);
+        list.setActive(false);
+        // The inactive list still absorbs the wheel, so a list behind it is never asked, and its
+        // own scroll stays where it was.
+        assertSame(list, GrugOwnedScreens.listAt(screen, 5, 5));
+        assertFalse(GrugOwnedScreens.scrollList(screen, list, -1.0));
+        assertEquals(0.0, list.scroll());
+        list.setActive(true);
+        assertTrue(GrugOwnedScreens.scrollList(screen, list, -1.0));
+        assertEquals(10.0, list.scroll());
     }
 
     @Test
@@ -767,10 +817,40 @@ class GrugOwnedScreensTest {
         init(screen, 320, 240);
         GrugTestState.testRunActive = true;
         GrugOwnedScreens.prepareFrame(screen);
-        String reported = GrugErrors.takeHostFunctionException();
+        String reported = GrugListRowResponse.lastDefect();
         assertNotNull(reported);
         assertTrue(reported.contains("returned without answering"));
         assertTrue(list[0].frameRows().isEmpty());
+        assertNull(
+                GrugErrors.takeHostFunctionException(),
+                "the frame pass has no call of the test's own to fail");
+    }
+
+    @Test
+    void aRowThatClosesTheScreenStopsTheFramesOtherRows() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] list = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    list[0] = screen.declareList("list", 0, 0, 100, 30, 10).widget;
+                    list[0].applyRows(2);
+                };
+        init(screen, 320, 240);
+        List<Integer> asked = new ArrayList<>();
+        recorder.onListRow =
+                () -> {
+                    Asked call = recorder.asked.get(recorder.asked.size() - 1);
+                    GrugListRowResponse response =
+                            (GrugListRowResponse)
+                                    GrugEntities.entityData.get(call.argumentId).object;
+                    asked.add(response.index());
+                    if (response.index() == 0) HostFunctions.Screen_close(screen.entityId());
+                };
+        GrugOwnedScreens.prepareFrame(screen);
+
+        assertEquals(1, asked.size(), "the frame stops at the row that closed the screen");
+        assertEquals(0, asked.get(0));
+        assertNull(GrugOwnedScreens.openScreen());
     }
 
     @Test
