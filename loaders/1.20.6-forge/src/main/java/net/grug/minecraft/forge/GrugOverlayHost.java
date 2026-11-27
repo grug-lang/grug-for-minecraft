@@ -11,6 +11,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 
+import net.grug.minecraft.core.GrugHeldKeys;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.forge.gui.GrugScreen;
 import net.grug.minecraft.grug.GrugGenerated;
@@ -188,7 +189,7 @@ public final class GrugOverlayHost {
     @SubscribeEvent
     public static void onScreenInit(ScreenEvent.Init.Post event) {
         if (eligible(event.getScreen()) == null) return;
-        heldKey = -1;
+        heldKeys.clear();
         GrugOverlay.screenOpened();
     }
 
@@ -277,8 +278,7 @@ public final class GrugOverlayHost {
         int key = overlayKey(event.getKeyCode());
         if (key < 0) return;
 
-        boolean repeat = event.getKeyCode() == heldKey;
-        heldKey = event.getKeyCode();
+        boolean repeat = heldKeys.press(event.getKeyCode());
 
         boolean ctrl = (event.getModifiers() & controlModifier()) != 0;
         boolean shift = (event.getModifiers() & shiftModifier()) != 0;
@@ -387,13 +387,13 @@ public final class GrugOverlayHost {
                 && (ctrl ? 0 : GrugOverlay.typedCharacterFor(overlayKey)) == 0;
     }
 
-    /** The key held since its first press, or -1: a second press event for it is a key repeat. */
-    private static int heldKey = -1;
+    /** The keys held since their first press: a second press event for one is a key repeat. */
+    private static final GrugHeldKeys heldKeys = new GrugHeldKeys();
 
-    /** Lets go of the held key when the screen reports its release. */
+    /** Lets go of the released key, leaving any other key that is still held held. */
     @SubscribeEvent
     public static void onScreenKeyReleased(ScreenEvent.KeyReleased.Pre event) {
-        if (event.getKeyCode() == heldKey) heldKey = -1;
+        heldKeys.release(event.getKeyCode());
     }
 
     /**

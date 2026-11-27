@@ -193,6 +193,33 @@ public final class GrugTestCamera {
     }
 
     /**
+     * The player write a capture client makes at a frame boundary, so the frame drawn after it is
+     * drawn from the eye the capture named (#1850).
+     */
+    public interface FramePin {
+        /** Holds the client's player at {@code eye}. */
+        void pin(Vec3 eye);
+    }
+
+    /**
+     * Re-applies a pending capture's pin at the frame boundary, so a frame drawn after the tick
+     * that moved the player is still drawn from the eye the capture named.
+     *
+     * <p>The pin at the head of the client tick runs before the world's physics, and work later in
+     * that tick, a mob push for example, can move the player again; the frame a capture reads is
+     * the one drawn after the tick (#1850). The write is made whenever a capture is pending, not
+     * only when the player had moved, so no coverage arm depends on a push landing at the right
+     * moment.
+     *
+     * <p>Pure over the three values the loader reads, so its unit test covers every combination.
+     */
+    public static void pinForFrame(
+            boolean capturePending, Vec3 eye, boolean playerPresent, FramePin pin) {
+        if (!capturePending || eye == null || !playerPresent) return;
+        pin.pin(eye);
+    }
+
+    /**
      * Whether {@code camera} is the eye {@code eye}, so a capture taken now is drawn from the place
      * the test's room was built above.
      *

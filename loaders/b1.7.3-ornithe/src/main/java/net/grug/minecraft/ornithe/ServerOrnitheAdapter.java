@@ -205,8 +205,15 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     private static void setCursor(PlayerEntity player, Item item) {
-        player.inventory.setCursorItem(new ItemStack(item));
+        // The interface's contract is that a null item clears the cursor, and this version's
+        // ItemStack(Item) cannot be built from one (#1850).
+        player.inventory.setCursorItem(cursorStack(item));
         GrugServerRun.sendCursor(player);
+    }
+
+    /** The stack a cursor write carries, or null for the interface's clear (#1850). */
+    static ItemStack cursorStack(Item item) {
+        return item == null ? null : new ItemStack(item);
     }
 
     /** Clears the carried stack, and the client's copy of it (#1094). */

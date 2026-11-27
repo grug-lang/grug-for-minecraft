@@ -673,16 +673,43 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
                 player -> setCursor(player, (Item) itemObj));
     }
 
+    /**
+     * Sets the cursor on either of this server's paths, or clears it for a null item, which is the
+     * interface's contract. Alpha's {@code ItemStack(Item)} reads {@code item.id}, so a null item
+     * cannot be built as a stack (#1850).
+     */
     private static void setCursor(PlayerEntity player, Item itemObj) {
         GrugAlphaMenu menu = MENUS.get(player);
         if (menu != null) {
-            menu.cursor = new ItemStack(itemObj);
+            setMenuCursor(menu, itemObj);
             sendToPlayer(player, GrugScreenContentPacket.of(menu));
             return;
         }
-        ItemStack stack = new ItemStack(itemObj);
-        CARRIED_ITEMS.put(player, stack);
-        sendCursorToPlayer(player, stack);
+        sendCursorToPlayer(player, putCarried(CARRIED_ITEMS, player, itemObj));
+    }
+
+    /** Sets a menu's cursor, or clears it for the interface's null item (#1850). */
+    static void setMenuCursor(GrugAlphaMenu menu, Item itemObj) {
+        menu.cursor = cursorStack(itemObj);
+    }
+
+    /**
+     * Puts a cursor stack in the carried map, or removes the player's entry for a null item, and
+     * answers the stack that is now carried, which is null when the cursor was cleared (#1850).
+     */
+    static <K> ItemStack putCarried(Map<K, ItemStack> carried, K player, Item itemObj) {
+        ItemStack stack = cursorStack(itemObj);
+        if (stack == null) {
+            carried.remove(player);
+        } else {
+            carried.put(player, stack);
+        }
+        return stack;
+    }
+
+    /** The stack a cursor write carries, or null for the interface's clear (#1850). */
+    static ItemStack cursorStack(Item itemObj) {
+        return itemObj == null ? null : new ItemStack(itemObj);
     }
 
     /** Clears this server's cursor and tells the client (#1098, #1389). */
@@ -697,14 +724,7 @@ public class ServerOrnitheAdapter extends OrnitheAdapter {
     }
 
     private static void clearCursor(PlayerEntity player) {
-        GrugAlphaMenu menu = MENUS.get(player);
-        if (menu != null) {
-            menu.cursor = null;
-            sendToPlayer(player, GrugScreenContentPacket.of(menu));
-            return;
-        }
-        CARRIED_ITEMS.remove(player);
-        sendCursorToPlayer(player, null);
+        setCursor(player, null);
     }
 
     /** Sends the cursor of the player's own inventory to {@code player}'s joined client. */

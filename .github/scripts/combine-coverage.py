@@ -620,20 +620,33 @@ def unmask_generated(data: bytes) -> bytes:
     return data.replace(GENERATED_DESCRIPTOR, UNMASKED_DESCRIPTOR)
 
 
-def exec_with_ids(paths: list[Path], ids: dict[str, int], out_dir: Path) -> list[Path]:
-    """Copies of the exec files that hold only the named classes' data, under their new ids."""
+def exec_with_ids(paths: list[Path], ids: dict[str, tuple[int, int]], out_dir: Path) -> list[Path]:
+    """Copies of the exec files that hold only the named classes' data, under their renamed ids.
+
+    ids maps a class name to the id its class bytes were recorded against and the id the report
+    analyses those bytes under, which differ because renaming @GrugGenerated changes the class id.
+    A block whose recorded id is not the one these class bytes were recorded against is dropped: a
+    carried-over base run recorded it against other bytes, so its probes say nothing about the
+    classes analysed here (#1850). The number of dropped blocks is printed.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
+    dropped = 0
     for index, path in enumerate(paths):
         kept = b""
         for kind, name, raw in exec_blocks(path.read_bytes()):
             if name is None:
                 kept += raw
             elif name in ids:
-                kept += raw[:1] + ids[name].to_bytes(8, "big") + raw[9:]
+                recorded, renamed = ids[name]
+                if int.from_bytes(raw[1:9], "big") != recorded:
+                    dropped += 1
+                    continue
+                kept += raw[:1] + renamed.to_bytes(8, "big") + raw[9:]
         target = out_dir / f"{index:05d}-{path.name}"
         target.write_bytes(kept)
         written.append(target)
+    print(f"exec_with_ids: dropped {dropped} class block(s) recorded against other class bytes")
     return written
 
 
@@ -656,15 +669,19 @@ def measure_server_only(
     wanted = set(SERVER_ONLY.get(runner, []))
     shutil.rmtree(work, ignore_errors=True)
     classes = work / "classes"
-    ids: dict[str, int] = {}
+    ids: dict[str, tuple[int, int]] = {}
     for path in sorted(class_dir.rglob("*.class")):
         if path.stem.split("$", 1)[0] not in wanted:
             continue
-        patched = unmask_generated(path.read_bytes())
+        original = path.read_bytes()
+        patched = unmask_generated(original)
         target = classes / path.relative_to(class_dir)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(patched)
-        ids[path.relative_to(class_dir).with_suffix("").as_posix()] = class_id(patched)
+        ids[path.relative_to(class_dir).with_suffix("").as_posix()] = (
+            class_id(original),
+            class_id(patched),
+        )
     if not ids:
         return [], set()
     cut = exec_with_ids(execs, ids, work / "exec")
