@@ -216,6 +216,20 @@ public final class GrugOverlay {
     }
 
     /**
+     * Whether a key event is one a loader forwards to the overlays: a press, or an event with no
+     * key that types a printable character.
+     *
+     * <p>LWJGL 2.9.3 on Windows reports a typed character as its own event beside the key press,
+     * with key {@link #KEY_NONE} and the key state false, so rejecting every event whose state is
+     * false dropped typed punctuation (#1790). An event with no key and no printable character is
+     * not forwarded, and an ordinary release, which has a key of its own, is still rejected.
+     */
+    public static boolean keyEventDelivered(boolean down, int key, int character) {
+        if (down) return true;
+        return key == KEY_NONE && characterCode(character) != 0;
+    }
+
+    /**
      * Whether an event that carries a printable character is a key chord, which a text field leaves
      * to the screen, rather than a character of its own: control is held and alt is not.
      *
@@ -281,6 +295,11 @@ public final class GrugOverlay {
 
     /** The code a key pass gives backspace, the same on every loader. */
     public static final int KEY_BACKSPACE = 8;
+
+    /**
+     * The key an LWJGL 2.9.3 character-only event reports on Windows, which has no key of its own.
+     */
+    public static final int KEY_NONE = 0;
 
     /**
      * The codes a key pass gives a key with no character of its own, the same on every loader: they

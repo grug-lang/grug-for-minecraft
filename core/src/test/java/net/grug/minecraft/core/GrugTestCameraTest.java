@@ -9,6 +9,9 @@ import net.grug.minecraft.grug.Vec3;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Covers the view rule in {@link GrugTestCamera}. */
 class GrugTestCameraTest {
 
@@ -214,6 +217,21 @@ class GrugTestCameraTest {
         // A side with no camera, or a request that named no eye, is never there.
         assertFalse(GrugTestCamera.cameraAt(null, eye));
         assertFalse(GrugTestCamera.cameraAt(eye, null));
+    }
+
+    @Test
+    void aPendingCapturePinsTheFrameAtItsEye() {
+        Vec3 eye = new Vec3(12.5, 65.62, -3.5);
+        List<Vec3> pinned = new ArrayList<>();
+
+        // No capture, no eye, or no player to hold is not a frame pin.
+        GrugTestCamera.pinForFrame(false, eye, true, pinned::add);
+        GrugTestCamera.pinForFrame(true, null, true, pinned::add);
+        GrugTestCamera.pinForFrame(true, eye, false, pinned::add);
+        assertTrue(pinned.isEmpty());
+
+        GrugTestCamera.pinForFrame(true, eye, true, pinned::add);
+        assertEquals(List.of(eye), pinned);
     }
 
     @Test

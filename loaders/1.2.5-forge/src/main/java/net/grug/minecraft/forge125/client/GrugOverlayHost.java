@@ -451,22 +451,23 @@ public final class GrugOverlayHost {
      * <p>The patched {@code GuiScreen.handleInput} calls this after {@code Keyboard.next()} has
      * selected the event and before the screen's own handler runs. A key an overlay takes is
      * consumed by returning true, so the screen never sees it; every other event, a release
-     * included, returns false and is handled as vanilla would.
+     * included, returns false and is handled as vanilla would. LWJGL 2.9.3 on Windows reports a
+     * typed character as its own event with no key and the key state false, which {@link
+     * GrugOverlay#keyEventDelivered} lets through so typed punctuation reaches the character pass
+     * (#1790).
      */
     public static boolean handleKeyEvent(Object screenObj) {
-        if (!Keyboard.getEventKeyState()) return false;
+        int key = Keyboard.getEventKey();
+        char character = Keyboard.getEventCharacter();
+        if (!GrugOverlay.keyEventDelivered(Keyboard.getEventKeyState(), key, (int) character)) {
+            return false;
+        }
         boolean ctrl =
                 Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
                         || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
         boolean shift =
                 Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
-        return key(
-                (GuiScreen) screenObj,
-                Keyboard.getEventCharacter(),
-                Keyboard.getEventKey(),
-                ctrl,
-                shift,
-                Keyboard.isRepeatEvent());
+        return key((GuiScreen) screenObj, character, key, ctrl, shift, Keyboard.isRepeatEvent());
     }
 
     /**

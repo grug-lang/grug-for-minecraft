@@ -165,10 +165,26 @@ public final class GrugControlAlphaClient {
         // GrugTestOrigin.EYE_HEIGHT holds since #1662, and this client's y is that eye already.
         // The recomputation that used to correct a decimal server eye by 5e-9 (#1213) is gone
         // because there is nothing left to correct.
-        player.updatePositionAndAngles(eye.x(), eye.y(), eye.z(), 0.0F, 0.0F);
+        pinAt(player, eye);
+    }
+
+    /** Writes the pin, with the eye the capture named, and zeroes the velocity. */
+    private static void pinAt(PlayerEntity player, Vec3 at) {
+        player.updatePositionAndAngles(at.x(), at.y(), at.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
+    }
+
+    /**
+     * Re-applies the pending capture's pin at the frame boundary, so the frame drawn after the tick
+     * is drawn from the eye even when work later in that tick, a mob push for example, moved the
+     * player after {@link #pinAtCaptureEye} ran (#1850). The decision is core's, so its unit test
+     * covers every combination.
+     */
+    public static void holdForFrame(Minecraft mc) {
+        PlayerEntity player = mc.player;
+        GrugTestCamera.pinForFrame(pending, eye, player != null, at -> pinAt(player, at));
     }
 
     /**

@@ -949,15 +949,19 @@ class ServerExecTest(unittest.TestCase):
         self.assertIn("Exception while analyzing net/grug/A", out.getvalue())
 
 
-def exec_bytes(*names):
+def exec_bytes(*names, ids=None):
     """A JaCoCo exec file holding one class block per name: the writer's header, a session, and
-    for each class a long id, the UTF name and a 10 probe array (a count and two packed bytes)."""
+    for each class a long id, the UTF name and a 10 probe array (a count and two packed bytes).
+
+    The id is the class's index unless ids names one, which a test that checks the recorded id
+    against real class bytes needs."""
     data = bytearray(b"\x01\xc0\xc0\x10\x07")
     session = b"s"
     data += b"\x10" + len(session).to_bytes(2, "big") + session + bytes(16)
     for index, name in enumerate(names):
         raw = name.encode()
-        data += b"\x11" + index.to_bytes(8, "big") + len(raw).to_bytes(2, "big") + raw
+        recorded = index if ids is None else ids[name]
+        data += b"\x11" + recorded.to_bytes(8, "big") + len(raw).to_bytes(2, "big") + raw
         data += bytes([10, 0b10101010, 0b11])
     return bytes(data)
 
@@ -1363,10 +1367,27 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
     def test_the_exec_is_cut_to_the_named_classes_under_their_new_ids(self):
         source = self.root / "a.exec"
         source.write_bytes(exec_bytes("net/A", "net/B", "net/C"))
-        [cut] = combine.exec_with_ids([source], {"net/B": 0x1122334455667788}, self.root / "out")
+        [cut] = combine.exec_with_ids(
+            [source], {"net/B": (1, 0x1122334455667788)}, self.root / "out"
+        )
         blocks = [(name, raw) for _, name, raw in combine.exec_blocks(cut.read_bytes())]
         self.assertEqual([name for name, _ in blocks], [None, None, "net/B"])
         self.assertEqual(blocks[2][1][1:9], bytes.fromhex("1122334455667788"))
+
+    def test_a_block_recorded_against_other_class_bytes_is_dropped_and_counted(self):
+        source = self.root / "a.exec"
+        source.write_bytes(exec_bytes("net/A", "net/B"))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            [cut] = combine.exec_with_ids(
+                [source],
+                {"net/A": (7, 0x11), "net/B": (1, 0x22)},
+                self.root / "out",
+            )
+        # A was recorded against id 0, not the 7 the class bytes this run has give it, so its
+        # probes are not counted against those bytes; B's id matches and is rewritten.
+        self.assertEqual(combine.exec_class_names([cut]), {"net/B"})
+        self.assertIn("dropped 1 class block", out.getvalue())
 
     def test_the_report_runs_over_the_renamed_copies_of_the_wanted_classes_only(self):
         tree = self.class_tree(
@@ -1377,7 +1398,16 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
             }
         )
         source = self.root / "a.exec"
-        source.write_bytes(exec_bytes("net/x/GrugServerRun", "net/x/Unrelated"))
+        source.write_bytes(
+            exec_bytes(
+                "net/x/GrugServerRun",
+                "net/x/Unrelated",
+                ids={
+                    "net/x/GrugServerRun": combine.class_id(b"Lx/GrugGenerated;"),
+                    "net/x/Unrelated": 0,
+                },
+            )
+        )
         seen_calls = []
 
         def report(cli, execs, classes, sources, csv_path, xml_path):
@@ -1499,7 +1529,12 @@ class ServerOnlyMeasurementTest(unittest.TestCase):
         with zipfile.ZipFile(jar, "w") as archive:
             archive.writestr("net/x/ServerOrnitheAdapter.class", b"layer bytes")
         server = self.root / "server.exec"
-        server.write_bytes(exec_bytes("net/x/ServerOrnitheAdapter"))
+        server.write_bytes(
+            exec_bytes(
+                "net/x/ServerOrnitheAdapter",
+                ids={"net/x/ServerOrnitheAdapter": combine.class_id(b"layer bytes")},
+            )
+        )
         calls = []
 
         def report(cli, execs, classes, sources, csv_path, xml_path):

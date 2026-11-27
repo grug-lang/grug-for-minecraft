@@ -54,7 +54,13 @@ public class GameRendererMixin {
         net.grug.minecraft.stationapi.client.GrugModelRenderer.flushPendingUploads();
         if (!GrugFrameRequest.wanted()) {
             ci.cancel();
+            return;
         }
+        // A pending capture's pin is re-applied here, after the tick's physics and before the
+        // draw, so the frame draws from the eye even when work later in the tick moved the player
+        // (#1850).
+        net.grug.minecraft.stationapi.control.GrugControlStationClient.holdForFrame(
+                (Minecraft) FabricLoader.getInstance().getGameInstance());
     }
 
     /**

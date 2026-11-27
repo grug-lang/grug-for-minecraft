@@ -261,4 +261,25 @@ class GrugOverlayTest {
         GrugOverlay.openClick(426, 240, 125, 37, 176, 166, 300, 20, 0, false);
         assertFalse(GrugOverlay.closeClick(), "Neither take recorded anything.");
     }
+
+    @Test
+    void aKeyEventIsDeliveredForAPressAndForACharacterOnlyEvent() {
+        // A press is forwarded, whether or not it types a character.
+        assertTrue(GrugOverlay.keyEventDelivered(true, 'A', 'a'));
+        assertTrue(GrugOverlay.keyEventDelivered(true, GrugOverlay.KEY_ESCAPE, 0));
+
+        // An ordinary release has a key of its own and is not forwarded.
+        assertFalse(GrugOverlay.keyEventDelivered(false, 'A', 'a'));
+        assertFalse(GrugOverlay.keyEventDelivered(false, GrugOverlay.KEY_ESCAPE, 0));
+
+        // The Windows character-only event has no key and types the punctuation; it is forwarded
+        // so the character pass sees it (#1790).
+        assertTrue(
+                GrugOverlay.keyEventDelivered(
+                        false, GrugOverlay.KEY_NONE, GrugOverlay.characterCode('!')));
+        // An event with no key and nothing printable is not forwarded either.
+        assertFalse(GrugOverlay.keyEventDelivered(false, GrugOverlay.KEY_NONE, 0));
+        assertFalse(GrugOverlay.keyEventDelivered(false, GrugOverlay.KEY_NONE, '\n'));
+        assertFalse(GrugOverlay.keyEventDelivered(false, GrugOverlay.KEY_NONE, 127));
+    }
 }

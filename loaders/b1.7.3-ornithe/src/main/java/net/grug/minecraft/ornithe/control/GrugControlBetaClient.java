@@ -134,11 +134,26 @@ public final class GrugControlBetaClient {
      * #1193.
      */
     private static void pinAtCaptureEye(PlayerEntity player) {
-        player.setPositionAndAngles(
-                eye.x(), GrugTestOrigin.feetOfEye(eye.y()), eye.z(), 0.0F, 0.0F);
+        pinAt(player, eye);
+    }
+
+    /** Writes the pin, with the eye the capture named, and zeroes the velocity. */
+    private static void pinAt(PlayerEntity player, Vec3 at) {
+        player.setPositionAndAngles(at.x(), GrugTestOrigin.feetOfEye(at.y()), at.z(), 0.0F, 0.0F);
         player.velocityX = 0.0;
         player.velocityY = 0.0;
         player.velocityZ = 0.0;
+    }
+
+    /**
+     * Re-applies the pending capture's pin at the frame boundary, so the frame drawn after the tick
+     * is drawn from the eye even when work later in that tick, a mob push for example, moved the
+     * player after {@link #pinAtCaptureEye} ran (#1850). The decision is core's, so its unit test
+     * covers every combination.
+     */
+    public static void holdForFrame(Minecraft mc) {
+        PlayerEntity player = GrugClientPlayer.of(mc);
+        GrugTestCamera.pinForFrame(pending, eye, player != null, at -> pinAt(player, at));
     }
 
     /**
