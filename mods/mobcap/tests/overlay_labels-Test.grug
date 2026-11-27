@@ -61,7 +61,10 @@ export tick(ctx: TestTickContext) {
             return
         }
         # The hold's rule has no tolerance: the review's example, one death and two arrivals, is
-        # cap + 2 and must fail rather than be repaired (#1849).
+        # cap + 2 and must fail rather than be repaired (#1849). This pins the count rule itself.
+        # Whether a repair call exists is not something a committed test can observe, because a
+        # failing ctx.assert is the run's failure and a repair would run before it; the wait's own
+        # condition is pinned by _world_ready's doc.
         cap: number = ctx.get_client_level().get_mob_cap("hostile")
         ctx.assert(not _at_target(cap + 2, cap), "A count above the target must fail, so a death followed by arrivals cannot pass.")
         ctx.assert(not _at_target(cap - 1, cap), "A count below the target must fail.")
