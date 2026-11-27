@@ -2,8 +2,8 @@
 # is answered once, not that the second answer has to differ. The row the list draws is unchanged,
 # which the crop compares with the normal mode's own first row, so a second answer that slipped
 # through and redrew the row would show.
-# The screen host exists only on 1.20.6 so far, and the answer the row reported is the record of the
-# side whose screen asked it, so the gate goes when every loader has a host (#1760). The same test
+# The screen host exists on 1.20.6 and 1.2.5 so far, and the answer the row reported is the record of the
+# side whose screen asked it, so the gate grows as every loader gets a host (#1760). The same test
 # ends early on the dedicated server, whose joined client owns the screen while the record read here
 # belongs to the server.
 started: bool = false
@@ -21,7 +21,7 @@ export init(ctx: TestInitContext) {
 export tick(ctx: TestTickContext) {
     if not started {
         started = true
-        if me.loader_name() != "1.20.6-forge" or me.on_dedicated_server() {
+        if (me.loader_name() != "1.20.6-forge" and me.loader_name() != "1.2.5-forge") or me.on_dedicated_server() {
             return
         }
         ctx.not_done()
