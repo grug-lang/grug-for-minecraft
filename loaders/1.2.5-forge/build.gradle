@@ -295,17 +295,25 @@ tasks.register('generateGrugVersion') {
     }
 }
 
-// GrugHandAccess names ItemRenderer's two equip-progress fields by the srg names the launched game
-// carries. A string holds no reference for reobfuscation to follow, so a wrong literal would only
-// fail in a game launched from the reobfuscated jar, after a merge, on the first frame that draws
-// the hand. This pins the literals to the snapshot the loader is built against, so a snapshot
-// change that moves them fails the loader job instead of the installed one.
-tasks.register('verifyHandFieldNames') {
-    description = 'Checks the srg names GrugHandAccess reads against the pinned snapshot.'
+// GrugHandAccess names ItemRenderer's two equip-progress fields, and GrugTextFieldAccess names
+// GuiTextField's enabled colour, disabled colour and enabled flag, by the srg names the launched
+// game carries. A string holds no reference for reobfuscation to follow, so a wrong literal would
+// only fail in a game launched from the reobfuscated jar, after a merge: the hand on the first
+// frame that draws it, a field on the first screen that sets one. This pins the literals to the
+// snapshot the loader is built against, so a snapshot change that moves them fails the loader job
+// instead of the installed one.
+tasks.register('verifyGameFieldNames') {
+    description = 'Checks the srg names GrugHandAccess and GrugTextFieldAccess read against the pinned snapshot.'
     dependsOn 'reobfSrg'
     inputs.file reobfSrgFile
     doLast {
-        def wanted = ['equippedProgress': 'c', 'prevEquippedProgress': 'd']
+        def wanted = [
+            'net/minecraft/src/ItemRenderer/equippedProgress'    : 'c',
+            'net/minecraft/src/ItemRenderer/prevEquippedProgress': 'd',
+            'net/minecraft/src/GuiTextField/enabledColor'        : 'q',
+            'net/minecraft/src/GuiTextField/disabledColor'       : 'r',
+            'net/minecraft/src/GuiTextField/isEnabled'           : 'm',
+        ]
         def mapped = [:]
         reobfSrgFile.eachLine { line ->
             if (!line.startsWith('FD: ')) return
@@ -314,12 +322,11 @@ tasks.register('verifyHandFieldNames') {
                 mapped[parts[0]] = parts[1]
             }
         }
-        wanted.each { name, srgName ->
-            def dev = "net/minecraft/src/ItemRenderer/${name}"
+        wanted.each { dev, srgName ->
             def obf = mapped[dev]
             if (obf == null || obf.tokenize('/').last() != srgName) {
                 throw new GradleException(
-                    "GrugHandAccess reads ${dev} as '${srgName}', but the pinned snapshot maps it to ${obf}")
+                    "${dev} is read as '${srgName}', but the pinned snapshot maps it to ${obf}")
             }
         }
     }
@@ -328,7 +335,7 @@ tasks.register('verifyHandFieldNames') {
 // -- Steps 4 and 5: compile and reobfuscate the loader ------------------------------------------
 
 tasks.named('compileJava', JavaCompile) {
-    dependsOn 'fetchMcpSnapshot', 'generateGrugVersion', 'verifyHandFieldNames'
+    dependsOn 'fetchMcpSnapshot', 'generateGrugVersion', 'verifyGameFieldNames'
     options.release = 8
     options.encoding = 'UTF-8'
 }
