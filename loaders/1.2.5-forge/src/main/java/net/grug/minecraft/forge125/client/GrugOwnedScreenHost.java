@@ -14,6 +14,7 @@ import net.minecraft.src.Gui;
 import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.GuiTextField;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.ScaledResolution;
 
 import org.lwjgl.input.Keyboard;
@@ -130,6 +131,19 @@ public final class GrugOwnedScreenHost extends GuiScreen {
     /** The model this screen shows, which is what {@code hideOwnedScreen} compares against. */
     public GrugOwnedScreen model() {
         return screen;
+    }
+
+    /**
+     * Takes the game's screen away when it is this model's host, which is what a screen close asks
+     * for. A screen the player opened over the host is theirs to keep, so it stays: this loader
+     * shows its empty screen where another version shows the world again.
+     */
+    public static void hideIfShowing(GrugOwnedScreen model) {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft.currentScreen instanceof GrugOwnedScreenHost
+                && ((GrugOwnedScreenHost) minecraft.currentScreen).model() == model) {
+            minecraft.displayGuiScreen(new GrugEmptyScreen());
+        }
     }
 
     @Override
