@@ -249,6 +249,13 @@ public final class GrugOwnedScreenHost extends Screen {
             GrugOverlay.noteTestPressTaken();
             return true;
         }
+        // The mod may have shown, hidden or moved a widget during that call, and the game's copies
+        // are a frame behind. A press is routed by the copies' own visibility and bounds, so they
+        // are brought up to date first: otherwise a list the mod just hid still takes the press
+        // meant for the widget it revealed underneath, which a player pressing twice within one
+        // frame reaches and a test pressing on two ticks does too, because the runner runs many
+        // ticks per frame.
+        syncMirrors();
         boolean handled = super.mouseClicked(mouseX, mouseY, button);
         if (!handled) {
             // A click on an empty spot takes the keyboard away from a focused field, as the API
