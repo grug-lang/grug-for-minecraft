@@ -146,6 +146,11 @@ enum kind {
     K_BINDING_CTX,
     K_CONFIG,
     K_SQUARES,
+    K_SCREEN,
+    K_WIDGET,
+    K_SCREEN_INIT_CTX,
+    K_SCREEN_WIDGET_CTX,
+    K_LIST_ROW_RESPONSE,
 };
 struct obj {
     enum kind kind;
@@ -154,6 +159,7 @@ struct obj {
     bool open;  // a response: valid until the call it was passed to returns
     union grug_value val;
     const char* str;
+    void* priv;  // the state behind a screen, a widget, a context or a row response
 };
 static struct obj* objs;
 static size_t nobjs, capobjs;
@@ -218,9 +224,22 @@ static const char* keep(char* s) {
     }
     return arena[narena++] = s;
 }
+// The screens and widgets of a test, which own strings and structs of their own; the section that
+// implements them is below. free_test_state has to drop them before it empties the object table.
+static void clear_screens(void);
+static bool mod_screen_open(void);
+static double mod_screen_geometry(int which);
+static bool mod_screen_click(double x, double y, double button);
+static bool mod_screen_key(double key, double character, bool ctrl, bool shift, bool repeat);
+static bool mod_screen_scroll(double x, double y, double delta);
+static void mod_screen_render(void);
+static void mod_screen_close_open(void);
+static void screen_creation_begin(void);
+static void screen_creation_end(void* entity);
 static void free_test_state(void) {
     for (size_t i = 0; i < narena; i++) free(arena[i]);
     narena = 0;
+    clear_screens();
     nobjs = 0;
 }
 
@@ -3438,14 +3457,18 @@ static bool color_problem(double r, double g, double b, double a, char* out, siz
     return true;
 }
 // SMOKETEST_EXCL_STOP
-static union grug_value Color_rgb(ARGS) { UNUSED; return id(new_obj(K_COLOR)); }
+// The color object carries its 24-bit rgb in x, which is what Widget.set_text_colour and
+// ListRowResponse.set_text_colour read, as the host reads Color.getRGB.
+static union grug_value Color_rgb(ARGS) { UNUSED; uint64_t o = new_obj(K_COLOR); objs[o - 1].x = (double) (((int) a[0]._number << 16) | ((int) a[1]._number << 8) | (int) a[2]._number); return id(o); }
 REGISTER("Color", "rgb", Color_rgb);
 // SMOKETEST_EXCL_START: the only committed caller, overlay_triangles-Test, stops earlier at an overlay call the smoketest lacks
 static union grug_value Color_rgba(ARGS) {
     UNUSED;
     char msg[2048];
     if (color_problem(a[0]._number, a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("Color.rgba: %s", msg);
-    return id(new_obj(K_COLOR));
+    uint64_t o = new_obj(K_COLOR);
+    objs[o - 1].x = (double) (((int) a[0]._number << 16) | ((int) a[1]._number << 8) | (int) a[2]._number);
+    return id(o);
 }
 // SMOKETEST_EXCL_STOP
 REGISTER("Color", "rgba", Color_rgba);
@@ -3670,12 +3693,13 @@ static union grug_value GUI_open(ARGS) {
     screen_gui = (size_t)(gu - guis);
     screen_be = a[2]._id;
     carried_has = false;
+    mod_screen_close_open();
     stubbed = true;  // no capture exists behind the screen, and its window is an assumed one (see the screen geometry)
     return none();
 }
 REGISTER("GUI", "open", GUI_open);
 // A screen is open after GUI.open until close_screen, and screen_open-Test asserts it closed after close_screen.
-static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(screen_is_open); }
+static union grug_value TTC_screen_open(ARGS) { UNUSED; return boolean(screen_is_open || mod_screen_open()); }
 REGISTER("TestTickContext", "screen_open", TTC_screen_open);
 
 // Screen geometry and clicks (gui_click-Test, gui_click_empty-Test, forwarded_gui_*-Test, forwarded_screen_*-Test,
@@ -3689,7 +3713,11 @@ REGISTER("TestTickContext", "screen_open", TTC_screen_open);
 #define PANEL_H 166
 #define WINDOW_W 427
 #define WINDOW_H 240
+// A screen a mod owns is the client's own screen while it is open, so it answers the screen's
+// geometry, its press, key and wheel passes and its frame, and the section that owns it is below.
+// make_overlays binds the screens a script's member scope creates to the entity that script makes.
 static double gui_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 window width
+    if (mod_screen_open()) return mod_screen_geometry(which);
     if (!screen_is_open) return 0;
     switch (which) {
     case 0: return (WINDOW_W - PANEL_W) / 2;
@@ -3764,6 +3792,7 @@ static union grug_value TTC_click_screen(ARGS) {
     char msg[600];
     if (click_problem(a[1]._number, a[2]._number, a[3]._number, msg, sizeof msg)) return fail("TestTickContext.click_screen: %s", msg);  // SMOKETEST_EXCL: see click_problem
     if (overlay_click_taken(a[1]._number, a[2]._number, a[3]._number)) return boolean(true);
+    if (mod_screen_open()) return boolean(mod_screen_click(a[1]._number, a[2]._number, a[3]._number));
     if (!screen_is_open) { stubbed = true; return boolean(false); }  // SMOKETEST_EXCL: every committed click that passes has a screen open
     struct be* b = be_of(screen_be);
     if (!b) { stubbed = true; return boolean(false); }  // the player's inventory screen has no block entity, and the vanilla slot overlay-Test presses on it is not modelled, so that run is STUBBED
@@ -4151,6 +4180,7 @@ REGISTER("TestInitContext", "stall", TTC_stall);
 static union grug_value TTC_close_screen(ARGS) {
     UNUSED;
     if (carried_has) stubbed = true;  // the carried stack is not handed back to the player
+    mod_screen_close_open();
     screen_is_open = false;
     carried_has = false;
     return none();
@@ -4187,6 +4217,9 @@ static void note_test_mod(const char* label) {
 }
 
 static void clear_overlays(void) {
+    // A script that goes away takes its open screen with it, and its screen_closed runs while the
+    // script still does, as GrugOwnedScreens.scriptDropped does.
+    mod_screen_close_open();
     for (size_t i = 0; i < noverlays; i++)
         if (overlays[i].entity) grug_deinit_entity(g_state, overlays[i].entity);  // SMOKETEST_EXCL_BRANCH: every committed overlay file creates its entity
     noverlays = 0;
@@ -4207,7 +4240,12 @@ static void make_overlays(void) {
             capoverlays = capoverlays ? capoverlays * 2 : 8;  // SMOKETEST_EXCL_BRANCH: no more than eight overlays are compiled at once, so the doubling never runs
             overlays = xrealloc(overlays, capoverlays * sizeof *overlays);
         }
-        overlays[noverlays] = (struct overlay){grug_create_entity(g_state, fi->file_id), fi->entity_name, fi->mod_name, fi->path};
+        // A screen is made at member scope of an overlay script, so the window around the create
+        // call is where Screen.new is legal, and the entity the call answers binds what it made.
+        screen_creation_begin();
+        void* entity = grug_create_entity(g_state, fi->file_id);
+        screen_creation_end(entity);
+        overlays[noverlays] = (struct overlay){entity, fi->entity_name, fi->mod_name, fi->path};
         noverlays++;
     }
     for (size_t i = 1; i < noverlays; i++)
@@ -4271,6 +4309,7 @@ static void note_screen_opened(void) {
 static union grug_value TTC_open_inventory(ARGS) {
     UNUSED;
     if (!get_obj(a[1]._id, K_PLAYER)) return fail("TestTickContext.open_inventory: not a Player");  // SMOKETEST_EXCL_BRANCH: no committed test opens the inventory for anything but the player
+    mod_screen_close_open();
     screen_is_open = true;
     screen_gui = 0;
     screen_be = 0;
@@ -4304,7 +4343,7 @@ static bool render_context(uint64_t handle) {
 }
 static union grug_value ORC_screen_width(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_width: not a render pass"); return num(gui_geometry(4)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "screen_width", ORC_screen_width);
-static union grug_value ORC_screen_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_height: not a render pass"); return num(screen_is_open ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+static union grug_value ORC_screen_height(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.screen_height: not a render pass"); return num(screen_is_open || mod_screen_open() ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "screen_height", ORC_screen_height);
 static union grug_value ORC_gui_left(ARGS) { UNUSED; if (!render_context(a[0]._id)) return fail("OverlayRenderContext.gui_left: not a render pass"); return num(gui_geometry(0)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayRenderContext", "gui_left", ORC_gui_left);
@@ -4360,7 +4399,7 @@ static union grug_value OCC_mouse_y(ARGS) { UNUSED; if (!click_context(a[0]._id)
 REGISTER("OverlayClickContext", "mouse_y", OCC_mouse_y);
 static union grug_value OCC_screen_width(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_width: not a click pass"); return num(gui_geometry(4)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "screen_width", OCC_screen_width);
-static union grug_value OCC_screen_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_height: not a click pass"); return num(screen_is_open ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+static union grug_value OCC_screen_height(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.screen_height: not a click pass"); return num(screen_is_open || mod_screen_open() ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "screen_height", OCC_screen_height);
 static union grug_value OCC_gui_left(ARGS) { UNUSED; if (!click_context(a[0]._id)) return fail("OverlayClickContext.gui_left: not a click pass"); return num(gui_geometry(0)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayClickContext", "gui_left", OCC_gui_left);
@@ -4405,7 +4444,7 @@ static union grug_value OSC_mouse_y(ARGS) { UNUSED; if (!scroll_context(a[0]._id
 REGISTER("OverlayScrollContext", "mouse_y", OSC_mouse_y);
 static union grug_value OSC_screen_width(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_width: not a scroll pass"); return num(gui_geometry(4)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "screen_width", OSC_screen_width);
-static union grug_value OSC_screen_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_height: not a scroll pass"); return num(screen_is_open ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
+static union grug_value OSC_screen_height(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.screen_height: not a scroll pass"); return num(screen_is_open || mod_screen_open() ? WINDOW_H : 0); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "screen_height", OSC_screen_height);
 static union grug_value OSC_gui_left(ARGS) { UNUSED; if (!scroll_context(a[0]._id)) return fail("OverlayScrollContext.gui_left: not a scroll pass"); return num(gui_geometry(0)); }  // SMOKETEST_EXCL_BRANCH: no committed test reads an overlay context outside the export that was passed it
 REGISTER("OverlayScrollContext", "gui_left", OSC_gui_left);
@@ -4480,7 +4519,7 @@ static union grug_value TTC_press_screen_key(ARGS) {
         return fail("TestTickContext.press_screen_key: The key has to be a whole number from 0 up, and was %s.", t);
     }
     // SMOKETEST_EXCL_STOP
-    if (!screen_is_open) return fail("TestTickContext.press_screen_key: There is no screen open to press.");  // SMOKETEST_EXCL: every committed press has a screen open
+    if (!screen_is_open && !mod_screen_open()) return fail("TestTickContext.press_screen_key: There is no screen open to press.");  // SMOKETEST_EXCL: every committed press has a screen open
     int key = (int)k;
     bool ctrl = a[2]._bool, shift = a[3]._bool, release = a[4]._bool;
     // The keys a loader routes to an overlay are backspace, space, a digit, a letter and the keys
@@ -4506,6 +4545,13 @@ static union grug_value TTC_press_screen_key(ARGS) {
     overlay_key_ctrl = ctrl;
     overlay_key_shift = shift;
     overlay_key_repeat = repeat;
+    // A mod's own screen is the client's screen, so it gets the key through its own export and has
+    // no overlay pass: the screen under the overlay is the mod screen itself.
+    if (mod_screen_open()) {
+        bool taken = mod_screen_key(key, overlay_key_character, ctrl, shift, repeat);
+        if (release) overlay_key_held = false;
+        return boolean(taken);
+    }
     bool taken = false;
     for (size_t i = 0; i < noverlays; i++) {
         if (overlay_disabled(overlays[i].path)) continue;
@@ -4528,7 +4574,8 @@ static union grug_value TTC_scroll_screen(ARGS) {
     for (int i = 1; i <= 2; i++)
         if (!isfinite(a[i]._number)) return fail("TestTickContext.scroll_screen: The position has to be finite.");  // SMOKETEST_EXCL: no committed test passes a bad position
     if (!isfinite(a[3]._number)) return fail("TestTickContext.scroll_screen: The delta has to be finite.");  // SMOKETEST_EXCL: no committed test passes a bad delta
-    if (!screen_is_open) return fail("TestTickContext.scroll_screen: There is no screen open to scroll.");  // SMOKETEST_EXCL: every committed wheel has a screen open
+    if (!screen_is_open && !mod_screen_open()) return fail("TestTickContext.scroll_screen: There is no screen open to scroll.");  // SMOKETEST_EXCL: every committed wheel has a screen open
+    if (mod_screen_open()) return boolean(mod_screen_scroll(a[1]._number, a[2]._number, a[3]._number));
     overlay_scroll_x = a[1]._number;
     overlay_scroll_y = a[2]._number;
     overlay_scroll_delta = a[3]._number;
@@ -4545,6 +4592,866 @@ static union grug_value TTC_scroll_screen(ARGS) {
     return boolean(false);
 }
 REGISTER("TestTickContext", "scroll_screen", TTC_scroll_screen);
+// =============================================================================================
+// SECTION: Screens a mod owns
+// =============================================================================================
+// A screen a mod owns: `Screen.new()` in the member scope of an Overlay script, the widgets its
+// `screen_init` declares, and the presses, keys, wheel movements and frames its own exports get.
+// The host reference is GrugOwnedScreen, GrugOwnedScreens, GrugWidget, GrugListMath and
+// GrugSliderMath on the screen branch; the model here is the same one, so a logic test asserts the
+// behaviour every loader shares. What is a game class and cannot be observed by a logic test is
+// documented where it is stubbed.
+enum widget_kind { WK_BUTTON, WK_CHECKBOX, WK_LIST, WK_SLIDER, WK_TEXT_FIELD };
+static const char* const widget_kind_names[] = {"button", "checkbox", "list", "slider", "text field"};
+
+struct owned_widget {
+    struct owned_screen* screen;
+    uint64_t handle;
+    char* name;
+    enum widget_kind kind;
+    double x, y, width, height;
+    char* text;
+    bool active, visible;
+    bool checked;
+    bool declared_this_init;
+    double min, max, value;
+    int rows, selected;
+    double row_height, scroll;
+    int text_rgb;  // the game's default text colour, 14737632, until set_text_colour
+};
+
+struct owned_screen {
+    uint64_t handle;
+    void* entity;  // the Overlay script's entity, set once its member scope returns
+    struct owned_widget** widgets;
+    size_t nwidgets, capwidgets;
+    bool open;
+};
+
+// The screens every overlay script made, and the one that is the client's current screen. A screen
+// belongs to one script, so its exports are that script's own screen_* functions.
+static struct owned_screen** owned_screens;
+static size_t nowned_screens, capowned_screens;
+static struct owned_screen* open_owned_screen;
+// What is running right now: the screen whose screen_init or screen_widget_changed call is open,
+// with the context that call was passed. A context saved for later is refused against these.
+static struct owned_screen* init_screen_running;
+static uint64_t init_ctx_running;
+static uint64_t widget_ctx_running;
+static struct owned_screen* widget_screen_running;
+// True only around grug_create_entity for an Overlay file, which is the member scope a screen may be
+// made in. A block entity's or a test's member scope is refused, as the host refuses it.
+static bool creating_overlay_script;
+// An unanswered list row is an err raised by the asking host, which is a frame-level defect rather
+// than a grug call's own error, so it is recorded and fails the test after its frame.
+static char screen_defect[4096];
+// The Overlay script's screen_* exports, looked up once for every script.
+static uint64_t screen_init_fn = UINT64_MAX, screen_render_fn = UINT64_MAX, screen_click_fn = UINT64_MAX;
+static uint64_t screen_key_fn = UINT64_MAX, screen_scroll_fn = UINT64_MAX, screen_widget_changed_fn = UINT64_MAX;
+static uint64_t screen_list_row_fn = UINT64_MAX, screen_closed_fn = UINT64_MAX;
+
+static const char* widget_kind_name(enum widget_kind kind) { return widget_kind_names[kind]; }
+
+static struct owned_screen* screen_of(uint64_t handle, const char* method) {
+    struct obj* o = get_obj(handle, K_SCREEN);
+    if (!o || !o->priv) {
+        fail("%s: the screen id %llu no longer resolves, because the object behind it was collected while the script still held it.", method, (unsigned long long) handle);
+        return NULL;
+    }
+    return o->priv;
+}
+static struct owned_widget* widget_of(uint64_t handle, const char* method) {
+    struct obj* o = get_obj(handle, K_WIDGET);
+    if (!o || !o->priv) {
+        fail("%s: the widget id %llu no longer resolves, because the object behind it was collected while the script still held it.", method, (unsigned long long) handle);
+        return NULL;
+    }
+    return o->priv;
+}
+static struct owned_widget* widget_of_kind(uint64_t handle, const char* method, enum widget_kind kind) {
+    struct owned_widget* w = widget_of(handle, method);
+    if (!w) return NULL;
+    if (w->kind != kind) {
+        fail("%s: This widget is a %s, and this call is only for a %s.", method, widget_kind_name(w->kind), widget_kind_name(kind));
+        return NULL;
+    }
+    return w;
+}
+// A widget whose text a call reads or writes. A list has no text of its own: its rows are asked for
+// through screen_list_row.
+static struct owned_widget* text_widget_of(uint64_t handle, const char* method) {
+    struct owned_widget* w = widget_of(handle, method);
+    if (!w) return NULL;
+    if (w->kind == WK_LIST) {
+        fail("%s: This widget is a list, and a list has no text of its own: its rows are answered through screen_list_row.", method);
+        return NULL;
+    }
+    return w;
+}
+static void widget_set_text(struct owned_widget* w, const char* text) {
+    char* copy = xstrdup(text ? text : "");
+    free(w->text);
+    w->text = copy;
+}
+static struct owned_widget* widget_find(struct owned_screen* s, const char* name) {
+    for (size_t i = 0; i < s->nwidgets; i++)
+        if (!strcmp(s->widgets[i]->name, name)) return s->widgets[i];
+    return NULL;
+}
+// A widget handle saved from a screen whose open time ended must stop resolving, so its object is
+// marked dead here and a later call reports the stale id instead of silently working.
+static void drop_widgets(struct owned_screen* s) {
+    for (size_t i = 0; i < s->nwidgets; i++) {
+        struct owned_widget* w = s->widgets[i];
+        if (w->handle >= 1 && w->handle <= nobjs) {
+            objs[w->handle - 1].kind = K_NONE;
+            objs[w->handle - 1].priv = NULL;
+        }
+        free(w->name);
+        free(w->text);
+        free(w);
+    }
+    s->nwidgets = 0;
+}
+static void clear_screens(void) {
+    for (size_t i = 0; i < nobjs; i++) objs[i].priv = NULL;
+    for (size_t i = 0; i < nowned_screens; i++) {
+        struct owned_screen* s = owned_screens[i];
+        drop_widgets(s);  // the objects are already cleared above, so this only frees the strings
+        free(s->widgets);
+        free(s);
+    }
+    nowned_screens = 0;
+    open_owned_screen = NULL;
+    init_screen_running = NULL;
+    init_ctx_running = 0;
+    widget_ctx_running = 0;
+    widget_screen_running = NULL;
+    creating_overlay_script = false;
+    screen_defect[0] = 0;
+}
+static void screen_creation_begin(void) { creating_overlay_script = true; }
+static void screen_creation_end(void* entity) {
+    for (size_t i = 0; i < nowned_screens; i++)
+        if (!owned_screens[i]->entity) owned_screens[i]->entity = entity;
+    creating_overlay_script = false;
+}
+
+// The screen's own exports, called as the game calls them. A grug err inside one is contained by the
+// JNI layer in the real game, so it is contained here too and never becomes the test's error.
+static void call_screen_export(struct owned_screen* s, uint64_t fn, const union grug_value* args, size_t n) {
+    if (!s->entity || fn == UINT64_MAX) return;  // a screen opened while its script's member scope still runs has no export to ask
+    call_contained(s->entity, fn, args, n);
+}
+static void ask_widget_changed(struct owned_screen* s, uint64_t widget_handle) {
+    if (screen_widget_changed_fn == UINT64_MAX) return;
+    uint64_t ctx = new_obj(K_SCREEN_WIDGET_CTX);
+    struct obj* c = &objs[ctx - 1];
+    c->open = true;
+    c->x = (double) widget_handle;
+    uint64_t saved_ctx = widget_ctx_running;
+    struct owned_screen* saved_screen = widget_screen_running;
+    widget_ctx_running = ctx;
+    widget_screen_running = s;
+    union grug_value arg = id(ctx);
+    call_screen_export(s, screen_widget_changed_fn, &arg, 1);
+    widget_ctx_running = saved_ctx;
+    widget_screen_running = saved_screen;
+    c = &objs[ctx - 1];
+    c->open = false;
+}
+
+// List and slider arithmetic, copied from GrugListMath and GrugSliderMath so a logic test's numbers
+// are the reference's. The screen port's own tests are what assert these numbers; until they land
+// no committed test reaches this code.
+static double list_max_scroll(int rows, double row_height, double height) {
+    if (rows <= 0 || !(row_height > 0.0) || !(height > 0.0)) return 0.0;
+    double max = rows * row_height - height;
+    return max > 0.0 ? max : 0.0;
+}
+static double list_clamp_scroll(double scroll, int rows, double row_height, double height) {
+    double max = list_max_scroll(rows, row_height, height);
+    if (!(scroll > 0.0)) return 0.0;
+    return scroll < max ? scroll : max;
+}
+static double list_scroll_by(double scroll, double delta, int rows, double row_height, double height) {
+    if (delta == 0.0) return list_clamp_scroll(scroll, rows, row_height, height);
+    return list_clamp_scroll(scroll - delta * row_height, rows, row_height, height);
+}
+static int list_first_visible(double scroll, int rows, double row_height) {
+    if (rows <= 0 || !(row_height > 0.0)) return 0;
+    double first = floor(scroll / row_height);
+    if (first < 0.0) return 0;
+    return first > rows ? rows : (int) first;
+}
+static int list_last_visible(double scroll, int rows, double row_height, double height) {
+    int first = list_first_visible(scroll, rows, row_height);
+    if (rows <= 0 || !(row_height > 0.0) || !(height > 0.0)) return first - 1;
+    int last = (int) ceil((scroll + height) / row_height) - 1;
+    if (last < first - 1) last = first - 1;
+    return last > rows - 1 ? rows - 1 : last;
+}
+static int list_row_at(double y, double height, double scroll, int rows, double row_height) {
+    if (rows <= 0 || !(row_height > 0.0) || !(height > 0.0)) return -1;
+    if (!(y >= 0.0) || y >= height) return -1;
+    double index = floor((scroll + y) / row_height);
+    if (index < 0.0 || index >= rows) return -1;
+    return (int) index;
+}
+static int list_selection_after_rows_change(int selected, int rows) {
+    if (selected < 0) return -1;
+    return selected < rows ? selected : -1;
+}
+
+// The screen's open time: screen_init when it opens, screen_closed when it goes away, and the
+// widgets dropped when that time ends. A screen_closed may open or close another screen, which the
+// while loops below are what allow.
+static void run_screen_init(struct owned_screen* s) {
+    for (size_t i = 0; i < s->nwidgets; i++) s->widgets[i]->declared_this_init = false;
+    uint64_t ctx = new_obj(K_SCREEN_INIT_CTX);
+    struct obj* c = &objs[ctx - 1];
+    c->x = WINDOW_W;
+    c->y = WINDOW_H;
+    c->open = true;
+    uint64_t saved_ctx = init_ctx_running;
+    struct owned_screen* saved_screen = init_screen_running;
+    init_ctx_running = ctx;
+    init_screen_running = s;
+    union grug_value arg = id(ctx);
+    call_screen_export(s, screen_init_fn, &arg, 1);
+    init_ctx_running = saved_ctx;
+    init_screen_running = saved_screen;
+    c = &objs[ctx - 1];
+    c->open = false;
+    for (size_t i = 0; i < s->nwidgets; i++) s->widgets[i]->declared_this_init = false;
+}
+static void end_open_time(struct owned_screen* s) {
+    if (open_owned_screen == s) open_owned_screen = NULL;
+    s->open = false;
+    drop_widgets(s);
+    call_screen_export(s, screen_closed_fn, NULL, 0);
+}
+static void mod_screen_close_open(void) {
+    if (!open_owned_screen) return;
+    end_open_time(open_owned_screen);
+}
+static bool mod_screen_open(void) { return open_owned_screen != NULL && open_owned_screen->open; }
+static double mod_screen_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 window width
+    if (!mod_screen_open()) return 0;
+    switch (which) {
+    case 0: return 0;
+    case 1: return 0;
+    case 2: return WINDOW_W;
+    case 3: return WINDOW_H;
+    default: return WINDOW_W;
+    }
+}
+
+static union grug_value Screen_new(ARGS) {
+    UNUSED;
+    if (!creating_overlay_script) {
+        // A member-scope call of any script other than an Overlay file's has no screen to belong to.
+        // The smoketest always has a client, so the loader's own refusal is not modelled.
+        return fail("Screen.new: A screen is made at member scope of an overlay script, in the call that script makes when it loads, and this call is not inside one.");
+    }
+    if (nowned_screens == capowned_screens) {
+        capowned_screens = capowned_screens ? capowned_screens * 2 : 8;
+        owned_screens = xrealloc(owned_screens, capowned_screens * sizeof *owned_screens);
+    }
+    struct owned_screen* s = xmalloc(sizeof *s);
+    memset(s, 0, sizeof *s);
+    uint64_t handle = new_obj(K_SCREEN);
+    s->handle = handle;
+    objs[handle - 1].priv = s;
+    owned_screens[nowned_screens++] = s;
+    return id(handle);
+}
+REGISTER("Screen", "new", Screen_new);
+
+static union grug_value Screen_open(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.open");
+    if (!s) return none();
+    // The toy world is always loaded, so the game's no-world refusal is not modelled.
+    while (open_owned_screen) mod_screen_close_open();
+    // A mod screen is the client's current screen, so the container screen underneath it is gone.
+    // Whether the game hands the carried stack back when one screen replaces another is the
+    // loader's own behaviour and not something the smoketest models, so a container screen open
+    // here makes the run STUBBED, as close_screen does for the same reason.
+    if (screen_is_open) stubbed = true;
+    screen_is_open = false;
+    screen_gui = 0;
+    screen_be = 0;
+    carried_has = false;
+    // A mod-owned screen is not one of the screens an overlay draws on (the player's inventory and
+    // every screen a container opens), so opening it neither clears the overlay drawn mark nor
+    // starts a new first-frame record, which belong to the container screen's own frame pass. The
+    // world key that opened it has done its work, so no world key is held from here.
+    overlay_key_held = false;
+    s->open = true;
+    open_owned_screen = s;
+    run_screen_init(s);
+    return none();
+}
+REGISTER("Screen", "open", Screen_open);
+
+static union grug_value Screen_close(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.close");
+    if (!s) return none();
+    if (open_owned_screen != s)
+        return fail("Screen.close: This screen is not the one that is open, so closing it would either do nothing or close the screen that is open instead.");
+    mod_screen_close_open();
+    return none();
+}
+REGISTER("Screen", "close", Screen_close);
+
+// The five declarations. The rectangle is checked before the declaration's own rules, as the host
+// does, and the slider's range before its name, which is the order the host's declareSlider keeps.
+static bool require_rectangle(const char* method, double x, double y, double width, double height) {
+    if (isfinite(x) && isfinite(y) && isfinite(width) && isfinite(height)) return true;
+    char tx[400], ty[400], tw[400], th[400];
+    double_text(x, tx, sizeof tx);
+    double_text(y, ty, sizeof ty);
+    double_text(width, tw, sizeof tw);
+    double_text(height, th, sizeof th);
+    fail("%s: The position and the size have to be finite numbers, and x, y, width and height were %s, %s, %s and %s.", method, tx, ty, tw, th);
+    return false;
+}
+static bool require_point(const char* method, double x, double y) {
+    if (isfinite(x) && isfinite(y)) return true;
+    char tx[400], ty[400];
+    double_text(x, tx, sizeof tx);
+    double_text(y, ty, sizeof ty);
+    fail("%s: The position has to be a finite number in both directions, and x and y were %s and %s.", method, tx, ty);
+    return false;
+}
+static bool require_row_height(const char* method, double row_height) {
+    if (isfinite(row_height) && row_height > 0.0) return true;
+    char t[400];
+    double_text(row_height, t, sizeof t);
+    fail("%s: The row height has to be a positive finite number, and was %s.", method, t);
+    return false;
+}
+// Why a value is not a whole number a list can count or index, or false when it is.
+static bool whole_number_problem(double value, const char* what, char* out, size_t cap) {
+    if (value >= 0.0 && value <= 2147483647.0 && value == floor(value)) return false;
+    char t[256];
+    double_text(value, t, sizeof t);
+    snprintf(out, cap, "The %s has to be a whole number from 0 to 2147483647, and was %s.", what, t);
+    return true;
+}
+// Why a declaration of this name and kind is refused now, or NULL when it may happen. The order is
+// the host's: the current screen_init first, then a name this init already declared, then a name
+// another kind declared on this screen in an earlier init.
+static const char* declare_problem(const struct owned_screen* s, const char* name, enum widget_kind kind, char* out, size_t cap) {
+    if (init_screen_running != s)
+        { snprintf(out, cap, "A widget is declared only while this screen's screen_init is running, and this call is not inside it."); return out; }
+    struct owned_widget* existing = widget_find((struct owned_screen*) s, name);
+    if (existing && existing->declared_this_init)
+        { snprintf(out, cap, "\"%s\" was already declared as a %s in this screen_init.", name, widget_kind_name(existing->kind)); return out; }
+    if (existing && existing->kind != kind)
+        { snprintf(out, cap, "\"%s\" was declared as a %s on this screen already, so it cannot be declared as a %s.", name, widget_kind_name(existing->kind), widget_kind_name(kind)); return out; }
+    return NULL;
+}
+static struct owned_widget* declare_widget(struct owned_screen* s, enum widget_kind kind, const char* name) {
+    struct owned_widget* w = widget_find(s, name);
+    if (!w) {
+        if (s->nwidgets == s->capwidgets) {
+            s->capwidgets = s->capwidgets ? s->capwidgets * 2 : 8;
+            s->widgets = xrealloc(s->widgets, s->capwidgets * sizeof *s->widgets);
+        }
+        w = xmalloc(sizeof *w);
+        memset(w, 0, sizeof *w);
+        s->widgets[s->nwidgets++] = w;
+        w->screen = s;
+        w->name = xstrdup(name);
+        w->kind = kind;
+        w->active = true;
+        w->visible = true;
+        w->selected = -1;
+        w->text = xstrdup("");
+        w->text_rgb = 14737632;
+        uint64_t handle = new_obj(K_WIDGET);
+        w->handle = handle;
+        objs[handle - 1].priv = w;
+    }
+    w->declared_this_init = true;
+    return w;
+}
+static union grug_value declared_widget(const char* method, struct owned_screen* s, enum widget_kind kind, const char* name, const char* problem, double x, double y, double width, double height, struct owned_widget** out) {
+    if (problem) return fail("%s: %s", method, problem);
+    struct owned_widget* w = declare_widget(s, kind, name);
+    w->x = x;
+    w->y = y;
+    w->width = width;
+    w->height = height;
+    *out = w;
+    return id(w->handle);
+}
+static union grug_value Screen_add_button(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.add_button");
+    if (!s || !require_rectangle("Screen.add_button", a[3]._number, a[4]._number, a[5]._number, a[6]._number)) return none();
+    char problem[1024];
+    const char* why = declare_problem(s, a[1]._string, WK_BUTTON, problem, sizeof problem);
+    struct owned_widget* w = NULL;
+    union grug_value wv = declared_widget("Screen.add_button", s, WK_BUTTON, a[1]._string, why, a[3]._number, a[4]._number, a[5]._number, a[6]._number, &w);
+    if (why) return wv;
+    widget_set_text(w, a[2]._string);
+    return wv;
+}
+REGISTER("Screen", "add_button", Screen_add_button);
+static union grug_value Screen_add_checkbox(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.add_checkbox");
+    if (!s || !require_rectangle("Screen.add_checkbox", a[4]._number, a[5]._number, a[6]._number, a[7]._number)) return none();
+    char problem[1024];
+    const char* why = declare_problem(s, a[1]._string, WK_CHECKBOX, problem, sizeof problem);
+    struct owned_widget* w = NULL;
+    union grug_value wv = declared_widget("Screen.add_checkbox", s, WK_CHECKBOX, a[1]._string, why, a[4]._number, a[5]._number, a[6]._number, a[7]._number, &w);
+    if (why) return wv;
+    widget_set_text(w, a[2]._string);
+    w->checked = a[3]._bool;
+    return wv;
+}
+REGISTER("Screen", "add_checkbox", Screen_add_checkbox);
+static union grug_value Screen_add_list(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.add_list");
+    if (!s || !require_rectangle("Screen.add_list", a[2]._number, a[3]._number, a[4]._number, a[5]._number)) return none();
+    if (!require_row_height("Screen.add_list", a[6]._number)) return none();
+    char problem[1024];
+    const char* why = declare_problem(s, a[1]._string, WK_LIST, problem, sizeof problem);
+    struct owned_widget* w = NULL;
+    union grug_value wv = declared_widget("Screen.add_list", s, WK_LIST, a[1]._string, why, a[2]._number, a[3]._number, a[4]._number, a[5]._number, &w);
+    if (why) return wv;
+    w->row_height = a[6]._number;
+    w->scroll = list_clamp_scroll(w->scroll, w->rows, w->row_height, w->height);
+    return wv;
+}
+REGISTER("Screen", "add_list", Screen_add_list);
+static union grug_value Screen_add_slider(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.add_slider");
+    if (!s || !require_rectangle("Screen.add_slider", a[6]._number, a[7]._number, a[8]._number, a[9]._number)) return none();
+    char problem[1024];
+    if (!isfinite(a[3]._number) || !isfinite(a[4]._number)) {
+        char tmin[400], tmax[400];
+        double_text(a[3]._number, tmin, sizeof tmin);
+        double_text(a[4]._number, tmax, sizeof tmax);
+        snprintf(problem, sizeof problem, "The min and the max have to be finite, and they were %s and %s.", tmin, tmax);
+        return fail("Screen.add_slider: %s", problem);
+    }
+    if (!(a[4]._number > a[3]._number)) {
+        char tmin[400], tmax[400];
+        double_text(a[3]._number, tmin, sizeof tmin);
+        double_text(a[4]._number, tmax, sizeof tmax);
+        snprintf(problem, sizeof problem, "The max has to be greater than the min, and they were %s and %s.", tmin, tmax);
+        return fail("Screen.add_slider: %s", problem);
+    }
+    const char* why = declare_problem(s, a[1]._string, WK_SLIDER, problem, sizeof problem);
+    struct owned_widget* w = NULL;
+    union grug_value wv = declared_widget("Screen.add_slider", s, WK_SLIDER, a[1]._string, why, a[6]._number, a[7]._number, a[8]._number, a[9]._number, &w);
+    if (why) return wv;
+    widget_set_text(w, a[2]._string);
+    w->min = a[3]._number;
+    w->max = a[4]._number;
+    w->value = a[5]._number;
+    return wv;
+}
+REGISTER("Screen", "add_slider", Screen_add_slider);
+static union grug_value Screen_add_text_field(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.add_text_field");
+    if (!s || !require_rectangle("Screen.add_text_field", a[3]._number, a[4]._number, a[5]._number, a[6]._number)) return none();
+    char problem[1024];
+    const char* why = declare_problem(s, a[1]._string, WK_TEXT_FIELD, problem, sizeof problem);
+    struct owned_widget* w = NULL;
+    union grug_value wv = declared_widget("Screen.add_text_field", s, WK_TEXT_FIELD, a[1]._string, why, a[3]._number, a[4]._number, a[5]._number, a[6]._number, &w);
+    if (why) return wv;
+    widget_set_text(w, a[2]._string);
+    return wv;
+}
+REGISTER("Screen", "add_text_field", Screen_add_text_field);
+
+// ScreenInitContext: the size the screen_init call lays the screen out in. A context is valid only
+// while that call runs, so one saved in a member variable is refused.
+static union grug_value SIC_screen_width(ARGS) {
+    UNUSED;
+    struct obj* c = get_obj(a[0]._id, K_SCREEN_INIT_CTX);
+    if (!c || !c->open || init_ctx_running != a[0]._id)
+        return fail("ScreenInitContext.screen_width: A screen_init context is only valid while the export it was passed to is running. A context saved in a member variable and used later is refused.");
+    return num(c->x);
+}
+REGISTER("ScreenInitContext", "screen_width", SIC_screen_width);
+static union grug_value SIC_screen_height(ARGS) {
+    UNUSED;
+    struct obj* c = get_obj(a[0]._id, K_SCREEN_INIT_CTX);
+    if (!c || !c->open || init_ctx_running != a[0]._id)
+        return fail("ScreenInitContext.screen_height: A screen_init context is only valid while the export it was passed to is running. A context saved in a member variable and used later is refused.");
+    return num(c->y);
+}
+REGISTER("ScreenInitContext", "screen_height", SIC_screen_height);
+
+// ScreenWidgetContext: the widget the player used. It carries the widget's handle, and it is valid
+// only while the screen_widget_changed call runs.
+static union grug_value SWC_widget(ARGS) {
+    UNUSED;
+    struct obj* c = get_obj(a[0]._id, K_SCREEN_WIDGET_CTX);
+    if (!c || !c->open || widget_ctx_running != a[0]._id)
+        return fail("ScreenWidgetContext.widget: A screen_widget_changed context is only valid while the export it was passed to is running. A context saved in a member variable and used later is refused.");
+    return id((uint64_t) c->x);
+}
+REGISTER("ScreenWidgetContext", "widget", SWC_widget);
+
+// Widget: the five kinds share one class, and a method a kind does not have names the kind it is.
+static union grug_value Widget_checked(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.checked", WK_CHECKBOX);
+    return w ? boolean(w->checked) : none();
+}
+REGISTER("Widget", "checked", Widget_checked);
+static union grug_value Widget_select(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.select", WK_LIST);
+    if (!w) return none();
+    char problem[400];
+    if (whole_number_problem(a[1]._number, "index", problem, sizeof problem))
+        return fail("Widget.select: %s", problem);
+    if (w->rows == 0) return fail("Widget.select: This list has no rows, so there is no row to select.");
+    int index = (int) a[1]._number;
+    if (index < 0 || index >= w->rows)
+        return fail("Widget.select: This list has %d rows, so there is no row %d.", w->rows, index);
+    w->selected = index;
+    return none();
+}
+REGISTER("Widget", "select", Widget_select);
+static union grug_value Widget_selected(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.selected", WK_LIST);
+    return w ? num(w->selected) : num(-1);
+}
+REGISTER("Widget", "selected", Widget_selected);
+static union grug_value Widget_set_active(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of(a[0]._id, "Widget.set_active");
+    if (w) w->active = a[1]._bool;
+    return none();
+}
+REGISTER("Widget", "set_active", Widget_set_active);
+static union grug_value Widget_set_checked(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.set_checked", WK_CHECKBOX);
+    if (w) w->checked = a[1]._bool;
+    return none();
+}
+REGISTER("Widget", "set_checked", Widget_set_checked);
+static union grug_value Widget_set_position(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of(a[0]._id, "Widget.set_position");
+    if (!w || !require_point("Widget.set_position", a[1]._number, a[2]._number)) return none();
+    w->x = a[1]._number;
+    w->y = a[2]._number;
+    return none();
+}
+REGISTER("Widget", "set_position", Widget_set_position);
+static union grug_value Widget_set_rows(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.set_rows", WK_LIST);
+    if (!w) return none();
+    char problem[400];
+    if (whole_number_problem(a[1]._number, "count", problem, sizeof problem))
+        return fail("Widget.set_rows: %s", problem);
+    w->rows = (int) a[1]._number;
+    w->selected = list_selection_after_rows_change(w->selected, w->rows);
+    w->scroll = list_clamp_scroll(w->scroll, w->rows, w->row_height, w->height);
+    return none();
+}
+REGISTER("Widget", "set_rows", Widget_set_rows);
+static union grug_value Widget_set_text(ARGS) {
+    UNUSED;
+    struct owned_widget* w = text_widget_of(a[0]._id, "Widget.set_text");
+    if (w) widget_set_text(w, a[1]._string);
+    return none();
+}
+REGISTER("Widget", "set_text", Widget_set_text);
+static union grug_value Widget_set_text_colour(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.set_text_colour", WK_TEXT_FIELD);
+    if (!w) return none();
+    struct obj* colour = get_obj(a[1]._id, K_COLOR);
+    if (!colour) return fail("Widget.set_text_colour: the color id no longer resolves, because the object behind it was collected while the script still held it.");
+    w->text_rgb = (int) colour->x & 0xFFFFFF;
+    return none();
+}
+REGISTER("Widget", "set_text_colour", Widget_set_text_colour);
+static union grug_value Widget_set_value(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.set_value", WK_SLIDER);
+    if (w) w->value = a[1]._number;
+    return none();
+}
+REGISTER("Widget", "set_value", Widget_set_value);
+static union grug_value Widget_set_visible(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of(a[0]._id, "Widget.set_visible");
+    if (w) w->visible = a[1]._bool;
+    return none();
+}
+REGISTER("Widget", "set_visible", Widget_set_visible);
+static union grug_value Widget_text(ARGS) {
+    UNUSED;
+    struct owned_widget* w = text_widget_of(a[0]._id, "Widget.text");
+    return w ? str(keep(xstrdup(w->text))) : str("");
+}
+REGISTER("Widget", "text", Widget_text);
+static union grug_value Widget_value(ARGS) {
+    UNUSED;
+    struct owned_widget* w = widget_of_kind(a[0]._id, "Widget.value", WK_SLIDER);
+    return w ? num(w->value) : num(0);
+}
+REGISTER("Widget", "value", Widget_value);
+
+// ListRowResponse: an answer to screen_list_row, held in the object's own fields: x is the list's
+// widget handle and y its row number. It is answered once with set_text, a second answer is an err
+// even when it repeats the first, and set_text_colour is legal but is not an answer.
+static union grug_value LRR_index(ARGS) {
+    UNUSED;
+    struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
+    if (!r || !r->open) return fail("ListRowResponse.index: the response is only valid during the screen_list_row call it was passed to, and that call has returned.");
+    return num(r->y);
+}
+REGISTER("ListRowResponse", "index", LRR_index);
+static union grug_value LRR_widget(ARGS) {
+    UNUSED;
+    struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
+    if (!r || !r->open) return fail("ListRowResponse.widget: the response is only valid during the screen_list_row call it was passed to, and that call has returned.");
+    return id((uint64_t) r->x);
+}
+REGISTER("ListRowResponse", "widget", LRR_widget);
+static union grug_value LRR_set_text(ARGS) {
+    UNUSED;
+    struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
+    if (!r) return fail("ListRowResponse.set_text: not a ListRowResponse");
+    if (!begin_answer(r, "ListRowResponse.set_text", "screen_list_row")) return none();
+    // The text is what the frame draws, and the smoketest paints nothing, so it is not recorded.
+    return none();
+}
+REGISTER("ListRowResponse", "set_text", LRR_set_text);
+static union grug_value LRR_set_text_colour(ARGS) {
+    UNUSED;
+    struct obj* r = get_obj(a[0]._id, K_LIST_ROW_RESPONSE);
+    if (!r || !r->open) return fail("ListRowResponse.set_text_colour: the response is only valid during the screen_list_row call it was passed to, and that call has returned.");
+    if (!get_obj(a[1]._id, K_COLOR)) return fail("ListRowResponse.set_text_colour: the color id no longer resolves, because the object behind it was collected while the script still held it.");
+    return none();
+}
+REGISTER("ListRowResponse", "set_text_colour", LRR_set_text_colour);
+
+// OverlayRenderContext.text_width: the game's font is a client class (FontRenderer or GuiGraphics,
+// depending on the version) whose glyph advances no logic test can ask for. This answers six pixels
+// per code point and skips a formatting code (a section sign and the character after it), which is
+// an estimate rather than the font's own width. A grug screen that centres a label from this lands
+// where the estimate puts it, so the run is STUBBED and no committed smoketest test may assert a
+// position derived from it; only the loader's own run proves the placement.
+static double estimated_text_width(const char* text) {
+    double width = 0;
+    const unsigned char* p = (const unsigned char*) text;
+    while (*p) {
+        if (p[0] == 0xC2 && p[1] == 0xA7) {  // the section sign, UTF-8 0xC2 0xA7
+            p += 2;
+            if (*p) {
+                p++;
+                while ((*p & 0xC0) == 0x80) p++;
+            }
+            continue;
+        }
+        width += 6.0;
+        p++;
+        while ((*p & 0xC0) == 0x80) p++;
+    }
+    return width;
+}
+static union grug_value ORC_text_width(ARGS) {
+    UNUSED;
+    if (!render_context(a[0]._id)) return fail("OverlayRenderContext.text_width: not a render pass");
+    stubbed = true;  // see estimated_text_width: this is not the game's font
+    return num(estimated_text_width(a[1]._string));
+}
+REGISTER("OverlayRenderContext", "text_width", ORC_text_width);
+
+// A press reaches the screen first. If screen_click takes it, no widget sees it; otherwise the
+// first widget in declaration order that is visible, active and under the point handles it, as the
+// game's own screen dispatches a press. The values a frame's rows are answered with are not kept,
+// because the smoketest paints nothing; which rows are asked and what changes a click makes are.
+// Each widget is tested against the rectangle its declaration gave, which is the host model's own
+// rule. A checkbox is the one kind the API says keeps the game's size rather than the declared one
+// (the game's own checkbox class draws it), so a test clicks the box's top-left corner, which lies
+// inside the box on every loader.
+static bool widget_contains(const struct owned_widget* w, double x, double y) {
+    return x >= w->x && x < w->x + w->width && y >= w->y && y < w->y + w->height;
+}
+static bool mod_screen_click(double x, double y, double button) {
+    struct owned_screen* s = open_owned_screen;
+    if (!s || !s->open) return false;
+    overlay_click_x = x;
+    overlay_click_y = y;
+    overlay_click_button = button;
+    overlay_mouse_x = x;
+    overlay_mouse_y = y;
+    overlay_pass_taken = false;
+    if (screen_click_fn != UINT64_MAX) {
+        uint64_t c = new_obj(K_OVERLAY_CLICK);
+        union grug_value arg = id(c);
+        call_screen_export(s, screen_click_fn, &arg, 1);
+        if (overlay_pass_taken) return true;
+    }
+    if (button != 0) return false;  // a button, a box, a list and a slider react to the left button only
+    if (open_owned_screen != s || !s->open) return false;
+    for (size_t i = 0; i < s->nwidgets; i++) {
+        struct owned_widget* w = s->widgets[i];
+        if (!w->visible || !w->active || !widget_contains(w, x, y)) continue;
+        uint64_t handle = w->handle;
+        switch (w->kind) {
+        case WK_BUTTON:
+            ask_widget_changed(s, handle);
+            return false;
+        case WK_CHECKBOX:
+            w->checked = !w->checked;
+            ask_widget_changed(s, handle);
+            return false;
+        case WK_LIST: {
+            int row = list_row_at(y - w->y, w->height, w->scroll, w->rows, w->row_height);
+            if (row >= 0 && row != w->selected) {
+                w->selected = row;
+                ask_widget_changed(s, handle);
+            }
+            return false;
+        }
+        case WK_SLIDER: {
+            // The game's slider takes the fraction of the track the press landed on, with the handle
+            // inset four pixels at each end. Which loader's slider class (AbstractSliderButton on
+            // 1.20.6) and its drag cadence are the game's, not the host's, so a test that clicks a
+            // slider is honest only as STUBBED.
+            stubbed = true;
+            double span = w->width - 8.0;
+            double fraction = span > 0.0 ? (x - (w->x + 4.0)) / span : 0.0;
+            if (!(fraction > 0.0)) fraction = 0.0;
+            if (fraction > 1.0) fraction = 1.0;
+            double value = w->min + fraction * (w->max - w->min);
+            if (value != w->value) {
+                w->value = value;
+                ask_widget_changed(s, handle);
+            }
+            return false;
+        }
+        case WK_TEXT_FIELD:
+            // Focus, the caret, the selection, the clipboard and the input method belong to the
+            // game's own text field (TextFieldWidget or GuiTextField), which no logic test can
+            // observe. A field is never given focus here, so screen_key is always asked; a test
+            // that depends on a field taking the keyboard is honestly STUBBED.
+            stubbed = true;
+            return false;
+        }
+    }
+    return false;
+}
+static bool mod_screen_key(double key, double character, bool ctrl, bool shift, bool repeat) {
+    struct owned_screen* s = open_owned_screen;
+    if (!s || !s->open) return false;
+    (void) character; (void) ctrl; (void) shift; (void) repeat;  // the context reads them from the pass's globals
+    overlay_pass_taken = false;
+    if (screen_key_fn != UINT64_MAX) {
+        uint64_t c = new_obj(K_OVERLAY_KEY);
+        union grug_value arg = id(c);
+        call_screen_export(s, screen_key_fn, &arg, 1);
+        if (overlay_pass_taken) return true;
+    }
+    // A key the mod did not take reaches the screen, where Escape closes it. A text field with
+    // focus would take the key instead; focus belongs to the game's field and is not modelled.
+    if (key == 256 && open_owned_screen) mod_screen_close_open();
+    return false;
+}
+static bool mod_screen_scroll(double x, double y, double delta) {
+    struct owned_screen* s = open_owned_screen;
+    if (!s || !s->open) return false;
+    overlay_scroll_x = x;
+    overlay_scroll_y = y;
+    overlay_scroll_delta = delta;
+    overlay_mouse_x = x;
+    overlay_mouse_y = y;
+    overlay_pass_taken = false;
+    if (screen_scroll_fn != UINT64_MAX) {
+        uint64_t c = new_obj(K_OVERLAY_SCROLL);
+        union grug_value arg = id(c);
+        call_screen_export(s, screen_scroll_fn, &arg, 1);
+        if (overlay_pass_taken) return true;
+    }
+    if (open_owned_screen != s || !s->open) return false;
+    for (size_t i = 0; i < s->nwidgets; i++) {
+        struct owned_widget* w = s->widgets[i];
+        if (w->kind != WK_LIST || !w->visible || !w->active || !widget_contains(w, x, y)) continue;
+        w->scroll = list_scroll_by(w->scroll, delta, w->rows, w->row_height, w->height);
+        return false;
+    }
+    return false;
+}
+
+// One frame: screen_list_row for every visible row of every visible list, then screen_render. The
+// list numbers are copied before any export runs, so a screen that closes inside a row's answer
+// cannot free the widget the frame is reading.
+struct frame_list {
+    uint64_t widget_handle;
+    int rows;
+    double row_height, scroll, height;
+};
+static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
+    uint64_t rid = new_obj(K_LIST_ROW_RESPONSE);
+    struct obj* r = &objs[rid - 1];
+    r->x = (double) widget_handle;
+    r->y = index;
+    r->open = true;
+    r->has = false;
+    union grug_value arg = id(rid);
+    call_screen_export(s, screen_list_row_fn, &arg, 1);
+    r = &objs[rid - 1];
+    r->open = false;
+    bool answered = r->has;
+    if (!answered && !screen_defect[0])
+        snprintf(screen_defect, sizeof screen_defect, "screen_list_row returned without answering its response, and every response has to be answered before the call returns.");
+}
+static void mod_screen_render(void) {
+    struct owned_screen* s = open_owned_screen;
+    if (!s || !s->open) return;
+    struct frame_list* lists = NULL;
+    size_t nlists = 0, caplists = 0;
+    for (size_t i = 0; i < s->nwidgets; i++) {
+        struct owned_widget* w = s->widgets[i];
+        if (w->kind != WK_LIST || !w->visible || w->rows <= 0) continue;
+        if (nlists == caplists) {
+            caplists = caplists ? caplists * 2 : 8;
+            lists = xrealloc(lists, caplists * sizeof *lists);
+        }
+        lists[nlists++] = (struct frame_list){w->handle, w->rows, w->row_height, w->scroll, w->height};
+    }
+    if (screen_list_row_fn != UINT64_MAX)
+        for (size_t i = 0; i < nlists; i++) {
+            int first = list_first_visible(lists[i].scroll, lists[i].rows, lists[i].row_height);
+            int last = list_last_visible(lists[i].scroll, lists[i].rows, lists[i].row_height, lists[i].height);
+            for (int row = first; row <= last; row++) ask_row(s, lists[i].widget_handle, row);
+        }
+    free(lists);
+    if (open_owned_screen != s || !s->open) return;
+    if (screen_render_fn != UINT64_MAX) {
+        uint64_t c = new_obj(K_OVERLAY_RENDER);
+        union grug_value arg = id(c);
+        // A mod-owned screen is not a screen an overlay draws on, so this pass does not set the
+        // overlay drawn mark that TestTickContext.overlay_drawn reads; that mark is the container
+        // screen's overlay pass. What this pass draws is the screen's own frame.
+        call_screen_export(s, screen_render_fn, &arg, 1);
+    }
+}
+
 // =============================================================================================
 // SECTION: Mod files
 // =============================================================================================
@@ -5199,8 +6106,9 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         last_msg[0] = 0;
         not_done_called = false;
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
-        if (completed && !bg_missing[0]) render_overlays();
+        if (completed && !bg_missing[0]) { render_overlays(); mod_screen_render(); }
         if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
+        else if (screen_defect[0]) { report("FAIL", label, "%s", screen_defect); rc = 1; }
         else if (!completed) {
             if (expected_error && strstr(last_msg, expected_error)) { report(stubbed ? "STUBBED" : "PASS", label, "%s", ""); break; }
             if (expected_error) report("FAIL", label, "expected an error containing '%s', but got: %s", expected_error, last_msg);
@@ -5216,6 +6124,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
             break;
         }
     }
+    mod_screen_close_open();
     clear_world_overlays();
     grug_deinit_entity(g_state, entity);
     clear_overlays();
@@ -5351,6 +6260,14 @@ int main(int argc, char** argv) {
     world_render_fn = grug_get_on_fn_id(g_state, "Overlay", "render_world");
     world_key_fn = grug_get_on_fn_id(g_state, "Overlay", "world_key");
     world_binding_fn = grug_get_on_fn_id(g_state, "Overlay", "world_binding");
+    screen_init_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_init");
+    screen_render_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_render");
+    screen_click_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_click");
+    screen_key_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_key");
+    screen_scroll_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_scroll");
+    screen_widget_changed_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_widget_changed");
+    screen_list_row_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_list_row");
+    screen_closed_fn = grug_get_on_fn_id(g_state, "Overlay", "screen_closed");
     uint64_t tick_fn = grug_get_on_fn_id(g_state, "Test", "tick");
     uint64_t init_fn = grug_get_on_fn_id(g_state, "Test", "init");
     if (!strcmp(argv[2], "--all")) { rc = run_all(files, tick_fn, init_fn); goto done; }
