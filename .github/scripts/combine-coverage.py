@@ -199,6 +199,13 @@ EXCLUDED_CLASSES = {
     "GrugModsScreen",
     "GrugModsButton",
     "GrugTitleButton",
+    # The game's own screen object behind a screen a mod owns, on every loader that has one: it
+    # mirrors core's widget model into the loader's widget classes and hands the game's events back
+    # to core, which owns the lifecycle, the ordering and the list-row math and is measured there
+    # (GrugOwnedScreensTest, GrugListMath, and mods/coverage's screen tests). What is left here is
+    # each loader's GUI plumbing, and a headless run cannot complete every drag, chord and focus
+    # transition a player reaches, the same reason GrugModsScreen and GrugEmptyScreen are here.
+    "GrugOwnedScreenHost",
     # The overlay's screen hooks: which screens an overlay is asked on and the draw of what it
     # recorded into the open screen's GuiGraphics. Only a real game with a screen up runs them, and
     # the pass bookkeeping they drive is measured in core's GrugOverlay.
