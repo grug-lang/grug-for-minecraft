@@ -1280,10 +1280,11 @@ public class ClientForgeAdapter extends ForgeAdapter {
         if (capture == null) {
             return;
         }
-        // Sampled after the frame was drawn and before the next client tick, so the values are the
-        // ones this frame's GUI pass read. See #1132. The wait arm is met only when the ask lands
-        // between this frame's own sample and its end, which is where the test's thread happens to
-        // tick, so the decision is handed to the tested helper rather than carried here (#1864).
+        // Sampled after the frame was drawn and before the next client tick, so the values are
+        // the ones this frame's GUI pass read. See #1132. A frame that waits one more is met
+        // when the save text still shows, and when the ask lands between this frame's sample
+        // and its end, so a counted run meets it by timing alone; the decision goes to the
+        // tested helper instead of staying here (#1864).
         GrugLinkArms.runIf(
                 RENDER_SETTLE.captureable(capture.framesWhenAsked, savingIndicatorShown()),
                 () -> serveCapture(capture));
