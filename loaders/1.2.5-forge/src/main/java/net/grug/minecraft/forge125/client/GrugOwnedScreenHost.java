@@ -7,7 +7,6 @@ import net.grug.minecraft.grug.GrugOverlay;
 import net.grug.minecraft.grug.GrugOverlayGeometry;
 import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.grug.GrugOwnedScreens;
-import net.grug.minecraft.grug.GrugTestState;
 import net.grug.minecraft.grug.GrugWidget;
 import net.grug.minecraft.grug.GrugWidgetKind;
 import net.minecraft.client.Minecraft;
@@ -20,9 +19,7 @@ import net.minecraft.src.ScaledResolution;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,7 +37,9 @@ import java.util.Map;
  * <p>The press reaches {@code screen_click} before the widget under the mouse, and {@code take()}
  * keeps it from the widget, as the frozen API says. The wheel reaches {@code screen_scroll} before
  * the list. The keyboard reaches the focused text field and is never asked of {@code screen_key}
- * while a field has it, so typing cannot be taken from the field by the mod.
+ * while a field has it, so typing cannot be taken from the field by the mod, except for Escape: the
+ * game closes the screen with it, so a mod that runs its screen's own close from screen_key would
+ * otherwise never hear of the close.
  *
  * <p>The screen never pauses the game: a mod builds in the world it draws over. A screen the game
  * takes away, on Escape or because another screen replaced it, tells core in {@link #removed()}, on
@@ -88,9 +87,6 @@ public final class GrugOwnedScreenHost extends GuiScreen {
      * practice and a value the mod set is never truncated behind its back.
      */
     private static final int TEXT_FIELD_MAX_LENGTH = 1024;
-
-    /** The screens the game took away, whose {@code screen_closed} waits for the next tick. */
-    private static final List<GrugOwnedScreen> removed = new ArrayList<>();
 
     private final GrugOwnedScreen screen;
 
@@ -269,15 +265,8 @@ public final class GrugOwnedScreenHost extends GuiScreen {
         // and titles on top of them.
         GrugOverlayGeometry geometry =
                 GrugOwnedScreens.renderScreen(screen, width, height, mouseX, mouseY);
-        if (!geometry.items().isEmpty()
-                || !geometry.boxes().isEmpty()
-                || !geometry.texts().isEmpty()
-                || !geometry.tooltips().isEmpty()) {
-            if (screen.script().mod.equals(GrugTestState.currentTestMod)) {
-                GrugOverlay.noteDrawn();
-            }
-        }
         GrugOverlayHost.drawGeometry(mc, geometry);
+        GrugOwnedScreens.noteScreenFrame(screen);
     }
 
     @Override
@@ -289,6 +278,13 @@ public final class GrugOwnedScreenHost extends GuiScreen {
             GrugOverlay.noteTestPressTaken();
             return;
         }
+        // The mod may have shown, hidden or moved a widget during that call, and the game's copies
+        // are a frame behind. A press that lands on a button or a slider is routed by the copies'
+        // own visibility, bounds and position, so they are brought up to date first: otherwise a
+        // widget the mod just hid still takes the press meant for the widget it revealed. A player
+        // pressing twice within one frame reaches this, and so does a test pressing on two ticks,
+        // because the runner runs many ticks per frame.
+        syncWidgets();
         for (GrugWidget widget : screen.widgets()) {
             if (!widget.visible() || !widget.active()) continue;
             if (!widget.contains(x, y)) continue;
@@ -356,13 +352,11 @@ public final class GrugOwnedScreenHost extends GuiScreen {
      */
     boolean pressKey(char character, int key, boolean ctrl, boolean shift, boolean repeat) {
         GuiTextField focused = focusedField();
-        if (focused != null) {
-            // The API says screen_key is not asked while a field has the keyboard, and Escape is
-            // the screen's own close on this version rather than a character the field edits.
-            if (key == Keyboard.KEY_ESCAPE) {
-                closeScreen();
-                return true;
-            }
+        if (focused != null && key != Keyboard.KEY_ESCAPE) {
+            // The API says screen_key is not asked while a field has the keyboard, so typing
+            // cannot be taken from the field by the mod. Escape is the exception: the game closes
+            // the screen with it, so asking screen_key first lets a mod whose close saves state
+            // hear of the close instead of losing what it would have written.
             focused.textboxKeyTyped(character, key);
             reportFieldText(focused);
             return true;
@@ -424,24 +418,13 @@ public final class GrugOwnedScreenHost extends GuiScreen {
     public void onGuiClosed() {
         super.onGuiClosed();
         // The game takes the screen away for Escape, for a screen it put in its place, and for the
-        // world being left, and each of those is the same end for the mod. The report waits for the
-        // next tick, so a screen_closed that opens another screen does so after the game finished
-        // replacing this one rather than inside it.
-        synchronized (removed) {
-            removed.add(screen);
-        }
-    }
-
-    /** Reports the screens the game took away since the last tick, on the client thread. */
-    public static void flushRemoved() {
-        List<GrugOwnedScreen> pending;
-        synchronized (removed) {
-            if (removed.isEmpty()) return;
-            pending = new ArrayList<>(removed);
-            removed.clear();
-        }
-        for (GrugOwnedScreen screen : pending) {
-            GrugOwnedScreens.gameRemoved(screen);
+        // world being left, and each of those is the same end for the mod. A screen the mod closed
+        // itself is already ended, so only one that is still open is noted, and the end waits for
+        // the next client tick: the game's own call runs inside `displayGuiScreen` before it
+        // assigns the replacement, so a screen_closed that opens another screen would have it
+        // dropped.
+        if (GrugOwnedScreens.openScreen() == screen) {
+            GrugOwnedScreens.noteGameRemoved(screen);
         }
     }
 
