@@ -1,0 +1,564 @@
+# The Shape and Shape list dropdowns of #1752's screens: the V shows the list of the fifteen shape
+# names, a row is the parent's callback, and the X puts the parent's widgets back. The host's Screen
+# cannot hold a second screen, so the list is drawn inside its parent and the parent's own widgets
+# and texts leave while it is up; that is what this test drives.
+# The Shape list's dropdown writes the new-set shape, iShapeNew, which Add then uses, and the Shape
+# tab's dropdown writes the current set's index and gives a shape it has not built yet its defaults.
+# Every proof is read back from the saved state, because a row and its selection are the host's and
+# no test entry reads the list's pixels.
+# Persistence is turned on for the saves and put back as the run found it, so a later test sees the
+# config it would have seen.
+step: number = 0
+waited: number = 0
+presses: number = 0
+was_persistent: bool = false
+pick: number = 0
+pick_class: string = "ShapeCatenary"
+
+export tick(ctx: TestTickContext) {
+    if step == 0 {
+        if not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file before the first test tick.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
+        step = 1
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should open Build Guide's screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Configuration tab is the fourth chrome button; the window is narrow enough at the CI
+        # client's scale that its last pixels are cut off, so its visible part is clicked.
+        width: number = ctx.screen_width()
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if was_persistent {
+            step = 4
+            ctx.not_done()
+            return
+        }
+        # The persistence checkbox is ConfigurationScreen's third box, at (255, 160).
+        ctx.click_screen(262, 168, 0)
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Ticking persistence should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0, "Ticking persistence should write its value.")
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen and save the state.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 6
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Shape list tab is the third chrome button, at x 255 to 375 and y 30 to 50.
+        ctx.click_screen(265, 40, 0)
+        step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Add is at (5, 90), 160 wide and 20 high. It gives the save below a set to hold, so the
+        # state file is one this test can read for iShapeNew whatever the run had before.
+        ctx.click_screen(85, 100, 0)
+        step = 8
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 9
+        ctx.not_done()
+        return
+    }
+
+    if step == 9 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after Add.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The row picked below is one that is not the current new-set shape, so the value the row
+        # writes is one this test can tell apart from the value it replaced.
+        state: string = _saved_state(ctx)
+        if _field(state, "iShapeNew") == "0" {
+            pick = 2
+            pick_class = "ShapeCone"
+        } else {
+            pick = 0
+            pick_class = "ShapeCatenary"
+        }
+        step = 10
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 10 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen after Add.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(265, 40, 0)
+        step = 11
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw for the pick.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The dropdown's V is at (145, 70), 20 by 20.
+        ctx.click_screen(155, 80, 0)
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        # A row of the dropdown's list, which starts at (5, 90), is 160 wide and has 20-pixel rows,
+        # so row n is clicked at y 90 + n * 20 + 10.
+        ctx.click_screen(85, 90 + pick * 20 + 10, 0)
+        step = 13
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        # The pick put the parent's Add button back at (5, 90), so (85, 100) appends a set of the
+        # shape the dropdown just chose.
+        ctx.click_screen(85, 100, 0)
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 15
+        ctx.not_done()
+        return
+    }
+
+    if step == 15 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the pick and Add.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_field(state, "iShapeNew") == String.from_number(pick), "The Shape list's dropdown should write the new-set shape.")
+        ctx.assert(_shape_values(state, pick_class) == _defaults(pick), "Add should append the set at the shape the dropdown chose, at its defaults.")
+        step = 16
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 16 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen after Add.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Shape tab is the first chrome button, at x 5 to 125 and y 30 to 50.
+        ctx.click_screen(65, 40, 0)
+        step = 17
+        ctx.not_done()
+        return
+    }
+
+    if step == 17 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The shape row's V is at (145, 70), 20 by 20.
+        ctx.click_screen(155, 80, 0)
+        step = 18
+        ctx.not_done()
+        return
+    }
+
+    if step == 18 {
+        # The appended set holds the picked shape (index 0 or 2), so row 1, Circle, is a different
+        # one: (85, 120) is its row of the list at (5, 90).
+        ctx.click_screen(85, 120, 0)
+        step = 19
+        ctx.not_done()
+        return
+    }
+
+    if step == 19 {
+        # Choosing a row closed the dropdown inside the same screen, so the Shape tab is still open:
+        # the fallback never replaces the screen the way a second screen would.
+        ctx.assert(ctx.screen_open(), "A row should close the list and leave its parent screen open.")
+        # The row just clicked is the list's selected row now, and a click on the row that is
+        # already selected is still a click the mod hears: the reference's row callback runs on
+        # every click, so it closes the dropdown again. The V reopens the list for that second
+        # click, and the parent's Add is at (5, 90) once it closes.
+        ctx.click_screen(155, 80, 0)
+        step = 20
+        ctx.not_done()
+        return
+    }
+
+    if step == 20 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab's dropdown should draw for the second row click.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Row 1, Circle, at the list's (5, 90) and 20-pixel rows, which is the row the click in
+        # step 18 selected.
+        ctx.click_screen(85, 120, 0)
+        step = 21
+        ctx.not_done()
+        return
+    }
+
+    if step == 21 {
+        ctx.assert(ctx.screen_open(), "Clicking the selected row should close the list and leave the screen open.")
+        # With the list closed, (85, 100) is the parent's Add, which appends a set of the shape this
+        # tab shows. A list that stayed open would take that click as its row 0 instead, choose
+        # Catenary, and append nothing.
+        ctx.click_screen(85, 100, 0)
+        step = 22
+        ctx.not_done()
+        return
+    }
+
+    if step == 22 {
+        # Escape closes the screen and saves; a field that kept the focus would need another press.
+        presses = presses + 1
+        ctx.assert(presses < 5, "Escape should close the Shape screen after the second row click.")
+        ctx.press_screen_key(256, false, false, true)
+        ctx.not_done()
+        return
+    }
+
+    if step == 23 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the Shape screen after the second row click.")
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_index_field(state) == 1, "The second click on the selected row should keep the current set's shape, and its closed list should let the parent's Add run.")
+        ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "Add should append the set at the shape the list left selected.")
+        if was_persistent {
+            return
+        }
+        step = 24
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 24 {
+        # The run found persistence off, so the Configuration tab's box is ticked back off.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen to put persistence back.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        width: number = ctx.screen_width()
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
+        step = 25
+        ctx.not_done()
+        return
+    }
+
+    if step == 25 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(262, 168, 0)
+        step = 26
+        ctx.not_done()
+        return
+    }
+
+    if step == 26 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
+        ctx.press_screen_key(256, false, false, true)
+        step = 27
+        ctx.not_done()
+        return
+    }
+
+    if step == 27 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the Configuration screen.")
+            ctx.not_done()
+        }
+    }
+}
+
+# The registry's defaults for the two shapes this test picks, which is the text a set that has not
+# built the shape starts at.
+
+local _defaults(id: number) string {
+    if id == 0 {
+        return "3,0,0,Runnable,1.0,false"
+    }
+    if id == 2 {
+        return "X,3.0,3.0,false"
+    }
+    return "X,3.0,1,false"
+}
+
+# The state text the mod saved for this world, which is the one file under buildguide that holds a
+# set. A test that runs before the first save gets an empty directory and fails the assertion.
+
+local _saved_state(ctx: TestTickContext) string {
+    files: File = File.open(r"files")
+    count: number = files.entry_count("buildguide")
+    i: number = 0
+    while i < count {
+        name: string = files.entry_name("buildguide", i)
+        text: Option[string] = files.read_text(String.concat("buildguide/", name))
+        if text.has() {
+            state: string = text.unwrap()
+            if String.index_of(state, "shapeSet=") >= 0 {
+                return state
+            }
+        }
+        i = i + 1
+    }
+    ctx.assert(false, "The close should have saved a state with a set.")
+    return ""
+}
+
+# A scalar line's value, such as iShapeNew's, or an empty text when the line is not there.
+
+local _field(state: string, key: string) string {
+    needle: string = String.concat(String.from_character(10), String.concat(key, "="))
+    at: number = String.index_of(state, needle)
+    if at < 0 {
+        return ""
+    }
+    rest: string = String.substring(state, at + String.length(needle), String.length(state))
+    end: number = String.index_of(rest, String.from_character(10))
+    if end < 0 {
+        return rest
+    }
+    return String.substring(rest, 0, end)
+}
+
+# The current set's index field, which names the shape the Shape tab draws and edits.
+
+local _index_field(state: string) number {
+    set: string = _set_line(state, _current_index(state))
+    at: number = String.index_of(set, "index=")
+    if at < 0 {
+        return -1
+    }
+    rest: string = String.substring(set, at + 6, String.length(set))
+    semicolon: number = String.index_of(rest, ";")
+    if semicolon >= 0 {
+        rest = String.substring(rest, 0, semicolon)
+    }
+    parsed: Option[number] = String.to_integer(rest)
+    if parsed.has() {
+        return parsed.unwrap()
+    }
+    return -1
+}
+
+# The value text of the current set's entry for one shape class, which is the part between its "="
+# and the following ";". A class the set holds no entry for answers an empty text.
+
+local _shape_values(state: string, class_name: string) string {
+    set: string = _set_line(state, _current_index(state))
+    bar: number = String.index_of(set, "|")
+    if bar < 0 {
+        return ""
+    }
+    shapes: string = String.substring(set, bar + 1, String.length(set))
+    needle: string = String.concat(class_name, "=")
+    at: number = String.index_of(shapes, needle)
+    if at < 0 {
+        return ""
+    }
+    rest: string = String.substring(shapes, at + String.length(needle), String.length(shapes))
+    end: number = String.index_of(rest, ";")
+    if end < 0 {
+        return rest
+    }
+    return String.substring(rest, 0, end)
+}
+
+# The iShapeSet line's number, which is the set the Shape tab edits.
+
+local _current_index(state: string) number {
+    at: number = String.index_of(state, "iShapeSet=")
+    if at < 0 {
+        return -1
+    }
+    rest: string = String.substring(state, at + 9, String.length(state))
+    end: number = String.index_of(rest, String.from_character(10))
+    if end >= 0 {
+        rest = String.substring(rest, 0, end)
+    }
+    parsed: Option[number] = String.to_integer(rest)
+    if parsed.has() {
+        return parsed.unwrap()
+    }
+    return -1
+}
+
+# The shapeSet line at a sequence number, or an empty text when there are fewer sets.
+
+local _set_line(state: string, wanted: number) string {
+    if wanted < 0 {
+        return ""
+    }
+    rest: string = state
+    found: number = 0
+    at: number = String.index_of(rest, "shapeSet=")
+    while at >= 0 {
+        line_rest: string = String.substring(rest, at, String.length(rest))
+        end: number = String.index_of(line_rest, String.from_character(10))
+        if found == wanted {
+            if end < 0 {
+                return line_rest
+            }
+            return String.substring(line_rest, 0, end)
+        }
+        if end < 0 {
+            return ""
+        }
+        found = found + 1
+        rest = String.substring(line_rest, end + 1, String.length(line_rest))
+        at = String.index_of(rest, "shapeSet=")
+    }
+    return ""
+}

@@ -1,13 +1,13 @@
-# Build Guide 0.4.9's behaviour without its screens (#1752 stage 1): the fifteen shape generators,
-# the per-world state file, the three config options and the world drawing of every visible set with
-# its origin cube, for 1.20.6-forge, the loader the reference itself ships.
+# Build Guide 0.4.9's behaviour for 1.20.6-forge, the loader the reference itself ships: the fifteen
+# shape generators, the per-world state file, the three config options, the world drawing of every
+# visible set with its origin cube, and the four screens with their widgets (#1752).
 # The reference is one client-side shape projector: a set is an origin, a shape class with its own
 # properties, a colour for the shape and one for the origin, and two cube sizes. There is no build
 # capture, no schematic and no server side, and the only persisted data is the set list and the
 # config, so nothing here reads or writes a world.
-# The screens, their widgets, the B key and every graphics capture are stage 2, and so is saving a
-# state on screen close: this file loads a state and draws it, and never writes one back. What it
-# does write is the config file, because the reference writes that one as soon as it is missing.
+# A screen is one of the reference's four, opened by its B key or a tab button and laid out again on
+# every open and resize, and its close saves the whole state when persistence is on. Its graphics
+# captures are the last stage (#1752), and so is the reference job's comparison.
 # Everything lives in this file because a grug local function is visible only inside the file that
 # defines it, and the host cannot call one: the generators, the state text codec and the drawing are
 # one chain, and a second file could not reach the first.
@@ -17,9 +17,10 @@
 # and stage 1's shape test walked them once per cell, which is O(n^2) over a shape; this file keeps
 # the reference's iteration order and its duplicates in one pass, so a shape costs what the
 # reference's own generation costs and no more.
-# The reference generates asynchronously, so a set can be drawn a few frames after its properties
-# changed, and a capture can catch it mid-generation: this port generates inside the frame, so a
-# set is always ready. about.json records that as a deviation.
+# The reference generates asynchronously: Shape.update sets ready to false and closes the buffer
+# until the new one is ready, so the guide disappears for a few frames while a shape changes. This
+# port generates inside the frame that draws it, so that frame stalls and the finished shape appears
+# at once. about.json records that as a deviation.
 
 # The state of the world this client is in, as one string in the reference's own file format, plus a
 # `!` after the class name of a shape whose properties did not parse, which is how the reference's
@@ -28,6 +29,13 @@
 state: string = ""
 state_key: string = ""
 state_loaded: bool = false
+
+# What the last close wrote and whether it wrote at all, so a close that changed nothing writes
+# nothing. This is BaseScreen.shouldUpdatePersistence, which the reference sets on every mutation and
+# clears after a save: the saved text is the whole of what a mutation can change, so comparing it
+# answers the same question without a flag at each of the reference's mutation sites.
+persistence_text: string = ""
+persistence_written: bool = false
 
 # State.initialised: whether initCheck has run for the state in `state`. It runs on the toggle key,
 # not on the load, so a fresh world has no set until the player first presses G, and that set starts
@@ -53,23 +61,227 @@ pending_global_origin: number = 0
 # loadPersistence and read by every loop that would otherwise carry on after it.
 load_failed: bool = false
 
+# The reference's BaseScreen and its four tabs. A screen is created at member scope, opened with
+# `open`, and asked to declare its widgets in `screen_init` on every open and after every resize;
+# the host asks the `screen_*` exports only while one of them is open.
+shape_screen: Screen = Screen.new()
+visualisation_screen: Screen = Screen.new()
+shapelist_screen: Screen = Screen.new()
+configuration_screen: Screen = Screen.new()
+
+# State.currentScreen: the tab a screen shows and the B key opens. `active_screen` is the screen
+# that is open, and empty while none is, which is what tells the world frame whether to count the
+# shapes a screen will show. `dropdown_open` is the Shape or Shape list dropdown, which the host's
+# API cannot show over its parent, so it is a list inside the parent that hides the parent's own
+# widgets while it is up; every later open of a screen starts with it closed.
+tab_screen: string = "shape"
+active_screen: string = ""
+dropdown_open: bool = false
+
+# The chrome's six widgets, which every screen declares for itself in _chrome_init. Only the open
+# screen's widgets exist, so one handle per widget serves all four screens.
+w_enabled: Option[Widget] = Option.new()
+w_close: Option[Widget] = Option.new()
+w_tab_shape: Option[Widget] = Option.new()
+w_tab_visualisation: Option[Widget] = Option.new()
+w_tab_shapelist: Option[Widget] = Option.new()
+w_tab_configuration: Option[Widget] = Option.new()
+
+# ConfigurationScreen's six widgets: three checkboxes and their Default buttons.
+c_async: Option[Widget] = Option.new()
+c_async_default: Option[Widget] = Option.new()
+c_random: Option[Widget] = Option.new()
+c_random_default: Option[Widget] = Option.new()
+c_persistence: Option[Widget] = Option.new()
+c_persistence_default: Option[Widget] = Option.new()
+
+# VisualisationScreen's nineteen widgets: ten sliders that only a Set button reads, the six colour
+# buttons, the depth-test checkbox, and the two cube-size buttons beside their sliders.
+v_shape_r: Option[Widget] = Option.new()
+v_shape_g: Option[Widget] = Option.new()
+v_shape_b: Option[Widget] = Option.new()
+v_shape_a: Option[Widget] = Option.new()
+v_set_shape: Option[Widget] = Option.new()
+v_random_shape: Option[Widget] = Option.new()
+v_default_shape: Option[Widget] = Option.new()
+v_origin_r: Option[Widget] = Option.new()
+v_origin_g: Option[Widget] = Option.new()
+v_origin_b: Option[Widget] = Option.new()
+v_origin_a: Option[Widget] = Option.new()
+v_set_origin: Option[Widget] = Option.new()
+v_random_origin: Option[Widget] = Option.new()
+v_default_origin: Option[Widget] = Option.new()
+v_depth: Option[Widget] = Option.new()
+v_shape_cube: Option[Widget] = Option.new()
+v_origin_cube: Option[Widget] = Option.new()
+v_set_cube: Option[Widget] = Option.new()
+v_default_cube: Option[Widget] = Option.new()
+
+# ShapelistScreen's seventeen widgets: Add, the visible checkbox, Delete, the global-origin button,
+# the three origin rows of a decrease button, a text field, a Set button and an increase button, and
+# the shape list. The list's rows are the state's sets, in file order.
+s_add: Option[Widget] = Option.new()
+s_visible: Option[Widget] = Option.new()
+s_delete: Option[Widget] = Option.new()
+s_global: Option[Widget] = Option.new()
+s_x_dec: Option[Widget] = Option.new()
+s_x_field: Option[Widget] = Option.new()
+s_x_set: Option[Widget] = Option.new()
+s_x_inc: Option[Widget] = Option.new()
+s_y_dec: Option[Widget] = Option.new()
+s_y_field: Option[Widget] = Option.new()
+s_y_set: Option[Widget] = Option.new()
+s_y_inc: Option[Widget] = Option.new()
+s_z_dec: Option[Widget] = Option.new()
+s_z_field: Option[Widget] = Option.new()
+s_z_set: Option[Widget] = Option.new()
+s_z_inc: Option[Widget] = Option.new()
+s_list: Option[Widget] = Option.new()
+
+# The two dropdowns: ShapeScreen's V button, its X and its list of the fifteen shape names, and
+# ShapelistScreen's own three, which choose the new set's shape instead. Each screen declares its
+# own names, so one handle per role holds whichever screen is open.
+q_open: Option[Widget] = Option.new()
+q_close: Option[Widget] = Option.new()
+q_list: Option[Widget] = Option.new()
+n_open: Option[Widget] = Option.new()
+n_close: Option[Widget] = Option.new()
+n_list: Option[Widget] = Option.new()
+
+# ShapeScreen's thirteen origin widgets: Set origin and one row of a decrease button, an origin text
+# field, a Set button and an increase button per axis, at the reference's own positions.
+o_set: Option[Widget] = Option.new()
+o_x_dec: Option[Widget] = Option.new()
+o_x_field: Option[Widget] = Option.new()
+o_x_set: Option[Widget] = Option.new()
+o_x_inc: Option[Widget] = Option.new()
+o_y_dec: Option[Widget] = Option.new()
+o_y_field: Option[Widget] = Option.new()
+o_y_set: Option[Widget] = Option.new()
+o_y_inc: Option[Widget] = Option.new()
+o_z_dec: Option[Widget] = Option.new()
+o_z_field: Option[Widget] = Option.new()
+o_z_set: Option[Widget] = Option.new()
+o_z_inc: Option[Widget] = Option.new()
+
+# ShapeScreen's property rows: eight slots each, one per widget a property class can add. A
+# number property shows its decrease button, text field, Set button and increase button; a
+# boolean its checkbox; an enum its two arrows; a runnable its one wide button. The slots are
+# declared for every row in screen_init and shown, hidden and moved as the shape changes, which
+# is what Widget.set_position and set_visible exist for: add_* is legal only while init runs.
+# Eight rows is the longest property list in the registry, which is the helix's.
+p0a: Option[Widget] = Option.new()
+p0b: Option[Widget] = Option.new()
+p0c: Option[Widget] = Option.new()
+p0d: Option[Widget] = Option.new()
+p0e: Option[Widget] = Option.new()
+p0f: Option[Widget] = Option.new()
+p0g: Option[Widget] = Option.new()
+p0h: Option[Widget] = Option.new()
+p1a: Option[Widget] = Option.new()
+p1b: Option[Widget] = Option.new()
+p1c: Option[Widget] = Option.new()
+p1d: Option[Widget] = Option.new()
+p1e: Option[Widget] = Option.new()
+p1f: Option[Widget] = Option.new()
+p1g: Option[Widget] = Option.new()
+p1h: Option[Widget] = Option.new()
+p2a: Option[Widget] = Option.new()
+p2b: Option[Widget] = Option.new()
+p2c: Option[Widget] = Option.new()
+p2d: Option[Widget] = Option.new()
+p2e: Option[Widget] = Option.new()
+p2f: Option[Widget] = Option.new()
+p2g: Option[Widget] = Option.new()
+p2h: Option[Widget] = Option.new()
+p3a: Option[Widget] = Option.new()
+p3b: Option[Widget] = Option.new()
+p3c: Option[Widget] = Option.new()
+p3d: Option[Widget] = Option.new()
+p3e: Option[Widget] = Option.new()
+p3f: Option[Widget] = Option.new()
+p3g: Option[Widget] = Option.new()
+p3h: Option[Widget] = Option.new()
+p4a: Option[Widget] = Option.new()
+p4b: Option[Widget] = Option.new()
+p4c: Option[Widget] = Option.new()
+p4d: Option[Widget] = Option.new()
+p4e: Option[Widget] = Option.new()
+p4f: Option[Widget] = Option.new()
+p4g: Option[Widget] = Option.new()
+p4h: Option[Widget] = Option.new()
+p5a: Option[Widget] = Option.new()
+p5b: Option[Widget] = Option.new()
+p5c: Option[Widget] = Option.new()
+p5d: Option[Widget] = Option.new()
+p5e: Option[Widget] = Option.new()
+p5f: Option[Widget] = Option.new()
+p5g: Option[Widget] = Option.new()
+p5h: Option[Widget] = Option.new()
+p6a: Option[Widget] = Option.new()
+p6b: Option[Widget] = Option.new()
+p6c: Option[Widget] = Option.new()
+p6d: Option[Widget] = Option.new()
+p6e: Option[Widget] = Option.new()
+p6f: Option[Widget] = Option.new()
+p6g: Option[Widget] = Option.new()
+p6h: Option[Widget] = Option.new()
+p7a: Option[Widget] = Option.new()
+p7b: Option[Widget] = Option.new()
+p7c: Option[Widget] = Option.new()
+p7d: Option[Widget] = Option.new()
+p7e: Option[Widget] = Option.new()
+p7f: Option[Widget] = Option.new()
+p7g: Option[Widget] = Option.new()
+p7h: Option[Widget] = Option.new()
+
+# The world facts of the last world frame: a screen's initCheck needs the level and the player's feet,
+# and a close saves the state under the world and dimension the player is in. render_world runs every
+# frame, with or without a screen, so these are current whenever a screen opens.
+world_level: Option[Level] = Option.new()
+world_name: string = ""
+world_dimension: string = ""
+world_x: number = 0
+world_y: number = 0
+world_z: number = 0
+
+# BaseScreen.render's two block counts, from the last world frame: a shape is generated while it is
+# drawn or counted, so a frame with a screen open counts every set with the draw suppressed, and the
+# current shape's count is its set's whether or not the set is visible, as the reference's is.
+block_shape: number = 0
+block_total: number = 0
+cell_count: number = 0
+cell_counting: bool = false
+
 # Draws every shape set the way AbstractRenderHandler.render and AbstractLegacyRenderHandler do:
 # only while the mod is enabled, there is a set, and the current set has an origin; then each set
 # whose own state allows it, with its origin cube.
 # A world frame is also where a queued key press is applied, because the state has to be loaded
-# first and a binding handler has no feet to read.
+# first and a binding handler has no feet to read, and where the screen's block counts are taken.
 
 export render_world(ctx: OverlayWorldContext) {
     level: Level = ctx.get_level()
     name: string = level.name()
     dimension: string = level.dimension()
-    key: string = _state_path(name, dimension)
+    key: string = _state_key(name, dimension)
+    x: number = ctx.player_x()
+    y: number = ctx.player_y()
+    z: number = ctx.player_z()
+    world_level.set(level)
+    world_name = name
+    world_dimension = dimension
+    world_x = x
+    world_y = y
+    world_z = z
     if not config_loaded or not state_loaded or state_key != key {
         files: File = File.open(r"files")
         _ensure_config(files)
-        _ensure_state(files, level, name, dimension, key, ctx.player_x(), ctx.player_y(), ctx.player_z())
+        _ensure_state(files, level, name, dimension, key, x, y, z)
     }
-    _apply_pending(level, ctx.player_x(), ctx.player_y(), ctx.player_z())
+    _apply_pending(level, x, y, z)
+    if active_screen != "" {
+        _count_all(ctx)
+    }
     if not _state_enabled() {
         return
     }
@@ -82,11 +294,13 @@ export render_world(ctx: OverlayWorldContext) {
     _draw_all(ctx)
 }
 
-# The three declared bindings, which the player rebinds in the Controls menu under the reference's
-# own names. The reference leaves all three unbound by default, so this port's defaults are a
-# deviation that about.json records. A binding fires once per press, so a count of presses is a
-# count of applications; applying the same count again in one frame is what a player who pressed
-# twice before a frame would get from the reference too.
+# The four declared bindings, which the player rebinds in the Controls menu under the reference's
+# own names. The reference leaves the three state keys unbound by default, so this port's defaults
+# are a deviation that about.json records, and its open key is B in both. A binding fires once per
+# press, so a count of presses is a count of applications; applying the same count again in one
+# frame is what a player who pressed twice before a frame would get from the reference too.
+# The open key creates the screen of the tab State.currentScreen names and shows it, as
+# AbstractInputHandler.onKeyInput does.
 
 export world_binding(ctx: OverlayWorldBindingContext) {
     if ctx.id() == "toggle_enable" {
@@ -99,7 +313,130 @@ export world_binding(ctx: OverlayWorldBindingContext) {
     }
     if ctx.id() == "set_global_origin" {
         pending_global_origin = pending_global_origin + 1
+        return
     }
+    if ctx.id() == "open_screen" {
+        _open_tab(tab_screen)
+    }
+}
+
+# The four screens of #1752's second stage. Every one of them starts with BaseScreen's chrome and
+# State.initCheck, which the reference runs from the screen's own constructor as well as from the
+# toggle key. The Shape and Shape list dropdowns are lists inside their screens, because the host's
+# Screen holds one screen at a time (#1760's gap 2).
+
+export screen_init(ctx: ScreenInitContext) {
+    width: number = ctx.screen_width()
+    if state_loaded and world_level.has() {
+        _state_check(world_level.unwrap(), world_x, world_y, world_z)
+    }
+    if active_screen == "configuration" {
+        _configuration_init(width)
+        return
+    }
+    if active_screen == "visualisation" {
+        _visualisation_init(width)
+        return
+    }
+    if active_screen == "shapelist" {
+        _shapelist_init(width, ctx.screen_height())
+        return
+    }
+    _shape_init(width, ctx.screen_height())
+}
+
+export screen_render(ctx: OverlayRenderContext) {
+    width: number = ctx.screen_width()
+    if active_screen == "configuration" {
+        _configuration_render(ctx, width)
+        return
+    }
+    if active_screen == "visualisation" {
+        _visualisation_render(ctx, width)
+        return
+    }
+    if active_screen == "shapelist" {
+        _shapelist_render(ctx, width)
+        return
+    }
+    _shape_render(ctx, width)
+}
+
+# The reference has no screen-level click or wheel handling: every press goes to the widget under the
+# mouse, and a list takes its own row click and its own wheel. Nothing here takes either, so the
+# widget under it keeps it.
+
+export screen_click(ctx: OverlayClickContext) {
+    return
+}
+
+# The reference's Escape is the host screen's own close, which reaches BaseScreen.onScreenClosed
+# through Screen.keyPressed and saves. Taking it and closing runs the same path, and this export is
+# not asked while a text field has focus, so the first Escape still leaves the field.
+
+export screen_key(ctx: OverlayKeyContext) {
+    key: number = ctx.key()
+    if key == 256 {
+        ctx.take()
+        _close_active()
+    }
+}
+
+export screen_scroll(ctx: OverlayScrollContext) {
+    return
+}
+
+# One export for every widget the open screen declared, because a changed widget holds the value its
+# use left. A value the mod writes itself is silent, so an init or a state refresh cannot re-enter.
+
+export screen_widget_changed(ctx: ScreenWidgetContext) {
+    widget: Widget = ctx.widget()
+    if active_screen == "configuration" {
+        _configuration_changed(widget)
+        return
+    }
+    if active_screen == "visualisation" {
+        _visualisation_changed(widget)
+        return
+    }
+    if active_screen == "shapelist" {
+        _shapelist_changed(widget)
+        return
+    }
+    _shape_changed(widget)
+}
+
+# What each row of the shape list shows: the set's shape name, struck through while the set is
+# invisible and red while the shape is in error. Every visible row is asked once per frame, so the
+# text follows the state without the port touching the list after a change.
+
+export screen_list_row(ctx: ListRowResponse) {
+    if dropdown_open {
+        if active_screen == "shape" {
+            _dropdown_row(ctx, q_list.unwrap())
+            return
+        }
+        if active_screen == "shapelist" {
+            _dropdown_row(ctx, n_list.unwrap())
+        }
+        return
+    }
+    if active_screen == "shapelist" {
+        _shapelist_row(ctx)
+    }
+}
+
+# BaseScreen.onScreenClosed saves the whole state when persistence is on and something changed since
+# the last save, and then clears its shouldUpdatePersistence flag. The port has no flag: the state
+# text is the whole of what is saved, so a text equal to the one last written is a close with nothing
+# to save. The one difference is a rewrite of identical bytes, which the reference makes when its
+# flag was set by a mutation that is not persisted, such as adding a shape's properties; no byte of
+# the file moves either way.
+# Escape reaches this through a mod screen's close, and so does a tab press, because opening a screen
+# over an open one asks the open one to close first.
+
+export screen_closed() {
+    _state_save()
 }
 
 # Every shape set line of the state, in the order the file listed them.
@@ -119,8 +456,8 @@ local _draw_all(ctx: OverlayWorldContext) {
 # One set, as Shape.doUpdate fills its buffer: the cells of the shape its index names, then the origin
 # cube, both in the set's own colours and cube sizes. ShapeSet.getShape creates the index's shape at
 # its defaults when the set holds none, and the reference draws that, so a set whose file named
-# another class still shows both; here the default is drawn without being written into the set,
-# because stage 1 never saves.
+# another class still shows both; here the default is drawn without being written into the set, and
+# only a property change or the Shape tab's dropdown writes one.
 # A set in error keeps its shape and its text, and is simply not drawn, which is what the reference's
 # `ready && !error` check does.
 
@@ -327,9 +664,20 @@ local _emit_circle(ctx: OverlayWorldContext, v: string, ox: number, oy: number, 
                     z = z + 1
                 }
             }
+            previous_y: number = y
             y = y + 1
+            # A radius the double cannot step past (1e20, or an infinity from a hand-edited file)
+            # would loop forever here; the reference casts to int, so its loop ends on an int
+            # overflow after a stall of its own. This stops at once instead (#1846).
+            if y == previous_y {
+                break
+            }
         }
+        previous_x: number = x
         x = x + 1
+        if x == previous_x {
+            break
+        }
     }
 }
 
@@ -588,9 +936,18 @@ local _emit_ellipse(ctx: OverlayWorldContext, v: string, ox: number, oy: number,
                     s = s + 1
                 }
             }
+            previous_b: number = b
             b = b + 1
+            # See the circle's guard: a bound the double cannot step past stops here (#1846).
+            if b == previous_b {
+                break
+            }
         }
+        previous_a: number = a
         a = a + 1
+        if a == previous_a {
+            break
+        }
     }
 }
 
@@ -1126,9 +1483,14 @@ local _emit_torus(ctx: OverlayWorldContext, v: string, ox: number, oy: number, o
 }
 
 # One cell of a shape, at the set's origin: Shape.addShapeCube centres a cube of the set's size on the
-# block the cell names.
+# block the cell names. A frame that counts instead of drawing increments the count here, which is
+# Shape.addShapeCube's ++nBlocks, and draws nothing.
 
 local _shape_cube(ctx: OverlayWorldContext, ox: number, oy: number, oz: number, x: number, y: number, z: number, size: number, colour: Color) {
+    if cell_counting {
+        cell_count = cell_count + 1
+        return
+    }
     half: number = 0.5 - size / 2
     _cube(ctx, ox + x + half, oy + y + half, oz + z + half, size, colour)
 }
@@ -1363,15 +1725,19 @@ local _colour_channel(text: string, index: number) number {
 }
 
 # A set's cube size, as ShapeSet.getShapeCubeSize and getOriginCubeSize answer it: the file's value,
-# with Math.min's cap. A file value of NaN stays NaN in the reference, and every vertex of that cube
-# is then NaN, so the GPU draws nothing; draw_triangle refuses a non-finite coordinate with a host
-# error on every frame, so the port draws the cap instead, which about.json records (#1752).
+# with Math.min's cap. A file value of NaN or an infinity stays as it is in the reference: every
+# vertex of that cube is then non-finite or unbounded, so the GPU draws nothing or a broken cube;
+# draw_triangle refuses a non-finite coordinate with a host error on every frame, so the port draws
+# the cap instead, which about.json records (#1752, #1846).
 
 local _cube_size(set: string, key: string, fallback: number) number {
     parsed: Option[number] = String.to_number(_set_field_value(set, key))
     size: number = fallback
     if parsed.has() {
         size = parsed.unwrap()
+    }
+    if not _finite(size) {
+        return 1.0 - 0.001
     }
     if not (size <= 1.0 - 0.001) {
         return 1.0 - 0.001
@@ -1403,13 +1769,25 @@ local _cube_size(set: string, key: string, fallback: number) number {
 # String.from_float and String.from_double, which is Java 19 and later's own text on every JDK.
 
 # Reads the config once and keeps its three values as "async,random,persistence".
+# Config's constructor writes the default file when there is none, else loads it and rewrites it whole
+# when a key is missing, keeping the values the file held. Config.load catches the IOException a
+# refused write raises and keeps what it parsed, so the values are assigned and the flag is set
+# before the write: a write the host refuses ends this call once, instead of aborting every frame
+# (#1846).
 
 local _ensure_config(files: File) {
     if config_loaded {
         return
     }
-    config_values = _config_open_at(files, "config/buildguide.cfg")
+    text: Option[string] = files.read_text("config/buildguide.cfg")
+    config_values = _config_default_values()
+    if text.has() {
+        config_values = _config_parse(text.unwrap(), config_values)
+    }
     config_loaded = true
+    if not text.has() or _config_missing(text.unwrap()) {
+        files.write_text("config/buildguide.cfg", _config_text(config_values))
+    }
 }
 
 # Creates, and loads when persistence is on, the state of the world and dimension this frame is in.
@@ -1424,6 +1802,15 @@ local _ensure_state(files: File, level: Level, name: string, dimension: string, 
     state_key = key
     state_loaded = true
     state_initialised = false
+    # A new key is a new State in the reference, and its load leaves persistence to be written once,
+    # so the next close writes this world's text even when it matches nothing the port saved.
+    persistence_text = ""
+    persistence_written = false
+    # A press counted before this key change belongs to the state that was showing, not to this
+    # one, and the reference has no way to carry it across a world or dimension switch (#1846).
+    pending_toggle = 0
+    pending_origin = 0
+    pending_global_origin = 0
 }
 
 # The state for a world: loaded from its file on the first access when persistence is enabled. The
@@ -1597,22 +1984,25 @@ local _state_set_at(text: string, wanted: number) string {
 
 # The state with one scalar line replaced, or appended in the reference's order when it is not there.
 
-# The state with set number `wanted` replaced, every other line kept.
-
-# State.shiftOrigins: every set moved by the same delta, which is what the set-global-origin key does.
-
 # The file a state for this world lives at, inside the writable root (#1757).
 
 local _state_path(name: string, dimension: string) string {
     return String.concat("buildguide/", _state_filename(name, dimension))
 }
 
+# The key the state is kept in memory under: the raw world and dimension, as the reference's
+# stateStore is keyed, so two names that sanitise alike keep two states here (#1846). They still
+# share one file, as they do in the reference.
+
+local _state_key(name: string, dimension: string) string {
+    return String.concat(String.concat(_state_host(name), "@"), _dimension_text(dimension))
+}
+
 # AbstractStateManager.getPersistenceFile: the world and the dimension joined by an at sign, every
 # character a Windows file name refuses replaced by a dot, then ".dat".
 
 local _state_filename(name: string, dimension: string) string {
-    key: string = String.concat(String.concat(_state_host(name), "@"), _dimension_text(dimension))
-    return String.concat(_sanitise(key), ".dat")
+    return String.concat(_sanitise(_state_key(name, dimension)), ".dat")
 }
 
 # The reference falls back to the server's address and then to "unknown"; Level.name answers the
@@ -1668,23 +2058,6 @@ local _sanitise(text: string) string {
 }
 
 # ---------------------------------------------------------------- the config
-
-# Config's constructor: write the default file when there is none, else load it and rewrite it whole
-# when a key is missing, keeping the values the file held.
-
-local _config_open_at(files: File, path: string) string {
-    text: Option[string] = files.read_text(path)
-    if not text.has() {
-        values: string = _config_default_values()
-        files.write_text(path, _config_text(values))
-        return values
-    }
-    values: string = _config_parse(text.unwrap(), _config_default_values())
-    if _config_missing(text.unwrap()) {
-        files.write_text(path, _config_text(values))
-    }
-    return values
-}
 
 # The three values in file order: async shape generation, random colours for a new set, persistence.
 
@@ -2477,8 +2850,8 @@ local _apply_pending(level: Level, x: number, y: number, z: number) {
 }
 
 # State.initCheck: one set when there is none, and an origin for a set that has none. The reference
-# runs it once per State, from the toggle key and from a screen's constructor; the screen is stage 2,
-# so the toggle is the only caller here. A new set goes through pushNewShapeSet, which starts at
+# runs it once per State, from the toggle key and from a screen's own init. A new set goes through
+# pushNewShapeSet, which starts at
 # iShapeNew, takes its origin from the player and gets random colours when the config asks for them;
 # the colours come from the level's own random because grug has no unseeded generator to hand, and
 # every draw is uniform the same way the reference's `new Random()` draws are. The text form always
@@ -2544,7 +2917,9 @@ local _config_random(values: string) bool {
 }
 
 # A new set's colour from the level's random, three draws and the alpha the set already has, in the
-# text Float.toString gives a float, which is String.from_float.
+# text Float.toString gives a float, which is String.from_float. The reference makes a new Random and
+# draws from it, so its draws do not touch the level's sequence; this port's do, which about.json
+# records (#1846).
 
 local _random_colour(level: Level, alpha: string) string {
     return String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.from_float(level.random_float()), String.concat(",", alpha))))
@@ -2606,4 +2981,2491 @@ local _state_shift_origins(text: string, dx: number, dy: number, dz: number) str
         i = i + 1
     }
     return out
+}
+
+# ---------------------------------------------------------------- the screen helpers
+# A local function is defined after the first call to it, so this section runs outwards from the
+# exports above. The properties and lists of the other tabs join it as they are ported.
+
+# ConfigurationScreen's six widgets: a checkbox writes its config value and the file at once, which
+# is Config.write, and a Default button puts its option back to the default and writes again, which
+# is the reference's setChecked (whose change fires the checkbox's own handler) plus write. A box
+# this port ticks is silent, so the value and the file are written here by hand.
+
+local _configuration_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    async_box: Widget = c_async.unwrap()
+    if equals(widget, async_box) {
+        config_values = _config_with(config_values, 0, _bool_text(widget.checked()))
+        _config_write()
+        return
+    }
+    async_default: Widget = c_async_default.unwrap()
+    if equals(widget, async_default) {
+        _config_set_default(0, async_box)
+        return
+    }
+    random_box: Widget = c_random.unwrap()
+    if equals(widget, random_box) {
+        config_values = _config_with(config_values, 1, _bool_text(widget.checked()))
+        _config_write()
+        return
+    }
+    random_default: Widget = c_random_default.unwrap()
+    if equals(widget, random_default) {
+        _config_set_default(1, random_box)
+        return
+    }
+    persistence_box: Widget = c_persistence.unwrap()
+    if equals(widget, persistence_box) {
+        config_values = _config_with(config_values, 2, _bool_text(widget.checked()))
+        _config_write()
+        return
+    }
+    persistence_default: Widget = c_persistence_default.unwrap()
+    if equals(widget, persistence_default) {
+        _config_set_default(2, persistence_box)
+    }
+}
+
+# BaseScreen's six shared widgets, in the reference's own add order. The enable checkbox writes the
+# state's enabled flag, which setEnabled marks for persistence, and a tab press opens that tab's
+# screen, which closes this one first.
+
+local _chrome_changed(widget: Widget) bool {
+    enabled: Widget = w_enabled.unwrap()
+    if equals(widget, enabled) {
+        state = _state_with_field(state, "enabled", _bool_text(widget.checked()))
+        return true
+    }
+    close_button: Widget = w_close.unwrap()
+    if equals(widget, close_button) {
+        _close_active()
+        return true
+    }
+    tab_shape: Widget = w_tab_shape.unwrap()
+    if equals(widget, tab_shape) {
+        _open_tab("shape")
+        return true
+    }
+    tab_visualisation: Widget = w_tab_visualisation.unwrap()
+    if equals(widget, tab_visualisation) {
+        _open_tab("visualisation")
+        return true
+    }
+    tab_shapelist: Widget = w_tab_shapelist.unwrap()
+    if equals(widget, tab_shapelist) {
+        _open_tab("shapelist")
+        return true
+    }
+    tab_configuration: Widget = w_tab_configuration.unwrap()
+    if equals(widget, tab_configuration) {
+        _open_tab("configuration")
+        return true
+    }
+    return false
+}
+
+# BaseScreen.onScreenClosed, reached by the close button, Escape, and a tab press that opens a screen
+# over this one. The Shape and Shape list dropdowns are part of their own screen, so closing one
+# closes the screen and not a tab.
+
+local _close_active() {
+    if active_screen == "visualisation" {
+        active_screen = ""
+        visualisation_screen.close()
+        return
+    }
+    if active_screen == "shapelist" {
+        active_screen = ""
+        shapelist_screen.close()
+        return
+    }
+    if active_screen == "configuration" {
+        active_screen = ""
+        configuration_screen.close()
+        return
+    }
+    active_screen = ""
+    shape_screen.close()
+}
+
+# State.createNewScreen and AbstractScreenHandler.showScreen: the tab becomes the current one and its
+# screen opens. Opening over the open screen asks that one to close first, whose save is the tab
+# switch's save. A tab the state has no set for still opens; its widgets are the chrome's alone.
+
+local _open_tab(name: string) {
+    tab_screen = name
+    active_screen = name
+    dropdown_open = false
+    if name == "visualisation" {
+        visualisation_screen.open()
+        return
+    }
+    if name == "shapelist" {
+        shapelist_screen.open()
+        return
+    }
+    if name == "configuration" {
+        configuration_screen.open()
+        return
+    }
+    shape_screen.open()
+}
+
+# ConfigurationScreen.init after super.init: the three checkboxes at x 255 and their 50-wide Default
+# buttons at x 280, on y 60, 110 and 160, in Config's own order. The reference declares two more
+# widgets for the debug timings setting, under a misspelled field it never assigns; addWidget ignores
+# the null, so no widget exists for it here either.
+
+local _configuration_init(width: number) {
+    _chrome_init(configuration_screen, width, "configuration", _state_enabled())
+    async_box: Widget = configuration_screen.add_checkbox("async", "", _config_on(config_values, 0), 255, 60, 20, 20)
+    c_async.set(async_box)
+    async_default: Widget = configuration_screen.add_button("async_default", "Default", 280, 60, 50, 20)
+    c_async_default.set(async_default)
+    random_box: Widget = configuration_screen.add_checkbox("random", "", _config_on(config_values, 1), 255, 110, 20, 20)
+    c_random.set(random_box)
+    random_default: Widget = configuration_screen.add_button("random_default", "Default", 280, 110, 50, 20)
+    c_random_default.set(random_default)
+    persistence_box: Widget = configuration_screen.add_checkbox("persistence", "", _config_on(config_values, 2), 255, 160, 20, 20)
+    c_persistence.set(persistence_box)
+    persistence_default: Widget = configuration_screen.add_button("persistence_default", "Default", 280, 160, 50, 20)
+    c_persistence_default.set(persistence_default)
+}
+
+# BaseScreen.init: the enable checkbox at (5, 5), the close button at (width - 25, 5) labelled X, and
+# the four tabs at y 30, each 120 wide from x 5, 130, 255 and 380. The screen's own tab is inactive,
+# which is the reference's `currentScreen != ActiveScreen.X` argument. The checkbox keeps the game's
+# own size whatever it is asked for.
+
+local _chrome_init(screen: Screen, width: number, current: string, enabled: bool) {
+    box: Widget = screen.add_checkbox("enabled", "", enabled, 5, 5, 20, 20)
+    w_enabled.set(box)
+    close_button: Widget = screen.add_button("close", "X", width - 25, 5, 20, 20)
+    w_close.set(close_button)
+    tab_shape: Widget = screen.add_button("tab_shape", "Shape", 5, 30, 120, 20)
+    tab_shape.set_active(current != "shape")
+    w_tab_shape.set(tab_shape)
+    tab_visualisation: Widget = screen.add_button("tab_visualisation", "Visualization", 130, 30, 120, 20)
+    tab_visualisation.set_active(current != "visualisation")
+    w_tab_visualisation.set(tab_visualisation)
+    tab_shapelist: Widget = screen.add_button("tab_shapelist", "Shape list", 255, 30, 120, 20)
+    tab_shapelist.set_active(current != "shapelist")
+    w_tab_shapelist.set(tab_shapelist)
+    tab_configuration: Widget = screen.add_button("tab_configuration", "Configuration", 380, 30, 120, 20)
+    tab_configuration.set_active(current != "configuration")
+    w_tab_configuration.set(tab_configuration)
+}
+
+# ConfigurationScreen.render after super.render: each option's title underlined at x 10 and its
+# comment below it, at the reference's own rows (65/84, 115/135, 165/185).
+
+local _configuration_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    ctx.draw_text("§nAsynchronous shape generation", 10, 65, white)
+    ctx.draw_text("Enable asynchronous (multithreaded) shape generation.", 10, 84, white)
+    ctx.draw_text("§nShape list random colors", 10, 115, white)
+    ctx.draw_text("Enable random colors for new shapes added to the shape list by default.", 10, 135, white)
+    ctx.draw_text("§nShape persistence", 10, 165, white)
+    ctx.draw_text("Allow shapes to be saved to a file so they can be restored after restarting the client.", 10, 185, white)
+}
+
+# BaseScreen.render's six texts: the title centred at the window's middle, Enable at x 30, and the two
+# block headers and their counts centred left and right of the title. The reference computes each
+# centre with Java's integer division, so every half is floored before it is subtracted.
+
+local _chrome_render(ctx: OverlayRenderContext, width: number) {
+    white: Color = Color.rgb(255, 255, 255)
+    mid: number = Math.floor(width / 2)
+    title: string = "Build Guide"
+    title_width: number = ctx.text_width(title)
+    ctx.draw_text(title, mid - Math.floor(title_width / 2), 10, white)
+    ctx.draw_text("Enable", 30, 10, white)
+    shape_title: string = "Number of blocks (shape)"
+    total_title: string = "Number of blocks (total)"
+    shape_width: number = ctx.text_width(shape_title)
+    total_width: number = ctx.text_width(total_title)
+    titles: number = shape_width
+    if total_width > titles {
+        titles = total_width
+    }
+    left: number = mid - Math.floor(title_width / 2) - Math.floor(titles / 2) - 20
+    right: number = mid + Math.floor(title_width / 2) + Math.floor(titles / 2) + 20
+    shape_count: string = _count_text(block_shape)
+    total_count: string = _count_text(block_total)
+    ctx.draw_text(shape_title, left - Math.floor(shape_width / 2), 5, white)
+    ctx.draw_text(shape_count, left - Math.floor(ctx.text_width(shape_count) / 2), 20, white)
+    ctx.draw_text(total_title, right - Math.floor(total_width / 2), 5, white)
+    ctx.draw_text(total_count, right - Math.floor(ctx.text_width(total_count) / 2), 20, white)
+}
+# VisualisationScreen's nineteen widgets. A slider only moves its own handle and label, which is the
+# reference's empty applyValue; every colour and cube size changes when a Set button reads the
+# sliders, and the depth-test checkbox writes its state flag at once. With no set, the eight colour
+# sliders and the six colour buttons are inactive, but the two cube sliders and their two buttons
+# stay usable although their callbacks do nothing, which is the reference's own disable block.
+
+local _visualisation_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    depth: Widget = v_depth.unwrap()
+    if equals(widget, depth) {
+        state = _state_with_field(state, "depthTest", _bool_text(widget.checked()))
+        return
+    }
+    set_shape: Widget = v_set_shape.unwrap()
+    if equals(widget, set_shape) {
+        _visual_set_shape_colour()
+        return
+    }
+    random_shape: Widget = v_random_shape.unwrap()
+    if equals(widget, random_shape) {
+        _visual_random_shape()
+        return
+    }
+    default_shape: Widget = v_default_shape.unwrap()
+    if equals(widget, default_shape) {
+        _visual_default_shape()
+        return
+    }
+    set_origin: Widget = v_set_origin.unwrap()
+    if equals(widget, set_origin) {
+        _visual_set_origin_colour()
+        return
+    }
+    random_origin: Widget = v_random_origin.unwrap()
+    if equals(widget, random_origin) {
+        _visual_random_origin()
+        return
+    }
+    default_origin: Widget = v_default_origin.unwrap()
+    if equals(widget, default_origin) {
+        _visual_default_origin()
+        return
+    }
+    set_cube: Widget = v_set_cube.unwrap()
+    if equals(widget, set_cube) {
+        _visual_set_cube_size()
+        return
+    }
+    default_cube: Widget = v_default_cube.unwrap()
+    if equals(widget, default_cube) {
+        _visual_default_cube_size()
+        return
+    }
+    _visual_slider_text(widget)
+}
+
+# VisualisationScreen.init after super.init, in the reference's add order: the shape colour sliders and
+# buttons at x 5, the origin ones at x 140, the depth-test checkbox under them, and the cube size
+# sliders and buttons at x 140 from y 235. Each slider's initial value is the current set's, capped
+# the way getShapeCubeSize caps it, or the ShapeSet default when there is no set. The disable block
+# runs before the widgets are added in the reference, and after here, which is the same state.
+
+local _visualisation_init(width: number) {
+    _chrome_init(visualisation_screen, width, "visualisation", _state_enabled())
+    available: bool = _state_set_count() > 0
+    shape_r: number = _visual_channel("shapeColour", 0, 1.0)
+    shape_g: number = _visual_channel("shapeColour", 1, 1.0)
+    shape_b: number = _visual_channel("shapeColour", 2, 1.0)
+    shape_a: number = _visual_channel("shapeColour", 3, 0.5)
+    origin_r: number = _visual_channel("originColour", 0, 1.0)
+    origin_g: number = _visual_channel("originColour", 1, 0.0)
+    origin_b: number = _visual_channel("originColour", 2, 0.0)
+    origin_a: number = _visual_channel("originColour", 3, 0.5)
+    shape_cube: number = _visual_cube("shapeCubeSize", 0.6)
+    origin_cube: number = _visual_cube("originCubeSize", 0.2)
+    s1: Widget = visualisation_screen.add_slider("shape_r", _visual_label("R", shape_r), 0.0, 1.0, shape_r, 5, 70, 120, 20)
+    v_shape_r.set(s1)
+    s2: Widget = visualisation_screen.add_slider("shape_g", _visual_label("G", shape_g), 0.0, 1.0, shape_g, 5, 90, 120, 20)
+    v_shape_g.set(s2)
+    s3: Widget = visualisation_screen.add_slider("shape_b", _visual_label("B", shape_b), 0.0, 1.0, shape_b, 5, 110, 120, 20)
+    v_shape_b.set(s3)
+    s4: Widget = visualisation_screen.add_slider("shape_a", _visual_label("A", shape_a), 0.0, 1.0, shape_a, 5, 130, 120, 20)
+    v_shape_a.set(s4)
+    b1: Widget = visualisation_screen.add_button("set_shape", "Set", 5, 150, 120, 20)
+    v_set_shape.set(b1)
+    b2: Widget = visualisation_screen.add_button("set_shape_random", "Set random", 5, 170, 120, 20)
+    v_random_shape.set(b2)
+    b3: Widget = visualisation_screen.add_button("default_shape", "Default", 5, 190, 120, 20)
+    v_default_shape.set(b3)
+    s5: Widget = visualisation_screen.add_slider("origin_r", _visual_label("R", origin_r), 0.0, 1.0, origin_r, 140, 70, 120, 20)
+    v_origin_r.set(s5)
+    s6: Widget = visualisation_screen.add_slider("origin_g", _visual_label("G", origin_g), 0.0, 1.0, origin_g, 140, 90, 120, 20)
+    v_origin_g.set(s6)
+    s7: Widget = visualisation_screen.add_slider("origin_b", _visual_label("B", origin_b), 0.0, 1.0, origin_b, 140, 110, 120, 20)
+    v_origin_b.set(s7)
+    s8: Widget = visualisation_screen.add_slider("origin_a", _visual_label("A", origin_a), 0.0, 1.0, origin_a, 140, 130, 120, 20)
+    v_origin_a.set(s8)
+    b4: Widget = visualisation_screen.add_button("set_origin", "Set", 140, 150, 120, 20)
+    v_set_origin.set(b4)
+    b5: Widget = visualisation_screen.add_button("set_origin_random", "Set random", 140, 170, 120, 20)
+    v_random_origin.set(b5)
+    b6: Widget = visualisation_screen.add_button("default_origin", "Default", 140, 190, 120, 20)
+    v_default_origin.set(b6)
+    depth: Widget = visualisation_screen.add_checkbox("depth_test", "", _visual_depth(), 5, 235, 20, 20)
+    v_depth.set(depth)
+    s9: Widget = visualisation_screen.add_slider("shape_cube", _visual_label("Shape", shape_cube), 0.0, 1.0, shape_cube, 140, 235, 120, 20)
+    v_shape_cube.set(s9)
+    s10: Widget = visualisation_screen.add_slider("origin_cube", _visual_label("Origin", origin_cube), 0.0, 1.0, origin_cube, 140, 255, 120, 20)
+    v_origin_cube.set(s10)
+    b7: Widget = visualisation_screen.add_button("set_cube", "Set", 140, 275, 120, 20)
+    v_set_cube.set(b7)
+    b8: Widget = visualisation_screen.add_button("default_cube", "Default", 140, 295, 120, 20)
+    v_default_cube.set(b8)
+    if not available {
+        s1.set_active(false)
+        s2.set_active(false)
+        s3.set_active(false)
+        s4.set_active(false)
+        s5.set_active(false)
+        s6.set_active(false)
+        s7.set_active(false)
+        s8.set_active(false)
+        b1.set_active(false)
+        b2.set_active(false)
+        b3.set_active(false)
+        b4.set_active(false)
+        b5.set_active(false)
+        b6.set_active(false)
+    }
+}
+
+# VisualisationScreen.render after super.render: two underlined headings over the colour columns, the
+# Rendering heading over the depth-test box, the box's label to its right, and the Cube size heading.
+
+local _visualisation_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    _draw_centred(ctx, "§nShape color", 65, 55, white)
+    _draw_centred(ctx, "§nOrigin color", 200, 55, white)
+    _draw_centred(ctx, "§nRendering", 65, 220, white)
+    ctx.draw_text("Depth test", 30, 240, white)
+    _draw_centred(ctx, "§nCube size", 200, 220, white)
+}
+
+# A slider's label follows its handle: the reference's updateMessage is `name + ": " + round(10v)/10`,
+# which a drag reaches through widget_changed. Every slider's own name is remembered here because the
+# host keeps the text, not the format.
+
+local _visual_slider_text(widget: Widget) {
+    if equals(widget, v_shape_r.unwrap()) {
+        _visual_put_slider(widget, "R", widget.value())
+    } else if equals(widget, v_shape_g.unwrap()) {
+        _visual_put_slider(widget, "G", widget.value())
+    } else if equals(widget, v_shape_b.unwrap()) {
+        _visual_put_slider(widget, "B", widget.value())
+    } else if equals(widget, v_shape_a.unwrap()) {
+        _visual_put_slider(widget, "A", widget.value())
+    } else if equals(widget, v_origin_r.unwrap()) {
+        _visual_put_slider(widget, "R", widget.value())
+    } else if equals(widget, v_origin_g.unwrap()) {
+        _visual_put_slider(widget, "G", widget.value())
+    } else if equals(widget, v_origin_b.unwrap()) {
+        _visual_put_slider(widget, "B", widget.value())
+    } else if equals(widget, v_origin_a.unwrap()) {
+        _visual_put_slider(widget, "A", widget.value())
+    } else if equals(widget, v_shape_cube.unwrap()) {
+        _visual_put_slider(widget, "Shape", widget.value())
+    } else {
+        _visual_put_slider(widget, "Origin", widget.value())
+    }
+}
+
+# ShapeSet.setShapeColour on the current set, and the other three setters the same way. A set the
+# state does not have is what isShapeAvailable refuses, so nothing is written then.
+
+local _visual_set_shape_colour() {
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeColour", _visual_colour_text(v_shape_r.unwrap().value(), v_shape_g.unwrap().value(), v_shape_b.unwrap().value(), v_shape_a.unwrap().value()))
+}
+
+# setShapeColour with three fresh draws and the slider's own alpha. The reference makes a new Random,
+# so its sequence is untouched; this port draws from the level, which about.json records (#1846).
+
+local _visual_random_shape() {
+    if _state_set_count() == 0 {
+        return
+    }
+    if not world_level.has() {
+        return
+    }
+    level: Level = world_level.unwrap()
+    r: number = level.random_float()
+    g: number = level.random_float()
+    b: number = level.random_float()
+    _visual_put_slider(v_shape_r.unwrap(), "R", r)
+    _visual_put_slider(v_shape_g.unwrap(), "G", g)
+    _visual_put_slider(v_shape_b.unwrap(), "B", b)
+    _visual_write("shapeColour", _visual_colour_text(r, g, b, v_shape_a.unwrap().value()))
+}
+
+# The Default button moves the four sliders whether or not a set is there, and writes the colour only
+# when one is, which is the reference's guard after the sliders.
+
+local _visual_default_shape() {
+    _visual_put_slider(v_shape_r.unwrap(), "R", 1.0)
+    _visual_put_slider(v_shape_g.unwrap(), "G", 1.0)
+    _visual_put_slider(v_shape_b.unwrap(), "B", 1.0)
+    _visual_put_slider(v_shape_a.unwrap(), "A", 0.5)
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeColour", "1.0,1.0,1.0,0.5")
+}
+
+local _visual_set_origin_colour() {
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("originColour", _visual_colour_text(v_origin_r.unwrap().value(), v_origin_g.unwrap().value(), v_origin_b.unwrap().value(), v_origin_a.unwrap().value()))
+}
+
+local _visual_random_origin() {
+    if _state_set_count() == 0 {
+        return
+    }
+    if not world_level.has() {
+        return
+    }
+    level: Level = world_level.unwrap()
+    r: number = level.random_float()
+    g: number = level.random_float()
+    b: number = level.random_float()
+    _visual_put_slider(v_origin_r.unwrap(), "R", r)
+    _visual_put_slider(v_origin_g.unwrap(), "G", g)
+    _visual_put_slider(v_origin_b.unwrap(), "B", b)
+    _visual_write("originColour", _visual_colour_text(r, g, b, v_origin_a.unwrap().value()))
+}
+
+local _visual_default_origin() {
+    _visual_put_slider(v_origin_r.unwrap(), "R", 1.0)
+    _visual_put_slider(v_origin_g.unwrap(), "G", 0.0)
+    _visual_put_slider(v_origin_b.unwrap(), "B", 0.0)
+    _visual_put_slider(v_origin_a.unwrap(), "A", 0.5)
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("originColour", "1.0,0.0,0.0,0.5")
+}
+
+# setCubeSize writes both sizes at once, from the two sliders, with no cap: the cap is getCubeSize's,
+# and an uncapped 1.0 still draws at the capped size.
+
+local _visual_set_cube_size() {
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeCubeSize", String.from_double(v_shape_cube.unwrap().value()))
+    _visual_write("originCubeSize", String.from_double(v_origin_cube.unwrap().value()))
+}
+
+local _visual_default_cube_size() {
+    _visual_put_slider(v_shape_cube.unwrap(), "Shape", 0.6)
+    _visual_put_slider(v_origin_cube.unwrap(), "Origin", 0.2)
+    if _state_set_count() == 0 {
+        return
+    }
+    _visual_write("shapeCubeSize", "0.6")
+    _visual_write("originCubeSize", "0.2")
+}
+
+# One field of the current set, replaced in the state. The setters above all end here, so a set the
+# state does not have is the only case left out.
+
+local _visual_write(key: string, value: string) {
+    count: number = _state_set_count()
+    if count == 0 {
+        return
+    }
+    index: number = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, count - 1)
+    set: string = _state_set_at(state, index)
+    set = _set_with_field(set, key, value)
+    state = _state_with_set(state, index, set)
+}
+
+# Four slider values as ShapeSet stores them: each narrowed to a float, then Float.toString.
+
+local _visual_colour_text(r: number, g: number, b: number, a: number) string {
+    return String.concat(String.concat(String.from_float(r), ","), String.concat(String.concat(String.from_float(g), ","), String.concat(String.concat(String.from_float(b), ","), String.from_float(a))))
+}
+
+# A slider's handle and label together, which is what the reference's setSliderValue plus updateText
+# do in that order.
+
+local _visual_put_slider(slider: Widget, name: string, value: number) {
+    slider.set_value(value)
+    slider.set_text(_visual_label(name, value))
+}
+
+# `name + ": " + Math.round(10.0 * value) / 10.0`, the message SliderImpl builds. Math.round of NaN
+# is 0, and of an infinity is the long's end, which is why the scaled value is clamped there.
+
+local _visual_label(name: string, value: number) string {
+    return String.concat(String.concat(name, ": "), _tenth(value))
+}
+
+local _tenth(value: number) string {
+    scaled: number = 0.0
+    if value == value {
+        scaled = Math.floor(value * 10.0 + 0.5)
+        if scaled > 9223372036854775807.0 {
+            scaled = 9223372036854775807.0
+        } else if scaled < -9223372036854775808.0 {
+            scaled = -9223372036854775808.0
+        }
+    }
+    return String.from_double(scaled / 10.0)
+}
+
+# One channel of the current set's colour, or the ShapeSet default when the state has no set. The
+# sliders ask this on every init, so a reopened screen shows the set's colours again.
+
+local _visual_channel(key: string, index: number, fallback: number) number {
+    if _state_set_count() == 0 {
+        return fallback
+    }
+    return _value_float(_set_field_value(_state_current_set(), key), index)
+}
+
+# A cube-size slider's initial value, capped the way ShapeSet.getShapeCubeSize caps it.
+
+local _visual_cube(key: string, fallback: number) number {
+    if _state_set_count() == 0 {
+        return fallback
+    }
+    return _cube_size(_state_current_set(), key, fallback)
+}
+
+local _visual_depth() bool {
+    return _state_field(state, "depthTest", "true") == "true"
+}
+
+# drawShadowCentred: the text's top-left is half its width left of the centre, floored as Java's
+# integer division floors it.
+
+local _draw_centred(ctx: OverlayRenderContext, text: string, x: number, y: number, colour: Color) {
+    ctx.draw_text(text, x - Math.floor(ctx.text_width(text) / 2), y, colour)
+}
+# The count as the reference prints it: the number, then how many whole stacks of 64 it is and what
+# is left over, which is Java's `n + " (" + (n / 64) + " x 64 + " + (n % 64) + ")"` for an int.
+
+local _count_text(n: number) string {
+    stacks: number = Math.floor(n / 64)
+    rest: number = n - stacks * 64
+    return String.concat(String.from_number(n), String.concat(" (", String.concat(String.from_number(stacks), String.concat(" x 64 + ", String.concat(String.from_number(rest), ")")))))
+}
+
+# The config text with one of its three values replaced, in "async,random,persistence" order.
+
+local _config_with(values: string, index: number, value: string) string {
+    first: string = _piece(values, ",", 0)
+    second: string = _piece(values, ",", 1)
+    third: string = _piece(values, ",", 2)
+    if index == 0 {
+        return String.concat(String.concat(value, ","), String.concat(second, String.concat(",", third)))
+    }
+    if index == 1 {
+        return String.concat(String.concat(first, ","), String.concat(value, String.concat(",", third)))
+    }
+    return String.concat(String.concat(first, ","), String.concat(second, String.concat(",", value)))
+}
+
+# One of the three checkboxes' tick, from the config text.
+
+local _config_on(values: string, index: number) bool {
+    return _piece(values, ",", index) == "true"
+}
+
+# A bool as the persistence and config text writes it.
+
+local _bool_text(value: bool) string {
+    if value {
+        return "true"
+    }
+    return "false"
+}
+
+# Config.write: the whole file, comments and values, at the path Config's constructor reads.
+
+local _config_write() {
+    files: File = File.open(r"files")
+    files.write_text("config/buildguide.cfg", _config_text(config_values))
+}
+
+# A Default button's value: Config declares asynchronous generation on and the other two off, and
+# getDefault answers the value the option was constructed with.
+
+local _config_set_default(index: number, box: Widget) {
+    value: bool = _config_default_on(index)
+    box.set_checked(value)
+    config_values = _config_with(config_values, index, _bool_text(value))
+    _config_write()
+}
+
+local _config_default_on(index: number) bool {
+    return index == 0
+}
+
+# BaseScreen.render's two counts, taken on the world frame that draws under a screen. The reference
+# generates a shape whether or not it is drawn, and sums only the visible sets for the total, so this
+# pass generates every set with the draw suppressed: a shape under a screen is generated once for the
+# count and once for the draw. The current shape's count is its set's whether or not the set is
+# visible. An errored shape is skipped, as it is when drawn, where the reference would show the cells
+# it managed to emit before its exception.
+
+local _count_all(ctx: OverlayWorldContext) {
+    block_shape = 0
+    block_total = 0
+    count: number = _state_set_count()
+    current: number = 0
+    if count > 0 {
+        current = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, count - 1)
+    }
+    cell_counting = true
+    found: number = 0
+    lines: number = _split_count(state, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(state, i)
+        if _has_prefix(line, "shapeSet=") {
+            set: string = String.substring(line, 9, String.length(line))
+            before: number = cell_count
+            _count_set(ctx, set)
+            cells: number = cell_count - before
+            if _set_field_value(set, "visible") == "true" {
+                block_total = block_total + cells
+            }
+            if found == current {
+                block_shape = block_shape + cells
+            }
+            found = found + 1
+        }
+        i = i + 1
+    }
+    cell_counting = false
+}
+
+# One set's cells, generated with the same defaults ShapeSet.getShape would, and counted by
+# _shape_cube. The origin cube is not a cell, so it is not drawn here.
+
+local _count_set(ctx: OverlayWorldContext, set: string) {
+    id: number = _set_int(set, "index", 0)
+    if id < 0 or id >= _shape_count() {
+        return
+    }
+    if _set_shape_error(set, id) {
+        return
+    }
+    values: string = _set_shape_values(set, id)
+    if String.length(values) == 0 {
+        values = _shape_defaults(id)
+    }
+    _emit_shape(ctx, id, values, 0, 0, 0, 1, _colour("1.0,1.0,1.0,1.0"))
+}
+
+# State.savePersistence, written on every screen close while persistence is on and the state has
+# loaded. The persistence text has no `!` after a refused shape's class name, which is this text's own
+# marker for it, so every `!` is dropped.
+
+local _state_save() {
+    if not state_loaded {
+        return
+    }
+    if not _config_persistence(config_values) {
+        return
+    }
+    text: string = _replace_all(state, "!", "")
+    if persistence_written and text == persistence_text {
+        return
+    }
+    files: File = File.open(r"files")
+    files.write_text(_state_path(world_name, world_dimension), text)
+    persistence_text = text
+    persistence_written = true
+}
+
+# ShapelistScreen's seventeen widgets and the list of sets beside them. The three origin fields show
+# the current set's origin, refreshed with the visible box whenever a row is selected, which is what
+# the reference's list update closure does; a change the player makes to one field is left alone by
+# the shift buttons that touch another. The twelve buttons that act on a set are inactive while the
+# state holds none, which is checkActive, and Add re-checks it so the first set enables them.
+
+local _shapelist_init(width: number, height: number) {
+    _chrome_init(shapelist_screen, width, "shapelist", _state_enabled())
+    open_dropdown: Widget = shapelist_screen.add_button("new_dropdown_open", "V", 145, 70, 20, 20)
+    n_open.set(open_dropdown)
+    add: Widget = shapelist_screen.add_button("add", "Add", 5, 90, 160, 20)
+    s_add.set(add)
+    visible: Widget = shapelist_screen.add_checkbox("visible", "", true, 5, 135, 20, 20)
+    s_visible.set(visible)
+    delete: Widget = shapelist_screen.add_button("delete", "Delete", 5, 155, 160, 20)
+    s_delete.set(delete)
+    global_origin: Widget = shapelist_screen.add_button("global_origin", "Set global origin", 5, 200, 160, 20)
+    s_global.set(global_origin)
+    x_dec: Widget = shapelist_screen.add_button("x_dec", "-", 25, 220, 20, 20)
+    s_x_dec.set(x_dec)
+    x_field: Widget = shapelist_screen.add_text_field("x_field", "", 45, 220, 70, 20)
+    s_x_field.set(x_field)
+    x_set: Widget = shapelist_screen.add_button("x_set", "Set", 115, 220, 30, 20)
+    s_x_set.set(x_set)
+    x_inc: Widget = shapelist_screen.add_button("x_inc", "+", 145, 220, 20, 20)
+    s_x_inc.set(x_inc)
+    y_dec: Widget = shapelist_screen.add_button("y_dec", "-", 25, 240, 20, 20)
+    s_y_dec.set(y_dec)
+    y_field: Widget = shapelist_screen.add_text_field("y_field", "", 45, 240, 70, 20)
+    s_y_field.set(y_field)
+    y_set: Widget = shapelist_screen.add_button("y_set", "Set", 115, 240, 30, 20)
+    s_y_set.set(y_set)
+    y_inc: Widget = shapelist_screen.add_button("y_inc", "+", 145, 240, 20, 20)
+    s_y_inc.set(y_inc)
+    z_dec: Widget = shapelist_screen.add_button("z_dec", "-", 25, 260, 20, 20)
+    s_z_dec.set(z_dec)
+    z_field: Widget = shapelist_screen.add_text_field("z_field", "", 45, 260, 70, 20)
+    s_z_field.set(z_field)
+    z_set: Widget = shapelist_screen.add_button("z_set", "Set", 115, 260, 30, 20)
+    s_z_set.set(z_set)
+    z_inc: Widget = shapelist_screen.add_button("z_inc", "+", 145, 260, 20, 20)
+    s_z_inc.set(z_inc)
+    list: Widget = shapelist_screen.add_list("shapes", 180, 70, 145, height - 70, 20)
+    s_list.set(list)
+    close_dropdown: Widget = shapelist_screen.add_button("new_dropdown_close", "X", 145, 70, 20, 20)
+    n_close.set(close_dropdown)
+    options: Widget = shapelist_screen.add_list("new_options", 5, 90, 160, height - 90, 20)
+    n_list.set(options)
+    _shapelist_active()
+    _shapelist_rows()
+    _shapelist_fields()
+    n_open.unwrap().set_visible(not dropdown_open)
+    n_close.unwrap().set_visible(dropdown_open)
+    n_list.unwrap().set_visible(dropdown_open)
+    if dropdown_open {
+        _shapelist_dropdown_visible()
+    }
+}
+
+# ShapelistScreen.render after super.render: the two add-shape texts over the dropdown's place, the
+# selected-shape heading with the visible label, the global-origin heading with its three axis
+# labels, and the shapes heading over the list. A label is dark grey while the state has no set.
+
+local _shapelist_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    if dropdown_open {
+        _draw_centred(ctx, _shape_name(_new_shape_index()), 85, 75, white)
+        return
+    }
+    dim: Color = Color.rgb(68, 68, 68)
+    active: bool = _state_set_count() > 0
+    _draw_centred(ctx, "§nAdd new shape", 85, 55, white)
+    _draw_centred(ctx, _shape_name(_new_shape_index()), 85, 75, white)
+    _draw_centred(ctx, "§nSelected shape", 85, 120, white)
+    label: Color = dim
+    if active {
+        label = white
+    }
+    ctx.draw_text("Visible", 30, 140, label)
+    _draw_centred(ctx, "§nGlobal origin", 85, 185, white)
+    ctx.draw_text("X", 10, 225, label)
+    ctx.draw_text("Y", 10, 245, label)
+    ctx.draw_text("Z", 10, 265, label)
+    _draw_centred(ctx, "§nShapes", 250, 55, white)
+}
+
+# Every widget of the tab. A row click moves the state's current set, refreshes the fields and
+# corrects the visible box from that set, which is the reference's setSelected; Add appends a set,
+# selects it and enables the buttons; Delete removes the selected set and selects the row below it,
+# else the one above; the shift buttons move every set and rewrite the field they moved; a Set button
+# parses its field and turns it red when it cannot.
+
+local _shapelist_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    if equals(widget, n_open.unwrap()) {
+        _dropdown_open()
+        return
+    }
+    if equals(widget, n_close.unwrap()) {
+        _dropdown_close()
+        return
+    }
+    if equals(widget, n_list.unwrap()) {
+        _dropdown_pick(widget.selected())
+        return
+    }
+    list: Widget = s_list.unwrap()
+    if equals(widget, list) {
+        index: number = widget.selected()
+        if index >= 0 {
+            state = _state_with_field(state, "iShapeSet", String.from_number(index))
+            _shapelist_fields()
+        }
+        return
+    }
+    if equals(widget, s_add.unwrap()) {
+        _shapelist_add()
+        return
+    }
+    if equals(widget, s_visible.unwrap()) {
+        _shapelist_set_visible(widget.checked())
+        return
+    }
+    if equals(widget, s_delete.unwrap()) {
+        _shapelist_delete()
+        return
+    }
+    if equals(widget, s_global.unwrap()) {
+        _shapelist_global()
+        return
+    }
+    if equals(widget, s_x_dec.unwrap()) {
+        _shapelist_shift(-1, 0, 0)
+        return
+    }
+    if equals(widget, s_x_inc.unwrap()) {
+        _shapelist_shift(1, 0, 0)
+        return
+    }
+    if equals(widget, s_y_dec.unwrap()) {
+        _shapelist_shift(0, -1, 0)
+        return
+    }
+    if equals(widget, s_y_inc.unwrap()) {
+        _shapelist_shift(0, 1, 0)
+        return
+    }
+    if equals(widget, s_z_dec.unwrap()) {
+        _shapelist_shift(0, 0, -1)
+        return
+    }
+    if equals(widget, s_z_inc.unwrap()) {
+        _shapelist_shift(0, 0, 1)
+        return
+    }
+    if equals(widget, s_x_set.unwrap()) {
+        _shapelist_set_axis(0, s_x_field.unwrap())
+        return
+    }
+    if equals(widget, s_y_set.unwrap()) {
+        _shapelist_set_axis(1, s_y_field.unwrap())
+        return
+    }
+    if equals(widget, s_z_set.unwrap()) {
+        _shapelist_set_axis(2, s_z_field.unwrap())
+    }
+}
+
+# One row of the shape list: the set at the row's place, drawn with its shape's name and colour.
+
+local _shapelist_row(ctx: ListRowResponse) {
+    list: Widget = s_list.unwrap()
+    if not equals(ctx.widget(), list) {
+        return
+    }
+    set: string = _state_set_at(state, ctx.index())
+    ctx.set_text(_shape_row_text(set))
+    ctx.set_text_colour(_shape_row_colour(set))
+}
+
+# ShapelistScreen's Add: pushNewShapeSet builds the new set at iShapeNew with the player's feet as its
+# origin, and addEntry appends its row and selects it, which makes it the current set.
+
+local _shapelist_add() {
+    if not world_level.has() {
+        return
+    }
+    count: number = _state_set_count()
+    _state_push_set(world_level.unwrap(), world_x, world_y, world_z)
+    state = _state_with_field(state, "iShapeSet", String.from_number(count))
+    list: Widget = s_list.unwrap()
+    list.set_rows(count + 1)
+    list.select(count)
+    _shapelist_active()
+    _shapelist_fields()
+}
+
+# ShapelistScreen's Delete: remove the current set and the selected row, then select the row that was
+# below it, or the one above when it was last, which is removeEntry's own choice. With no set left
+# the selection is dropped and iShapeSet keeps the value the reference leaves it at.
+
+local _shapelist_delete() {
+    count: number = _state_set_count()
+    if count == 0 {
+        return
+    }
+    index: number = _state_index()
+    state = _state_remove_set(state, index)
+    remaining: number = count - 1
+    list: Widget = s_list.unwrap()
+    list.set_rows(remaining)
+    if remaining > 0 {
+        next: number = index
+        if next >= remaining {
+            next = remaining - 1
+        }
+        list.select(next)
+        state = _state_with_field(state, "iShapeSet", String.from_number(next))
+    }
+    _shapelist_active()
+    _shapelist_fields()
+}
+
+# ShapeSet.shiftOrigin of every set, then the field of each axis that moved written from the current
+# set's new origin. The other fields keep whatever the player typed, as the reference leaves them.
+
+local _shapelist_shift(dx: number, dy: number, dz: number) {
+    if _state_set_count() == 0 {
+        return
+    }
+    state = _state_shift_origins(state, dx, dy, dz)
+    set: string = _state_current_set()
+    if dx != 0 {
+        _shapelist_put(s_x_field.unwrap(), String.from_number(_origin_piece(set, 0)))
+    }
+    if dy != 0 {
+        _shapelist_put(s_y_field.unwrap(), String.from_number(_origin_piece(set, 1)))
+    }
+    if dz != 0 {
+        _shapelist_put(s_z_field.unwrap(), String.from_number(_origin_piece(set, 2)))
+    }
+}
+
+# A Set button: Integer.parseInt on its field, then the difference to the current set's origin shifted
+# across every set. A field that does not parse turns red and the origins stay, which is the
+# reference's catch.
+
+local _shapelist_set_axis(axis: number, field: Widget) {
+    if _state_set_count() == 0 {
+        return
+    }
+    parsed: Option[number] = String.to_integer(field.text())
+    if not parsed.has() {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    current: string = _state_current_set()
+    delta: number = parsed.unwrap() - _origin_piece(current, axis)
+    if axis == 0 {
+        state = _state_shift_origins(state, delta, 0, 0)
+    } else if axis == 1 {
+        state = _state_shift_origins(state, 0, delta, 0)
+    } else {
+        state = _state_shift_origins(state, 0, 0, delta)
+    }
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# Set global origin: move every set by the distance from the current set's origin to the player's
+# feet. The reference asks only while a set exists, which is also when the button is active.
+
+local _shapelist_global() {
+    if _state_set_count() == 0 {
+        return
+    }
+    set: string = _state_current_set()
+    state = _state_shift_origins(state, world_x - _origin_piece(set, 0), world_y - _origin_piece(set, 1), world_z - _origin_piece(set, 2))
+    _shapelist_fields()
+}
+
+# The visible box writes the current set's flag, and nothing else, which is setShapeVisibility.
+
+local _shapelist_set_visible(checked: bool) {
+    if _state_set_count() == 0 {
+        return
+    }
+    set: string = _state_current_set()
+    state = _state_with_set(state, _state_index(), _set_with_field(set, "visible", _bool_text(checked)))
+}
+
+# The three fields, in white, from the current set's origin, and the visible box from its flag. With
+# no set the fields hold "-". This is the reference's list update closure: the shape list selects the
+# current row as it is built, which runs the closure, so the box is read from the state on open too
+# and not only when the player later selects a row.
+
+local _shapelist_fields() {
+    set: string = _state_current_set()
+    if String.length(set) == 0 {
+        _shapelist_put(s_x_field.unwrap(), "-")
+        _shapelist_put(s_y_field.unwrap(), "-")
+        _shapelist_put(s_z_field.unwrap(), "-")
+        return
+    }
+    _shapelist_put(s_x_field.unwrap(), String.from_number(_origin_piece(set, 0)))
+    _shapelist_put(s_y_field.unwrap(), String.from_number(_origin_piece(set, 1)))
+    _shapelist_put(s_z_field.unwrap(), String.from_number(_origin_piece(set, 2)))
+    s_visible.unwrap().set_checked(_set_field_value(set, "visible") == "true")
+}
+
+# One text field's text and its normal colour, together, because every write of an origin is white.
+
+local _shapelist_put(field: Widget, text: string) {
+    field.set_text(text)
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# checkActive: with no set, the visible box, Delete, the global origin and the nine +/-/Set buttons
+# are inactive; with one, all are active. Add is never gated, which is what lets an empty state get
+# its first set.
+
+local _shapelist_active() {
+    active: bool = _state_set_count() > 0
+    s_visible.unwrap().set_active(active)
+    s_delete.unwrap().set_active(active)
+    s_global.unwrap().set_active(active)
+    s_x_dec.unwrap().set_active(active)
+    s_x_set.unwrap().set_active(active)
+    s_x_inc.unwrap().set_active(active)
+    s_y_dec.unwrap().set_active(active)
+    s_y_set.unwrap().set_active(active)
+    s_y_inc.unwrap().set_active(active)
+    s_z_dec.unwrap().set_active(active)
+    s_z_set.unwrap().set_active(active)
+    s_z_inc.unwrap().set_active(active)
+}
+
+# The list's row count is the state's set count, and its selection is the state's current set, which
+# a fresh init puts back after a close.
+
+local _shapelist_rows() {
+    count: number = _state_set_count()
+    list: Widget = s_list.unwrap()
+    list.set_rows(count)
+    if count > 0 {
+        list.select(_state_index())
+    }
+}
+
+# State.getShapeSetIndex as a usable index: iShapeSet, clamped into the sets that are there. An empty
+# state has no set to name, and every caller checks its count before reading this.
+
+local _state_index() number {
+    count: number = _state_set_count()
+    if count == 0 {
+        return 0
+    }
+    return _clamp(_int_or(_state_field(state, "iShapeSet", "0"), 0), 0, count - 1)
+}
+
+# The state text without the shapeSet line at the given sequence number.
+
+local _state_remove_set(text: string, wanted: number) string {
+    out: string = ""
+    found: number = 0
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(text, i)
+        if _has_prefix(line, "shapeSet=") {
+            if found != wanted {
+                out = String.concat(out, _line(line))
+            }
+            found = found + 1
+        } else {
+            out = String.concat(out, _line(line))
+        }
+        i = i + 1
+    }
+    return out
+}
+
+# State.getIShapeNew, clamped into the registry, which is the name the add-shape text shows.
+
+local _new_shape_index() number {
+    return _clamp(_int_or(_state_field(state, "iShapeNew", "1"), 1), 0, _shape_count() - 1)
+}
+
+# The English name of a registry entry, as ShapeRegistry's translation key resolves it. An index past
+# the registry answers the no-shape name, which the reference draws for a set that has no shape.
+
+local _shape_name(id: number) string {
+    if id == 0 {
+        return "Catenary"
+    }
+    if id == 1 {
+        return "Circle"
+    }
+    if id == 2 {
+        return "Cone"
+    }
+    if id == 3 {
+        return "Cuboid"
+    }
+    if id == 4 {
+        return "Ellipse"
+    }
+    if id == 5 {
+        return "Ellipsoid"
+    }
+    if id == 6 {
+        return "Grid"
+    }
+    if id == 7 {
+        return "Helix"
+    }
+    if id == 8 {
+        return "Line"
+    }
+    if id == 9 {
+        return "Parabola"
+    }
+    if id == 10 {
+        return "Paraboloid"
+    }
+    if id == 11 {
+        return "Polygon"
+    }
+    if id == 12 {
+        return "Polygonal pyramid"
+    }
+    if id == 13 {
+        return "Sphere"
+    }
+    if id == 14 {
+        return "Torus"
+    }
+    return "None"
+}
+
+# getFormattedShapeName: a set's shape name, struck through while the set is invisible. Not visible
+# is read from the field because the state is the only copy of the set the list has.
+
+local _shape_row_text(set: string) string {
+    if String.length(set) == 0 {
+        return "None"
+    }
+    id: number = _set_int(set, "index", 0)
+    if id < 0 or id >= _shape_count() {
+        return "None"
+    }
+    name: string = _shape_name(id)
+    if _set_field_value(set, "visible") != "true" {
+        return String.concat("§m", name)
+    }
+    return name
+}
+
+# getShapeProgressColour: red for a shape that failed, else its completed colour. A setted shape is
+# generated on the frame that draws it, so it is always complete on this port and white; the green to
+# white second after a generation and the spinner while it runs are the reference's asynchronous
+# generation, which about.json records.
+local _shape_row_colour(set: string) Color {
+    id: number = _set_int(set, "index", 0)
+    if String.length(set) > 0 and id >= 0 and id < _shape_count() and _set_shape_error(set, id) {
+        return Color.rgb(255, 0, 0)
+    }
+    return Color.rgb(255, 255, 255)
+}
+
+# ---------------------------------------------------------------- ShapeScreen
+
+# ShapeScreen.init after super.init: the dropdown's V at (145, 70) and its list at (5, 90) with the
+# X, which only the dropdown shows, Set origin at (5, 115), the three origin rows at y 135, 155 and
+# 175 with their decrease button at 25, their 70-wide field at 45, their Set at 115 and their
+# increase button at 145, then the property panel's eight-row pool. The eleven buttons that act on
+# the set are inactive while the state has none, and the three fields then hold "-".
+
+local _shape_init(width: number, height: number) {
+    _chrome_init(shape_screen, width, "shape", _state_enabled())
+    open_dropdown: Widget = shape_screen.add_button("shape_dropdown_open", "V", 145, 70, 20, 20)
+    q_open.set(open_dropdown)
+    set_origin: Widget = shape_screen.add_button("set_origin", "Set origin", 5, 115, 160, 20)
+    o_set.set(set_origin)
+    x_dec: Widget = shape_screen.add_button("x_dec", "-", 25, 135, 20, 20)
+    o_x_dec.set(x_dec)
+    x_field: Widget = shape_screen.add_text_field("x_field", "", 45, 135, 70, 20)
+    o_x_field.set(x_field)
+    x_set: Widget = shape_screen.add_button("x_set", "Set", 115, 135, 30, 20)
+    o_x_set.set(x_set)
+    x_inc: Widget = shape_screen.add_button("x_inc", "+", 145, 135, 20, 20)
+    o_x_inc.set(x_inc)
+    y_dec: Widget = shape_screen.add_button("y_dec", "-", 25, 155, 20, 20)
+    o_y_dec.set(y_dec)
+    y_field: Widget = shape_screen.add_text_field("y_field", "", 45, 155, 70, 20)
+    o_y_field.set(y_field)
+    y_set: Widget = shape_screen.add_button("y_set", "Set", 115, 155, 30, 20)
+    o_y_set.set(y_set)
+    y_inc: Widget = shape_screen.add_button("y_inc", "+", 145, 155, 20, 20)
+    o_y_inc.set(y_inc)
+    z_dec: Widget = shape_screen.add_button("z_dec", "-", 25, 175, 20, 20)
+    o_z_dec.set(z_dec)
+    z_field: Widget = shape_screen.add_text_field("z_field", "", 45, 175, 70, 20)
+    o_z_field.set(z_field)
+    z_set: Widget = shape_screen.add_button("z_set", "Set", 115, 175, 30, 20)
+    o_z_set.set(z_set)
+    z_inc: Widget = shape_screen.add_button("z_inc", "+", 145, 175, 20, 20)
+    o_z_inc.set(z_inc)
+    row: number = 0
+    while row < 8 {
+        _shape_pool_build(row)
+        row = row + 1
+    }
+    close_dropdown: Widget = shape_screen.add_button("shape_dropdown_close", "X", 145, 70, 20, 20)
+    q_close.set(close_dropdown)
+    options: Widget = shape_screen.add_list("shape_options", 5, 90, 160, height - 90, 20)
+    q_list.set(options)
+    _shape_active(_shape_available())
+    _shape_fields()
+    _shape_relayout()
+    q_open.unwrap().set_visible(not dropdown_open)
+    q_close.unwrap().set_visible(dropdown_open)
+    q_list.unwrap().set_visible(dropdown_open)
+    if dropdown_open {
+        _shape_dropdown_visible()
+    }
+}
+
+# ShapeScreen.render after super.render: the shape and origin headings on the left, the current
+# shape's name under the heading in its progress colour, the three axis labels greyed while the
+# state has no set, the properties heading on the right, then every property row's label at x + 5
+# and, for an enum, its value centred in the gap between the arrows. A runnable property draws no
+# label, because its wide button carries its name.
+
+local _shape_render(ctx: OverlayRenderContext, width: number) {
+    _chrome_render(ctx, width)
+    white: Color = Color.rgb(255, 255, 255)
+    if dropdown_open {
+        id: number = _shape_current_id()
+        if id >= 0 {
+            _draw_centred(ctx, _shape_name(id), 85, 75, white)
+        }
+        return
+    }
+    set: string = _state_current_set()
+    _draw_centred(ctx, "§nShape", 85, 55, white)
+    _draw_centred(ctx, _shape_row_text(set), 85, 75, _shape_row_colour(set))
+    _draw_centred(ctx, "§nOrigin", 85, 100, white)
+    label: Color = Color.rgb(68, 68, 68)
+    if _shape_available() {
+        label = white
+    }
+    ctx.draw_text("X", 10, 140, label)
+    ctx.draw_text("Y", 10, 160, label)
+    ctx.draw_text("Z", 10, 180, label)
+    _draw_centred(ctx, "§nShape properties", 285, 55, white)
+    id: number = _shape_current_id()
+    if id < 0 {
+        return
+    }
+    kinds: string = _shape_kinds(id)
+    values: string = _shape_values_now()
+    labels: string = _shape_labels(id)
+    count: number = _split_count(kinds, ";")
+    row: number = 0
+    while row < count {
+        kind: string = _piece(kinds, ";", row)
+        letter: string = String.substring(kind, 0, 1)
+        if letter != "r" {
+            ctx.draw_text(_piece(labels, "|", row), 185, 75 + row * 20, white)
+        }
+        if letter == "e" {
+            _draw_centred(ctx, _enum_display(kind, _enum_index(kind, _piece(values, ",", row))), 330, 75 + row * 20, white)
+        }
+        row = row + 1
+    }
+}
+
+# Every widget of the tab. Set origin puts every origin back on the player's feet and the shift
+# buttons move the current set by one block, both rewriting the fields they moved; a Set button
+# parses its field and turns it red when it cannot, keeping the origin; the property pool's buttons
+# step, set, toggle or step the property under them, and its text field waits for its Set button,
+# as the reference's five property classes do.
+
+local _shape_changed(widget: Widget) {
+    if _chrome_changed(widget) {
+        return
+    }
+    if equals(widget, q_open.unwrap()) {
+        _dropdown_open()
+        return
+    }
+    if equals(widget, q_close.unwrap()) {
+        _dropdown_close()
+        return
+    }
+    if equals(widget, q_list.unwrap()) {
+        _dropdown_pick(widget.selected())
+        return
+    }
+    if equals(widget, o_set.unwrap()) {
+        _shape_set_origin()
+        return
+    }
+    if equals(widget, o_x_dec.unwrap()) {
+        _shape_shift(-1, 0, 0)
+        return
+    }
+    if equals(widget, o_x_inc.unwrap()) {
+        _shape_shift(1, 0, 0)
+        return
+    }
+    if equals(widget, o_y_dec.unwrap()) {
+        _shape_shift(0, -1, 0)
+        return
+    }
+    if equals(widget, o_y_inc.unwrap()) {
+        _shape_shift(0, 1, 0)
+        return
+    }
+    if equals(widget, o_z_dec.unwrap()) {
+        _shape_shift(0, 0, -1)
+        return
+    }
+    if equals(widget, o_z_inc.unwrap()) {
+        _shape_shift(0, 0, 1)
+        return
+    }
+    if equals(widget, o_x_set.unwrap()) {
+        _shape_set_axis(0, o_x_field.unwrap())
+        return
+    }
+    if equals(widget, o_y_set.unwrap()) {
+        _shape_set_axis(1, o_y_field.unwrap())
+        return
+    }
+    if equals(widget, o_z_set.unwrap()) {
+        _shape_set_axis(2, o_z_field.unwrap())
+        return
+    }
+    _shape_prop_changed(widget)
+}
+
+# ShapeScreen.init's property widgets, one pool row at a time, at the positions its five property
+# classes use and at the sizes they ask for. A widget the current shape does not need stays hidden
+# until a relayout shows it, so a shape change never needs a new screen.
+
+local _shape_pool_build(row: number) {
+    if row == 0 {
+        base: string = "prop0"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p0a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p0b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p0c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p0d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p0e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p0f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p0g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p0h.set(run)
+        return
+    }
+    if row == 1 {
+        base: string = "prop1"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p1a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p1b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p1c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p1d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p1e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p1f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p1g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p1h.set(run)
+        return
+    }
+    if row == 2 {
+        base: string = "prop2"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p2a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p2b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p2c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p2d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p2e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p2f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p2g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p2h.set(run)
+        return
+    }
+    if row == 3 {
+        base: string = "prop3"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p3a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p3b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p3c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p3d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p3e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p3f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p3g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p3h.set(run)
+        return
+    }
+    if row == 4 {
+        base: string = "prop4"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p4a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p4b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p4c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p4d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p4e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p4f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p4g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p4h.set(run)
+        return
+    }
+    if row == 5 {
+        base: string = "prop5"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p5a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p5b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p5c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p5d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p5e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p5f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p5g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p5h.set(run)
+        return
+    }
+    if row == 6 {
+        base: string = "prop6"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p6a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p6b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p6c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p6d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p6e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p6f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p6g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p6h.set(run)
+        return
+    }
+    if row == 7 {
+        base: string = "prop7"
+        dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
+        p7a.set(dec)
+        field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
+        p7b.set(field)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        p7c.set(set)
+        inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
+        p7d.set(inc)
+        box: Widget = shape_screen.add_checkbox(String.concat(base, "_box"), "", false, 0, 0, 20, 20)
+        p7e.set(box)
+        left: Widget = shape_screen.add_button(String.concat(base, "_left"), "<-", 0, 0, 20, 20)
+        p7f.set(left)
+        right: Widget = shape_screen.add_button(String.concat(base, "_right"), "->", 0, 0, 20, 20)
+        p7g.set(right)
+        run: Widget = shape_screen.add_button(String.concat(base, "_run"), "", 0, 0, 210, 20)
+        p7h.set(run)
+        return
+    }
+}
+
+# checkActive: Set origin and the six shift buttons and three Set buttons are inactive while the
+# state has no set, and the three fields are typeable either way, as the reference leaves them.
+
+local _shape_active(available: bool) {
+    q_open.unwrap().set_active(available)
+    o_set.unwrap().set_active(available)
+    o_x_dec.unwrap().set_active(available)
+    o_x_set.unwrap().set_active(available)
+    o_x_inc.unwrap().set_active(available)
+    o_y_dec.unwrap().set_active(available)
+    o_y_set.unwrap().set_active(available)
+    o_y_inc.unwrap().set_active(available)
+    o_z_dec.unwrap().set_active(available)
+    o_z_set.unwrap().set_active(available)
+    o_z_inc.unwrap().set_active(available)
+}
+
+# The three origin fields from the current set's origin, or "-" with no set, in white.
+
+local _shape_fields() {
+    if not _shape_available() {
+        _shape_put(o_x_field.unwrap(), "-")
+        _shape_put(o_y_field.unwrap(), "-")
+        _shape_put(o_z_field.unwrap(), "-")
+        return
+    }
+    set: string = _state_current_set()
+    _shape_put(o_x_field.unwrap(), String.from_number(_origin_piece(set, 0)))
+    _shape_put(o_y_field.unwrap(), String.from_number(_origin_piece(set, 1)))
+    _shape_put(o_z_field.unwrap(), String.from_number(_origin_piece(set, 2)))
+}
+
+# One field's text and its normal colour, together, because every write of an origin is white.
+
+local _shape_put(field: Widget, text: string) {
+    field.set_text(text)
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# Shape.onSelectedInGUI and onDeselectedInGUI without a reopen: every pool row is hidden, then the
+# current shape's rows are shown at basePropertiesY + i*20 and filled from the values the set holds,
+# or from the class's defaults when the set has no entry for it yet.
+
+local _shape_relayout() {
+    row: number = 0
+    while row < 8 {
+        _shape_row_hide(row)
+        row = row + 1
+    }
+    id: number = _shape_current_id()
+    if id < 0 {
+        return
+    }
+    kinds: string = _shape_kinds(id)
+    values: string = _shape_values_now()
+    count: number = _split_count(kinds, ";")
+    row = 0
+    while row < count {
+        _shape_row_show(row, id, _piece(kinds, ";", row), values)
+        row = row + 1
+    }
+}
+
+local _shape_row_hide(row: number) {
+    slot: number = 0
+    while slot < 8 {
+        _prop_widget(row, slot).set_visible(false)
+        slot = slot + 1
+    }
+}
+
+# One row of the panel at the position its property class uses: a number's four widgets at x + 90,
+# + 110, + 160 and + 190, a boolean's checkbox at x + 140, an enum's arrows at x + 90 and + 190, or
+# a runnable's 210-wide button at x. The value goes into the field, the box or the button.
+
+local _shape_row_show(row: number, id: number, kind: string, values: string) {
+    y: number = 70 + row * 20
+    letter: string = String.substring(kind, 0, 1)
+    if letter == "b" {
+        box: Widget = _prop_widget(row, 4)
+        box.set_position(320, y)
+        box.set_checked(String.equals_ignore_case(_piece(values, ",", row), "true"))
+        box.set_visible(true)
+        return
+    }
+    if letter == "e" {
+        left: Widget = _prop_widget(row, 5)
+        left.set_position(270, y)
+        left.set_visible(true)
+        right: Widget = _prop_widget(row, 6)
+        right.set_position(370, y)
+        right.set_visible(true)
+        return
+    }
+    if letter == "r" {
+        run: Widget = _prop_widget(row, 7)
+        run.set_position(180, y)
+        run.set_text(_piece(_shape_labels(id), "|", row))
+        run.set_visible(true)
+        return
+    }
+    dec: Widget = _prop_widget(row, 0)
+    dec.set_position(270, y)
+    dec.set_visible(true)
+    field: Widget = _prop_widget(row, 1)
+    field.set_position(290, y)
+    field.set_text(_piece(values, ",", row))
+    field.set_text_colour(Color.rgb(255, 255, 255))
+    field.set_visible(true)
+    set: Widget = _prop_widget(row, 2)
+    set.set_position(340, y)
+    set.set_visible(true)
+    inc: Widget = _prop_widget(row, 3)
+    inc.set_position(370, y)
+    inc.set_visible(true)
+}
+
+# ShapeScreen.setOrigin: State.resetOrigin puts the current set's origin on the player's feet, then
+# the three fields are written from it.
+
+local _shape_set_origin() {
+    if not _shape_available() {
+        return
+    }
+    set: string = _state_current_set()
+    state = _state_with_set(state, _state_index(), _set_with_field(set, "origin", _origin_text(world_x, world_y, world_z)))
+    _shape_fields()
+}
+
+# ShapeScreen.shiftOrigin: State.shiftOrigin moves the current set only, and each moved axis's field
+# is rewritten from the new origin.
+
+local _shape_shift(dx: number, dy: number, dz: number) {
+    if not _shape_available() {
+        return
+    }
+    set: string = _state_current_set()
+    x: number = _origin_piece(set, 0) + dx
+    y: number = _origin_piece(set, 1) + dy
+    z: number = _origin_piece(set, 2) + dz
+    state = _state_with_set(state, _state_index(), _set_with_field(set, "origin", _origin_text(x, y, z)))
+    if dx != 0 {
+        _shape_put(o_x_field.unwrap(), String.from_number(x))
+    }
+    if dy != 0 {
+        _shape_put(o_y_field.unwrap(), String.from_number(y))
+    }
+    if dz != 0 {
+        _shape_put(o_z_field.unwrap(), String.from_number(z))
+    }
+}
+
+# A Set button beside an origin field: Integer.parseInt on the field, then State.setOriginX/Y/Z,
+# which writes the current set's own axis. A field that does not parse turns red and the origin
+# stays, which is the reference's catch; the field keeps the text the player typed.
+
+local _shape_set_axis(axis: number, field: Widget) {
+    if not _shape_available() {
+        return
+    }
+    parsed: Option[number] = String.to_integer(field.text())
+    if not parsed.has() {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    set: string = _state_current_set()
+    x: number = _origin_piece(set, 0)
+    y: number = _origin_piece(set, 1)
+    z: number = _origin_piece(set, 2)
+    if axis == 0 {
+        x = parsed.unwrap()
+    } else if axis == 1 {
+        y = parsed.unwrap()
+    } else {
+        z = parsed.unwrap()
+    }
+    state = _state_with_set(state, _state_index(), _set_with_field(set, "origin", _origin_text(x, y, z)))
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# The property pool's own routing: the first row and slot the pressed widget belongs to is applied.
+# A hidden widget is never pressed, so only the current shape's rows can answer.
+
+local _shape_prop_changed(widget: Widget) {
+    row: number = 0
+    while row < 8 {
+        slot: number = 0
+        while slot < 8 {
+            if equals(widget, _prop_widget(row, slot)) {
+                _prop_apply(row, slot)
+                return
+            }
+            slot = slot + 1
+        }
+        row = row + 1
+    }
+}
+
+# One slot's press: the decrease and increase buttons step, Set parses its field, the checkbox
+# writes what it now shows, the arrows step the enum, and the wide button runs its runnable. A text
+# field's own edit does nothing, because every property class reads the field only when Set is
+# pressed.
+
+local _prop_apply(row: number, slot: number) {
+    if slot == 0 {
+        _prop_dec(row)
+        return
+    }
+    if slot == 1 {
+        return
+    }
+    if slot == 2 {
+        _prop_set(row)
+        return
+    }
+    if slot == 3 {
+        _prop_inc(row)
+        return
+    }
+    if slot == 4 {
+        _prop_bool(row, _prop_widget(row, 4).checked())
+        return
+    }
+    if slot == 5 {
+        _prop_enum(row, -1)
+        return
+    }
+    if slot == 6 {
+        _prop_enum(row, 1)
+        return
+    }
+    _prop_run()
+}
+
+# PropertyInt, NonzeroInt, MinimumInt, PositiveInt, Float, NonzeroFloat, MinimumFloat and
+# PositiveFloat minus one: a step the class refuses leaves the value and the field untouched.
+
+local _prop_dec(row: number) {
+    stepped: string = _prop_stepped(_prop_kind(row), _prop_text(row), -1)
+    if String.length(stepped) == 0 {
+        return
+    }
+    _prop_store(row, stepped)
+    _prop_show_text(row, stepped)
+}
+
+local _prop_inc(row: number) {
+    stepped: string = _prop_stepped(_prop_kind(row), _prop_text(row), 1)
+    if String.length(stepped) == 0 {
+        return
+    }
+    _prop_store(row, stepped)
+    _prop_show_text(row, stepped)
+}
+
+# One step of a property's value, or "" where the class refuses it. Integer.parseInt versus
+# Float.parseFloat, the zero skip a nonzero value has, and the minimums: MinimumInt and PositiveInt
+# refuse a decrement at their minimum, MinimumFloat refuses below its minimum and allows it when
+# the class was built inclusive, and PositiveFloat allows only above 0.
+
+local _prop_stepped(kind: string, text: string, delta: number) string {
+    letter: string = String.substring(kind, 0, 1)
+    if letter == "i" or letter == "I" or letter == "N" or letter == "M" {
+        parsed: Option[number] = String.to_integer(text)
+        if not parsed.has() {
+            return ""
+        }
+        value: number = parsed.unwrap()
+        if delta < 0 {
+            if letter == "I" and not (value > 1) {
+                return ""
+            }
+            if letter == "M" and not (value > 3) {
+                return ""
+            }
+            value = value - 1
+            if letter == "N" and value == 0 {
+                value = -1
+            }
+        } else {
+            value = value + 1
+            if letter == "N" and value == 0 {
+                value = 1
+            }
+        }
+        return String.from_number(value)
+    }
+    parsed_float: Option[number] = String.to_float(text)
+    if not parsed_float.has() {
+        return ""
+    }
+    value_float: number = parsed_float.unwrap()
+    if delta < 0 {
+        if letter == "p" and not (value_float - 1 > 0) {
+            return ""
+        }
+        if letter == "m" and not (value_float - 1 >= 2) {
+            return ""
+        }
+        if letter == "l" and not (value_float - 1 >= 1) {
+            return ""
+        }
+        value_float = value_float - 1
+        if letter == "n" and value_float == 0 {
+            value_float = -1
+        }
+    } else {
+        value_float = value_float + 1
+        if letter == "n" and value_float == 0 {
+            value_float = 1
+        }
+    }
+    return String.from_float(value_float)
+}
+
+# A property's Set button: the class's own acceptance rule, its red field on a refusal, and the zero
+# skip a nonzero value has, where the field is rewritten with the value it kept.
+
+local _prop_set(row: number) {
+    kind: string = _prop_kind(row)
+    letter: string = String.substring(kind, 0, 1)
+    field: Widget = _prop_widget(row, 1)
+    if letter == "i" or letter == "I" or letter == "N" or letter == "M" {
+        parsed: Option[number] = String.to_integer(field.text())
+        if not parsed.has() {
+            field.set_text_colour(Color.rgb(255, 0, 0))
+            return
+        }
+        value: number = parsed.unwrap()
+        if letter == "I" and value < 1 {
+            field.set_text_colour(Color.rgb(255, 0, 0))
+            return
+        }
+        if letter == "M" and value < 3 {
+            field.set_text_colour(Color.rgb(255, 0, 0))
+            return
+        }
+        if letter == "N" and value == 0 {
+            value = 1
+            field.set_text("1")
+        }
+        _prop_store(row, String.from_number(value))
+        field.set_text_colour(Color.rgb(255, 255, 255))
+        return
+    }
+    parsed_float: Option[number] = String.to_float(field.text())
+    if not parsed_float.has() {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    value_float: number = parsed_float.unwrap()
+    if letter == "p" and not (value_float > 0) {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    if letter == "m" and value_float < 2 {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    if letter == "l" and value_float < 1 {
+        field.set_text_colour(Color.rgb(255, 0, 0))
+        return
+    }
+    if letter == "n" and value_float == 0 {
+        value_float = 1
+        field.set_text("1.0")
+    }
+    _prop_store(row, String.from_float(value_float))
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+local _prop_bool(row: number, checked: bool) {
+    _prop_store(row, _bool_text(checked))
+}
+
+# PropertyEnum's two arrows: Math.floorMod around the enum's constants, and the value the state
+# holds is the constant's name, so the file keeps the reference's own words.
+
+local _prop_enum(row: number, delta: number) {
+    kind: string = _prop_kind(row)
+    names: string = String.substring(kind, 2, String.length(kind))
+    count: number = _split_count(names, ",")
+    index: number = _enum_index(kind, _prop_text(row))
+    next: number = index + delta
+    if next < 0 {
+        next = count - 1
+    }
+    if next >= count {
+        next = 0
+    }
+    _prop_store(row, _piece(names, ",", next))
+}
+
+# Set endpoint, the one runnable property the registry has: the deltas become the player's feet
+# minus the current set's origin, and the three fields above the button are rewritten.
+
+local _prop_run() {
+    id: number = _shape_current_id()
+    if id != 0 and id != 8 {
+        return
+    }
+    set: string = _state_current_set()
+    ox: number = _origin_piece(set, 0)
+    oy: number = _origin_piece(set, 1)
+    oz: number = _origin_piece(set, 2)
+    values: string = _shape_values_now()
+    values = _value_replace(values, 0, String.from_number(Math.floor(world_x) - ox))
+    values = _value_replace(values, 1, String.from_number(Math.floor(world_y) - oy))
+    values = _value_replace(values, 2, String.from_number(Math.floor(world_z) - oz))
+    _prop_store_all(values)
+    _prop_show_text(0, _piece(values, ",", 0))
+    _prop_show_text(1, _piece(values, ",", 1))
+    _prop_show_text(2, _piece(values, ",", 2))
+}
+
+# One property of the current shape: its kind, as a values piece, and the piece itself.
+
+local _prop_kind(row: number) string {
+    id: number = _shape_current_id()
+    if id < 0 {
+        return ""
+    }
+    return _piece(_shape_kinds(id), ";", row)
+}
+
+local _prop_text(row: number) string {
+    return _piece(_shape_values_now(), ",", row)
+}
+
+# One property's new text, written into the current set's entry for the current shape. Writing a
+# property regenerates the shape on the next frame, which is why no update call is needed and why
+# the entry's error marker is cleared: the reference's update runs on every setValue too.
+
+local _prop_store(row: number, text: string) {
+    id: number = _shape_current_id()
+    if id < 0 {
+        return
+    }
+    set: string = _state_current_set()
+    values: string = _shape_values_now()
+    state = _state_with_set(state, _state_index(), _set_put_shape(set, id, _value_replace(values, row, text), false))
+}
+
+local _prop_store_all(values: string) {
+    id: number = _shape_current_id()
+    if id < 0 {
+        return
+    }
+    set: string = _state_current_set()
+    state = _state_with_set(state, _state_index(), _set_put_shape(set, id, values, false))
+}
+
+local _prop_show_text(row: number, text: string) {
+    field: Widget = _prop_widget(row, 1)
+    field.set_text(text)
+    field.set_text_colour(Color.rgb(255, 255, 255))
+}
+
+# The registry index of the current set's shape, or -1 with no set to hold one. A set's index is
+# clamped into the registry at load, so a value outside it is a stopped load (#1816) and is refused
+# here as well.
+
+local _shape_current_id() number {
+    if _state_set_count() == 0 {
+        return -1
+    }
+    set: string = _state_current_set()
+    if String.length(set) == 0 {
+        return -1
+    }
+    id: number = _set_int(set, "index", 0)
+    if id < 0 or id >= _shape_count() {
+        return -1
+    }
+    return id
+}
+
+# The current shape's values as the file would hold them. ShapeSet.getShape creates a shape at its
+# defaults when the set has none, so an absent entry answers the class's defaults without being
+# written; a property change writes an entry.
+
+local _shape_values_now() string {
+    id: number = _shape_current_id()
+    if id < 0 {
+        return ""
+    }
+    set: string = _state_current_set()
+    values: string = _set_shape_values(set, id)
+    if String.length(values) == 0 {
+        values = _shape_defaults(id)
+    }
+    return values
+}
+
+# State.isShapeAvailable as this screen needs it: a set exists and its shape is one the registry
+# has, which is when the origin rows and the property panel are usable.
+
+local _shape_available() bool {
+    return _shape_current_id() >= 0
+}
+
+# The property names of each shape, in the class's own row order. The translatable keys of the
+# reference resolve to these en_us sentences, with the delta, axis, step, offset, semi-axis and
+# half-width ones filled with their axis letter.
+
+local _shape_labels(id: number) string {
+    if id == 0 {
+        return "Delta X|Delta Y|Delta Z|Set endpoint|Additional length|Invert"
+    }
+    if id == 1 {
+        return "Direction|Radius|Depth|Even mode"
+    }
+    if id == 2 {
+        return "Direction|Radius|Height|Even mode"
+    }
+    if id == 3 {
+        return "X|Y|Z|Walls|Centered origin"
+    }
+    if id == 4 {
+        return "Direction|Y semi-axis|Z semi-axis|Depth|Even mode"
+    }
+    if id == 5 {
+        return "X semi-axis|Y semi-axis|Z semi-axis|Dome|Even mode"
+    }
+    if id == 6 {
+        return "X steps|Y steps|Z steps|X offset|Y offset|Z offset"
+    }
+    if id == 7 {
+        return "Direction|Outer radius|Inner radius|Height|Degrees|Degrees offset|Invert|Even mode"
+    }
+    if id == 8 {
+        return "Delta X|Delta Y|Delta Z|Set endpoint"
+    }
+    if id == 9 {
+        return "Direction|Rotation|Half-width|Height|Depth|Even mode"
+    }
+    if id == 10 {
+        return "Direction|Y half-width|Z half-width|Height|Even mode"
+    }
+    if id == 11 {
+        return "Sides|Radius|Direction|Rotation|Depth|Even mode"
+    }
+    if id == 12 {
+        return "Sides|Radius|Direction|Rotation|Height|Even mode"
+    }
+    if id == 13 {
+        return "Radius|Dome|Even mode"
+    }
+    return "Direction|Outer radius|Inner radius|Outer even mode|Inner even mode"
+}
+
+# The ordinal a stored enum constant has among its kind's names, which is its Java ordinal.
+
+local _enum_index(kind: string, text: string) number {
+    names: string = String.substring(kind, 2, String.length(kind))
+    count: number = _split_count(names, ",")
+    i: number = 0
+    while i < count {
+        if _piece(names, ",", i) == text {
+            return i
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+# PropertyEnum.render's value text: the reference's own hardcoded labels for the four enums, by
+# ordinal. The direction labels are the axis names, the walls labels spell the shape's name, the
+# dome's are signed axes, and the rotation's are degrees.
+
+local _enum_display(kind: string, ordinal: number) string {
+    labels: string = "X;Y;Z"
+    if _has_prefix(kind, "e:ALL") {
+        labels = "XYZ;X;Y;Z;XY;XZ;YZ;-"
+    } else if _has_prefix(kind, "e:NO") {
+        labels = "-;+X;+Y;+Z;-X;-Y;-Z"
+    } else if _has_prefix(kind, "e:ROT") {
+        labels = "0°;90°;180°;270°"
+    }
+    return _piece(labels, ";", ordinal)
+}
+
+# One property row's widget by slot: a decrease button, text field, Set button, increase button, a
+# checkbox, an enum's left and right arrows, and a runnable's wide button.
+
+local _prop_widget(row: number, slot: number) Widget {
+    if row == 0 {
+        if slot == 0 {
+            return p0a.unwrap()
+        }
+        if slot == 1 {
+            return p0b.unwrap()
+        }
+        if slot == 2 {
+            return p0c.unwrap()
+        }
+        if slot == 3 {
+            return p0d.unwrap()
+        }
+        if slot == 4 {
+            return p0e.unwrap()
+        }
+        if slot == 5 {
+            return p0f.unwrap()
+        }
+        if slot == 6 {
+            return p0g.unwrap()
+        }
+        if slot == 7 {
+            return p0h.unwrap()
+        }
+        return p0h.unwrap()
+    }
+    if row == 1 {
+        if slot == 0 {
+            return p1a.unwrap()
+        }
+        if slot == 1 {
+            return p1b.unwrap()
+        }
+        if slot == 2 {
+            return p1c.unwrap()
+        }
+        if slot == 3 {
+            return p1d.unwrap()
+        }
+        if slot == 4 {
+            return p1e.unwrap()
+        }
+        if slot == 5 {
+            return p1f.unwrap()
+        }
+        if slot == 6 {
+            return p1g.unwrap()
+        }
+        if slot == 7 {
+            return p1h.unwrap()
+        }
+        return p1h.unwrap()
+    }
+    if row == 2 {
+        if slot == 0 {
+            return p2a.unwrap()
+        }
+        if slot == 1 {
+            return p2b.unwrap()
+        }
+        if slot == 2 {
+            return p2c.unwrap()
+        }
+        if slot == 3 {
+            return p2d.unwrap()
+        }
+        if slot == 4 {
+            return p2e.unwrap()
+        }
+        if slot == 5 {
+            return p2f.unwrap()
+        }
+        if slot == 6 {
+            return p2g.unwrap()
+        }
+        if slot == 7 {
+            return p2h.unwrap()
+        }
+        return p2h.unwrap()
+    }
+    if row == 3 {
+        if slot == 0 {
+            return p3a.unwrap()
+        }
+        if slot == 1 {
+            return p3b.unwrap()
+        }
+        if slot == 2 {
+            return p3c.unwrap()
+        }
+        if slot == 3 {
+            return p3d.unwrap()
+        }
+        if slot == 4 {
+            return p3e.unwrap()
+        }
+        if slot == 5 {
+            return p3f.unwrap()
+        }
+        if slot == 6 {
+            return p3g.unwrap()
+        }
+        if slot == 7 {
+            return p3h.unwrap()
+        }
+        return p3h.unwrap()
+    }
+    if row == 4 {
+        if slot == 0 {
+            return p4a.unwrap()
+        }
+        if slot == 1 {
+            return p4b.unwrap()
+        }
+        if slot == 2 {
+            return p4c.unwrap()
+        }
+        if slot == 3 {
+            return p4d.unwrap()
+        }
+        if slot == 4 {
+            return p4e.unwrap()
+        }
+        if slot == 5 {
+            return p4f.unwrap()
+        }
+        if slot == 6 {
+            return p4g.unwrap()
+        }
+        if slot == 7 {
+            return p4h.unwrap()
+        }
+        return p4h.unwrap()
+    }
+    if row == 5 {
+        if slot == 0 {
+            return p5a.unwrap()
+        }
+        if slot == 1 {
+            return p5b.unwrap()
+        }
+        if slot == 2 {
+            return p5c.unwrap()
+        }
+        if slot == 3 {
+            return p5d.unwrap()
+        }
+        if slot == 4 {
+            return p5e.unwrap()
+        }
+        if slot == 5 {
+            return p5f.unwrap()
+        }
+        if slot == 6 {
+            return p5g.unwrap()
+        }
+        if slot == 7 {
+            return p5h.unwrap()
+        }
+        return p5h.unwrap()
+    }
+    if row == 6 {
+        if slot == 0 {
+            return p6a.unwrap()
+        }
+        if slot == 1 {
+            return p6b.unwrap()
+        }
+        if slot == 2 {
+            return p6c.unwrap()
+        }
+        if slot == 3 {
+            return p6d.unwrap()
+        }
+        if slot == 4 {
+            return p6e.unwrap()
+        }
+        if slot == 5 {
+            return p6f.unwrap()
+        }
+        if slot == 6 {
+            return p6g.unwrap()
+        }
+        if slot == 7 {
+            return p6h.unwrap()
+        }
+        return p6h.unwrap()
+    }
+    if row == 7 {
+        if slot == 0 {
+            return p7a.unwrap()
+        }
+        if slot == 1 {
+            return p7b.unwrap()
+        }
+        if slot == 2 {
+            return p7c.unwrap()
+        }
+        if slot == 3 {
+            return p7d.unwrap()
+        }
+        if slot == 4 {
+            return p7e.unwrap()
+        }
+        if slot == 5 {
+            return p7f.unwrap()
+        }
+        if slot == 6 {
+            return p7g.unwrap()
+        }
+        if slot == 7 {
+            return p7h.unwrap()
+        }
+        return p7h.unwrap()
+    }
+    return p7h.unwrap()
+}
+
+# ---------------------------------------------------------------- the two dropdowns
+
+# DropdownOverlayScreen is a screen shown over its parent, with its own chrome, close button and tab
+# states, and the host's Screen cannot hold a second one, so the fallback #1760 leaves is the same
+# list inside the parent: the V hides itself, the X and the list take its place, and the parent's own
+# widgets and texts go away while it is up. A row or the X puts them back.
+
+local _dropdown_open() {
+    dropdown_open = true
+    _dropdown_visible()
+}
+
+local _dropdown_close() {
+    dropdown_open = false
+    _dropdown_visible()
+}
+
+# The parent's callback: setShape on the Shape tab, which starts a shape it has not built yet at its
+# defaults and leaves one it has at the values it holds, and setIShapeNew on the Shape list tab,
+# which changes the shape the Add button will push.
+
+local _dropdown_pick(index: number) {
+    if index < 0 {
+        return
+    }
+    if active_screen == "shape" {
+        _shape_choose(index)
+        return
+    }
+    state = _state_with_field(state, "iShapeNew", String.from_number(index))
+    _dropdown_close()
+}
+
+local _shape_choose(id: number) {
+    if _state_set_count() > 0 {
+        set: string = _state_current_set()
+        values: string = _set_shape_values(set, id)
+        if String.length(values) == 0 {
+            values = _shape_defaults(id)
+        }
+        set = _set_put_shape(set, id, values, false)
+        set = _set_with_field(set, "index", String.from_number(id))
+        state = _state_with_set(state, _state_index(), set)
+    }
+    _dropdown_close()
+}
+
+local _dropdown_visible() {
+    if active_screen == "shapelist" {
+        _shapelist_dropdown_visible()
+        return
+    }
+    _shape_dropdown_visible()
+}
+
+local _shape_dropdown_visible() {
+    q_open.unwrap().set_visible(not dropdown_open)
+    q_close.unwrap().set_visible(dropdown_open)
+    q_list.unwrap().set_visible(dropdown_open)
+    _shape_active(_shape_available())
+    if dropdown_open {
+        _shape_parent_visible(false)
+        _shape_hide_rows()
+        _dropdown_rows()
+        return
+    }
+    _shape_parent_visible(true)
+    _shape_relayout()
+    _shape_fields()
+}
+
+local _shapelist_dropdown_visible() {
+    n_open.unwrap().set_visible(not dropdown_open)
+    n_close.unwrap().set_visible(dropdown_open)
+    n_list.unwrap().set_visible(dropdown_open)
+    _shapelist_active()
+    if dropdown_open {
+        _shapelist_parent_visible(false)
+        _dropdown_rows()
+        return
+    }
+    _shapelist_parent_visible(true)
+    _shapelist_rows()
+    _shapelist_fields()
+}
+
+# The list's fifteen rows are the registry's shape names in registration order, and it starts on
+# the shape the parent would draw at (85, 75): the current set's on the Shape tab, the new set's on
+# the Shape list tab.
+
+local _dropdown_rows() {
+    if active_screen == "shapelist" {
+        list: Widget = n_list.unwrap()
+        current: number = _new_shape_index()
+        list.set_rows(_shape_count())
+        if current >= 0 {
+            list.select(current)
+        }
+        return
+    }
+    list: Widget = q_list.unwrap()
+    current: number = _shape_current_id()
+    list.set_rows(_shape_count())
+    if current >= 0 {
+        list.select(current)
+    }
+}
+
+local _dropdown_row(ctx: ListRowResponse, list: Widget) {
+    if not equals(ctx.widget(), list) {
+        return
+    }
+    ctx.set_text(_shape_name(ctx.index()))
+}
+
+# The rows of the property panel are already the relayout's to show, so the dropdown hides them all
+# and the relayout brings back the current shape's. Everything else is the parent's own.
+
+local _shape_hide_rows() {
+    row: number = 0
+    while row < 8 {
+        _shape_row_hide(row)
+        row = row + 1
+    }
+}
+
+local _shape_parent_visible(visible: bool) {
+    o_set.unwrap().set_visible(visible)
+    o_x_dec.unwrap().set_visible(visible)
+    o_x_field.unwrap().set_visible(visible)
+    o_x_set.unwrap().set_visible(visible)
+    o_x_inc.unwrap().set_visible(visible)
+    o_y_dec.unwrap().set_visible(visible)
+    o_y_field.unwrap().set_visible(visible)
+    o_y_set.unwrap().set_visible(visible)
+    o_y_inc.unwrap().set_visible(visible)
+    o_z_dec.unwrap().set_visible(visible)
+    o_z_field.unwrap().set_visible(visible)
+    o_z_set.unwrap().set_visible(visible)
+    o_z_inc.unwrap().set_visible(visible)
+}
+
+local _shapelist_parent_visible(visible: bool) {
+    s_add.unwrap().set_visible(visible)
+    s_visible.unwrap().set_visible(visible)
+    s_delete.unwrap().set_visible(visible)
+    s_global.unwrap().set_visible(visible)
+    s_x_dec.unwrap().set_visible(visible)
+    s_x_field.unwrap().set_visible(visible)
+    s_x_set.unwrap().set_visible(visible)
+    s_x_inc.unwrap().set_visible(visible)
+    s_y_dec.unwrap().set_visible(visible)
+    s_y_field.unwrap().set_visible(visible)
+    s_y_set.unwrap().set_visible(visible)
+    s_y_inc.unwrap().set_visible(visible)
+    s_z_dec.unwrap().set_visible(visible)
+    s_z_field.unwrap().set_visible(visible)
+    s_z_set.unwrap().set_visible(visible)
+    s_z_inc.unwrap().set_visible(visible)
+    s_list.unwrap().set_visible(visible)
 }
