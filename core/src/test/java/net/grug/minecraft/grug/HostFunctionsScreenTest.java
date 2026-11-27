@@ -313,6 +313,19 @@ class HostFunctionsScreenTest {
     }
 
     @Test
+    void aLoaderWithoutModOwnedScreensRefusesToMakeOne() {
+        // Every loader's client answers true now that the five screen hosts have landed, so no game
+        // run reaches this refusal any more: only a dedicated server does, and its classes are
+        // reported apart from the client's set. The refusal still has to be measured, or the arm
+        // that stops a mod making a screen where it could never be shown goes untested.
+        loader.supported = false;
+
+        assertEquals(0, HostFunctions.Screen_new());
+
+        assertTrue(reported().contains("no mod-owned screens"));
+    }
+
+    @Test
     void openingAScreenWhileNoWorldIsLoadedIsAnErr() {
         loader.level = null;
         long id = screen.entityId();
