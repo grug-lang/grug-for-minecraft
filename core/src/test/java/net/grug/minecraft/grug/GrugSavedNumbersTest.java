@@ -56,6 +56,40 @@ class GrugSavedNumbersTest {
     }
 
     @Test
+    void savingAnEqualNumberMarksNothingAndIsStoredAllTheSame() {
+        Engine engine = new Engine();
+        GrugSavedNumbers.set(engine, "energy", 5);
+        int saved = engine.changes;
+
+        assertTrue(GrugSavedNumbers.set(engine, "energy", 5));
+
+        assertEquals(saved, engine.changes, "the same number again is not a change");
+        assertEquals(5.0, GrugSavedNumbers.get(engine, "energy"));
+
+        GrugSavedNumbers.set(engine, "energy", 6);
+        assertEquals(saved + 1, engine.changes, "a different number is a change");
+        assertEquals(6.0, GrugSavedNumbers.get(engine, "energy"));
+    }
+
+    @Test
+    void aNameNeverWrittenReadsZeroSoSavingZeroMarksNothing() {
+        Engine engine = new Engine();
+
+        assertTrue(GrugSavedNumbers.set(engine, "energy", 0));
+
+        assertEquals(0, engine.changes, "zero into a never-written name is what it read back");
+        assertEquals(0.0, GrugSavedNumbers.get(engine, "energy"));
+
+        GrugSavedNumbers.set(engine, "energy", -0.0);
+        assertEquals(1, engine.changes, "0.0 and -0.0 are different text");
+        assertEquals(-0.0, GrugSavedNumbers.get(engine, "energy"));
+
+        GrugSavedNumbers.set(engine, "nan", Double.NaN);
+        GrugSavedNumbers.set(engine, "nan", Double.NaN);
+        assertEquals(2, engine.changes, "every NaN reads the same text");
+    }
+
+    @Test
     void aSnapshotIsSortedByNameAndIsACopy() {
         Engine engine = new Engine();
         GrugSavedNumbers.set(engine, "b", 2);
