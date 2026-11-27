@@ -12,8 +12,15 @@ package net.grug.minecraft.grug;
  * flowing frame is replicated over a 2x2 block of tiles (the game's {@code replicate} is 2), so it
  * also owns 207, 222 and 223, and the lava's owns 239, 254 and 255: a block's texture on 207 was
  * still painted over by the flowing water.
+ *
+ * <p>Both atlases a loader writes are 16 by 16 tiles, so a slot past {@link #LAST_SLOT} is outside
+ * the image the game uploads, and handing one out writes a sprite that is never drawn. An allocator
+ * refuses once it has no slot left, rather than answering a number the atlas cannot hold.
  */
 public final class GrugSpriteSlots {
+
+    /** The last slot of the 16 by 16 atlas that terrain.png and gui/items.png both are. */
+    public static final int LAST_SLOT = 255;
 
     @GrugGenerated("utility class: never instantiated")
     private GrugSpriteSlots() {}
@@ -49,21 +56,52 @@ public final class GrugSpriteSlots {
     }
 
     /**
-     * Hands out terrain.png slots one after another from a first slot, skipping the animated ones,
-     * so a loader keeps no counter of its own to get wrong.
+     * Hands out atlas slots one after another from a first slot, skipping the slots the game
+     * repaints in place, so a loader keeps no counter of its own to get wrong.
      */
     public static final class Allocator {
+        private final String atlas;
+        private final int first;
+        private final boolean skipsAnimated;
         private int cursor;
 
+        /** An allocator for terrain.png, which skips the slots the game animates. */
         public Allocator(int first) {
-            cursor = first;
+            this("terrain.png", first, true);
         }
 
-        /** The next slot the game does not animate. */
+        private Allocator(String atlas, int first, boolean skipsAnimated) {
+            this.atlas = atlas;
+            this.first = first;
+            this.skipsAnimated = skipsAnimated;
+            this.cursor = first;
+        }
+
+        /**
+         * An allocator for gui/items.png, whose slots in the range grug hands out the game never
+         * repaints, so every one of them is usable.
+         */
+        public static Allocator items(int first) {
+            return new Allocator("gui/items.png", first, false);
+        }
+
+        /** The next usable slot, or a refusal once the atlas has none left. */
         public int next() {
-            int slot = firstUsable(cursor);
-            cursor = slot + 1;
-            return slot;
+            while (cursor <= LAST_SLOT) {
+                int slot = cursor;
+                cursor++;
+                if (!skipsAnimated || !isAnimated(slot)) {
+                    return slot;
+                }
+            }
+            throw Grug.fatal(
+                    "No slot is left in "
+                            + atlas
+                            + " for a grug sprite: the atlas is 16 by 16, and every slot from "
+                            + first
+                            + " on is taken"
+                            + (skipsAnimated ? " or animated by the game" : "")
+                            + ".");
         }
     }
 }

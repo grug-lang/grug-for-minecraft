@@ -304,13 +304,16 @@ public final class GrugRunWindow {
      * from.
      */
     public void parkCursor() {
+        // The point belongs to a test, and the runner forgets it on its own thread, so it is read
+        // once: a second read could see the forget a test's teardown made and throw on null.
+        double[] point = parkPoint;
         double[] cursor = display.cursorPos();
         if (!cursorParked) {
             savedCursorX = cursor[0];
             savedCursorY = cursor[1];
             cursorParked = true;
         }
-        double[] target = parkPoint == null ? new double[] {0.0, 0.0} : parkPoint;
+        double[] target = point == null ? new double[] {0.0, 0.0} : point;
         if (cursor[0] != target[0] || cursor[1] != target[1]) {
             display.setCursor(target[0], target[1]);
         }

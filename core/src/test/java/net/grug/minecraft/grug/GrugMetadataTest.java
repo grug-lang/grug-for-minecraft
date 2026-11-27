@@ -34,6 +34,11 @@ class GrugMetadataTest {
 
     private Object savedAdapter;
 
+    /**
+     * Whether {@link #installAdapter} saved an adapter that {@link #restoreAdapter} must put back.
+     */
+    private boolean adapterInstalled;
+
     @BeforeEach
     @AfterEach
     void clear() throws Exception {
@@ -44,11 +49,12 @@ class GrugMetadataTest {
 
     @AfterEach
     void restoreAdapter() throws Exception {
-        if (savedAdapter == null) return;
+        if (!adapterInstalled) return;
         Field field = GrugCore.class.getDeclaredField("adapter");
         field.setAccessible(true);
         field.set(null, savedAdapter);
         savedAdapter = null;
+        adapterInstalled = false;
     }
 
     private static final String ABOUT =
@@ -256,6 +262,7 @@ class GrugMetadataTest {
         Field field = GrugCore.class.getDeclaredField("adapter");
         field.setAccessible(true);
         savedAdapter = field.get(null);
+        adapterInstalled = true;
         field.set(
                 null,
                 Proxy.newProxyInstance(
@@ -269,6 +276,26 @@ class GrugMetadataTest {
                             if (method.getName().equals("logError")) return null;
                             throw new AssertionError("unexpected adapter call " + method.getName());
                         }));
+    }
+
+    @Test
+    void anAdapterThatWasNullBeforeTheInstallIsPutBackAsNull() throws Exception {
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        Object real = field.get(null);
+        field.set(null, null);
+        try {
+            installAdapter(mods.toFile());
+            assertNotNull(GrugCore.getAdapter(), "The test's proxy is installed.");
+            restoreAdapter();
+            assertNull(
+                    GrugCore.getAdapter(),
+                    "A saved adapter of null is restored, rather than the proxy left in place.");
+        } finally {
+            field.set(null, real);
+            savedAdapter = null;
+            adapterInstalled = false;
+        }
     }
 
     @Test

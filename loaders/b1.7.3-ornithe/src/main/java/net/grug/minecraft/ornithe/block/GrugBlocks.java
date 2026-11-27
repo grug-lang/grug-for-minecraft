@@ -48,7 +48,8 @@ public final class GrugBlocks {
     private static final Map<String, Integer> TEXTURE_SPRITES = new HashMap<>();
     private static final GrugSpriteSlots.Allocator BLOCK_SPRITE_SLOTS =
             new GrugSpriteSlots.Allocator(160);
-    private static int nextItemSpriteId = 160;
+    private static final GrugSpriteSlots.Allocator ITEM_SPRITE_SLOTS =
+            GrugSpriteSlots.Allocator.items(160);
 
     public static void init() {
         GrugModLoader.LOGGER.info("Registering dynamic grug blocks and items in Ornithe...");
@@ -142,7 +143,7 @@ public final class GrugBlocks {
             GrugItem item = new GrugItem(itemId - 256, itemFileId);
 
             // Texture Registration
-            int itemSprite = nextItemSpriteId++;
+            int itemSprite = ITEM_SPRITE_SLOTS.next();
             ITEM_SPRITES.put(cleanName, itemSprite);
             item.setSprite(itemSprite);
 
