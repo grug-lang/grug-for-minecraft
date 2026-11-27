@@ -86,7 +86,10 @@ public final class GrugListRowResponse extends GrugResponse {
         GrugErrors.onRuntimeError(message);
     }
 
-    /** Forgets the defect {@link #lastDefect} answers, before the next frame asks its rows. */
+    /**
+     * Forgets the defect {@link #lastDefect} answers, before the next frame asks its rows, and when
+     * a screen's open time begins: a defect belongs to the open time whose rows reported it.
+     */
     public static void clearLastDefect() {
         synchronized (defectLock) {
             lastDefect = null;
