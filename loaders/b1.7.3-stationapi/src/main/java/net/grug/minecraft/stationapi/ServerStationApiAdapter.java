@@ -47,17 +47,16 @@ import java.util.Objects;
  * The adapter for a b1.7.3 dedicated server, which is the same loader as {@link StationApiAdapter}
  * in a second process rather than a second mode.
  *
- * <p>It extends the client adapter because everything that is not about which process this is, is
- * the same code: the block registry, the recipes and the inventory and entity host functions have
- * no client in them. The client adapter already loads on a server (it is what {@code InitListener}
- * has always created), so extending it adds no class a server cannot load. What a server cannot
- * inherit is the pair of handles to the level and the player, and the answers about screens and
- * frames, and those are what this replaces. The client-only functions are inherited and each one
- * refuses itself through {@code ModLoaderAdapter.refuseWithoutAClient}, except the ones whose
- * subject is a screen or a cursor: those are forwarded to the joined client, or answered from this
- * server's own screen handler, so a GUI test can run here (#1098). {@code useBlockForTest} is not a
- * client-only function and is overridden: a click is not a client-only function, so the server
- * right-clicks in its own world, the world the test reads (#1090).
+ * <p>It extends {@link StationApiAdapter}, the half the dedicated server loads and the client
+ * subclasses, because everything that is not about which process this is is the same code: the
+ * block registry, the recipes and the inventory and entity host functions have no client in them,
+ * and neither class names a client-only game class (#1246). What a server cannot inherit is the
+ * pair of handles to the level and the player, and the answers about screens and frames, and those
+ * are what this replaces. The functions whose subject is a screen or a cursor are answered from
+ * this server's own screen handler, or forwarded to the joined client, so a GUI test can run here
+ * (#1098). {@code useBlockForTest} is not a client-only function and is overridden: a click is not
+ * a client-only function, so the server right-clicks in its own world, the world the test reads
+ * (#1090).
  *
  * <p>Measured by the coverage gate like any class. The arms no test can force are annotated one
  * method at a time with their reason (#1606).

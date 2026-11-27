@@ -161,6 +161,10 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
 
     @Override
     public void init() {
+        // This loader's screen-open hook is on its container screen, which a mod-owned screen is
+        // not, so the drawn mark is cleared here. A test that opens a screen then waits for this
+        // screen's own frame rather than reading the mark an earlier screen left behind.
+        GrugOverlayHost.screenOpened(this);
         // A resize asks screen_init again, so the widgets it declares this time are the ones
         // mirrored. The game set the screen's width and height before this call.
         super.init();
@@ -511,6 +515,9 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         if (GrugOwnedScreens.openScreen() == screen && screen.generation() == generation) {
             GrugOwnedScreens.noteGameRemoved(screen, generation);
         }
+        // The mark belongs to the screen that drew it, and this one is gone. A screen the mod
+        // reopens is a new screen, whose own init clears it again.
+        GrugOverlayHost.screenClosed();
     }
 
     @Override
@@ -897,7 +904,11 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             this.editable = widget.active();
         }
 
-        /** Takes a value the mod set outside {@code screen_init}, keeping the caret in the text. */
+        /**
+         * Takes a value the mod set outside {@code screen_init}, moving the caret to the end of it
+         * and dropping the selection, which is what {@code Widget.set_text} promises and what this
+         * version's own setter does.
+         */
         void syncFrom(GrugWidget widget) {
             editable = widget.active();
             if (widget.textRevision() == revision) return;
@@ -905,7 +916,7 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             String value = widget.text() == null ? "" : widget.text();
             if (value.equals(text)) return;
             text = value;
-            caret = Math.min(caret, text.length());
+            caret = text.length();
             anchor = caret;
         }
 
