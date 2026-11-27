@@ -160,9 +160,9 @@ public class mod_Grug extends BaseMod {
     @Override
     public void modsLoaded() {
         GrugBlocks.init();
-        // A game short of ids has registered none of what did not fit, so the recipes that give
-        // it would each report an unknown result, and the player cannot craft before turning mods
-        // off (#510).
+        // A game short of ids or sprites has registered none of what did not fit, so the recipes
+        // that give it would each report an unknown result, and the player cannot craft before
+        // turning mods off (#510).
         if (GrugIdShortage.all().isEmpty()) {
             GrugRecipeParser.registerAll(activeGrugDir);
         }

@@ -199,16 +199,25 @@ class GrugIdPoolTest {
         mods("alpha", 2, items);
         assertFalse(GrugIdPool.of("item", id -> true, 400, 410).hasRoomFor(items));
         assertFalse(GrugIdPool.of("block", taken(130)::contains, 125, 160).hasRoomFor(needs()));
+        Map<String, String> sprites = mods("sprites", 97, new LinkedHashMap<>());
+        assertFalse(GrugSpriteSlots.Allocator.items(160).hasRoomFor(97, "item sprite", sprites));
 
         IllegalStateException error =
                 assertThrows(IllegalStateException.class, GrugIdShortage::failIfShort);
 
         String message = error.getMessage();
         assertTrue(
-                message.contains("Not enough free item ids for grug's items: they need 4 and 0"),
+                message.contains("Not enough room for grug's items: they need 4 and 0 are free"),
                 message);
+        assertTrue(message.contains("\nThe items each grug mod needs:"), message);
         assertTrue(message.contains("\n  alpha: 2\n  zeta: 2"), message);
-        assertTrue(message.contains("\nNot enough free block ids"), message);
+        assertTrue(message.contains("\nNot enough room for grug's blocks"), message);
         assertTrue(message.contains("\n  coverage: 32\n  buildcraft: 3\n  examplemod: 1"), message);
+        assertTrue(
+                message.contains(
+                        "\nNot enough room for grug's item sprites: they need 97 and 96 are free,"
+                                + " so 1 is missing."),
+                message);
+        assertTrue(message.contains("\nThe item sprites each grug mod needs:"), message);
     }
 }

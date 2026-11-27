@@ -36,7 +36,7 @@ public class TitleScreenMixin extends Screen {
     @SuppressWarnings("unchecked")
     private void grug$autoLoadWorld(CallbackInfo ci) {
         this.buttons.add(new GrugModsButton(this));
-        // A game short of block or item ids registered none of that kind and let the title screen
+        // A game short of a resource registered none of that kind and let the title screen
         // come up, so the player can turn mods off here (#510). Nothing but the mod manager is
         // safe to enter: a world saved without the blocks would lose them.
         if (!GrugIdShortage.all().isEmpty()) {

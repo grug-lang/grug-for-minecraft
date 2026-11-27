@@ -1,5 +1,8 @@
 package net.grug.minecraft.grug;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Which terrain.png slots a loader may hand to a grug block on Alpha and Beta.
  *
@@ -15,7 +18,9 @@ package net.grug.minecraft.grug;
  *
  * <p>Both atlases a loader writes are 16 by 16 tiles, so a slot past {@link #LAST_SLOT} is outside
  * the image the game uploads, and handing one out writes a sprite that is never drawn. An allocator
- * refuses once it has no slot left, rather than answering a number the atlas cannot hold.
+ * refuses once it has no slot left, rather than answering a number the atlas cannot hold, and a
+ * loader counts what a pack needs first so an over-large pack reaches its title screen with a
+ * recorded shortage instead of that refusal (#1858).
  */
 public final class GrugSpriteSlots {
 
@@ -53,6 +58,33 @@ public final class GrugSpriteSlots {
             result++;
         }
         return result;
+    }
+
+    /**
+     * The slots the blocks need, keyed the way {@link Allocator#hasRoomFor} counts them and valued
+     * by the mod that needs each: one entry per distinct face texture, because two blocks that name
+     * the same texture share a slot, and one entry per block whose faces do not resolve, because it
+     * falls back to a slot of its own.
+     *
+     * @param modByBlock the mod of each block, by the name registration keys it by
+     * @param facesByBlock the six face texture references of each block, or null for one whose
+     *     model did not resolve
+     */
+    public static Map<String, String> blockSpriteNeeds(
+            Map<String, String> modByBlock, Map<String, String[]> facesByBlock) {
+        Map<String, String> needs = new HashMap<>();
+        for (Map.Entry<String, String> block : modByBlock.entrySet()) {
+            String[] faces = facesByBlock.get(block.getKey());
+            if (faces == null) {
+                // A texture reference always carries a namespace, so it never meets this key.
+                needs.put("block " + block.getKey(), block.getValue());
+                continue;
+            }
+            for (String face : faces) {
+                needs.put(face, block.getValue());
+            }
+        }
+        return needs;
     }
 
     /**
@@ -102,6 +134,40 @@ public final class GrugSpriteSlots {
                             + " on is taken"
                             + (skipsAnimated ? " or animated by the game" : "")
                             + ".");
+        }
+
+        /** How many usable slots the allocator has not handed out yet. */
+        public int remaining() {
+            int remaining = 0;
+            for (int slot = cursor; slot <= LAST_SLOT; slot++) {
+                if (!skipsAnimated || !isAnimated(slot)) remaining++;
+            }
+            return remaining;
+        }
+
+        /**
+         * Whether the mods' sprites fit in the slots left. When they do not, the shortage is
+         * recorded for the mod manager's screen (see {@link GrugIdShortage}) and the loader writes
+         * no sprite of this kind.
+         *
+         * <p>Run before the first slot is taken, so the screen shows what all the mods need rather
+         * than where the atlas happened to run out, and so no block is registered with no sprite to
+         * draw. {@link #next()} keeps refusing a caller that ignores this and allocates anyway.
+         *
+         * @param needed how many slots the mods need together
+         * @param kind what the slots hold, such as "block sprite", which the screen shows
+         * @param modByKey the mod of each thing that takes a slot, keyed by what the slot is for:
+         *     two blocks that name the same texture take one slot, so it is counted once
+         */
+        public boolean hasRoomFor(int needed, String kind, Map<String, String> modByKey) {
+            if (needed <= remaining()) return true;
+
+            Map<String, Integer> needsByMod = new HashMap<>();
+            for (String mod : modByKey.values()) {
+                needsByMod.merge(mod, 1, Integer::sum);
+            }
+            GrugIdShortage.record(kind, needed, remaining(), needsByMod);
+            return false;
         }
     }
 }

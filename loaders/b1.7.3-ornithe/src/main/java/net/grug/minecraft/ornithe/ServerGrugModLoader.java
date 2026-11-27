@@ -38,7 +38,7 @@ public class ServerGrugModLoader implements DedicatedServerModInitializer {
 
         MinecraftServerEvents.READY.register(
                 server -> {
-                    // A server has no screen to turn mods off on, so ids that are short end it.
+                    // A server has no screen to turn mods off on, so a shortage ends it.
                     GrugIdShortage.failIfShort();
                     GrugModLoader.LOGGER.info("Parsing JSON recipes...");
                     GrugRecipeHelper.registerAutoDiscoveredRecipes(
