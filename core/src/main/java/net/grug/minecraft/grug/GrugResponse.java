@@ -27,6 +27,28 @@ public abstract class GrugResponse {
     }
 
     /**
+     * Whether the call this response was passed to is still running, which a getter that neither
+     * answers nor changes the answer checks before it reads anything.
+     *
+     * @param method the grug method being called, for the err message
+     * @return whether the caller may read the response
+     */
+    protected final boolean checkOpen(String method) {
+        if (open) return true;
+        reportClosed(method);
+        return false;
+    }
+
+    private void reportClosed(String method) {
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                method
+                        + ": the response is only valid during the "
+                        + exportName
+                        + " call it was passed to, and that call has returned.");
+    }
+
+    /**
      * Claims the one answer this response allows.
      *
      * @param method the grug method being called, for the err message
@@ -34,12 +56,7 @@ public abstract class GrugResponse {
      */
     protected final boolean beginAnswer(String method) {
         if (!open) {
-            Grug.hostFunctionErrorHappened(
-                    Grug.statePtr,
-                    method
-                            + ": the response is only valid during the "
-                            + exportName
-                            + " call it was passed to, and that call has returned.");
+            reportClosed(method);
             return false;
         }
         if (answered) {

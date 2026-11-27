@@ -107,6 +107,16 @@ public class ClientForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * The width the client's own font draws the text at, which the screen API measures labels with.
+     * The font is the client's, so a dedicated server never asks this: it forwards a render pass to
+     * the joined client.
+     */
+    @Override
+    public double textWidth(String text) {
+        return Minecraft.getInstance().font.width(text);
+    }
+
+    /**
      * The level's name: the address this client dialled when it joined somebody else's server, or
      * the integrated server's name in singleplayer, which both sides of that world then answer. The
      * choice is {@link GrugLevelKey#name}, whose every arm a unit test covers.

@@ -158,8 +158,9 @@ class GrugOverlayScriptsTest {
         assertEquals(Arrays.asList(4L, 5L), recorder.created);
         assertEquals(Arrays.asList(NAME, OTHER), namesOf(before));
         GrugOverlayScripts.Script other = before.get(1);
-        // Every export of both files is looked up on its entity.
-        assertEquals(16, recorder.exports.size());
+        // Every export of both files, the eight overlay passes and the eight screen calls, is
+        // looked up on its entity.
+        assertEquals(32, recorder.exports.size());
 
         GrugModsWatcher.applyReport(
                 new FileInfo[] {overlay(PATH, NAME, 7L)}, new String[0], errors::add);
@@ -175,7 +176,7 @@ class GrugOverlayScriptsTest {
         assertEquals(MOD, after.get(0).mod);
         assertSame(other, after.get(1), "another mod's overlay is not made again");
         assertEquals(
-                24, recorder.exports.size(), "the edited overlay's exports are looked up again");
+                48, recorder.exports.size(), "the edited overlay's exports are looked up again");
     }
 
     @Test
@@ -237,7 +238,7 @@ class GrugOverlayScriptsTest {
         assertEquals(Collections.singletonList(OTHER), namesOf(made));
         assertEquals(Arrays.asList(4L, 5L), recorder.created);
         assertEquals(
-                8,
+                16,
                 recorder.exports.size(),
                 "no export is looked up on an entity that was not made");
     }
