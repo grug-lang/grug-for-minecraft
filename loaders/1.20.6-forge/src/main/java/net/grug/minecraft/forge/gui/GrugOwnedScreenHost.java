@@ -99,6 +99,19 @@ public final class GrugOwnedScreenHost extends Screen {
         return screen;
     }
 
+    /**
+     * Takes the game's screen away when it is this model's host, and leaves whatever else the
+     * player has open up: another screen the player opened over it is theirs to keep. A hide is
+     * handed here whenever a model's open time ends, including one the game already replaced, so
+     * the check belongs beside the host it asks about rather than in the adapter.
+     */
+    public static void hideIfShowing(GrugOwnedScreen model) {
+        Screen current = Minecraft.getInstance().screen;
+        if (current instanceof GrugOwnedScreenHost host && host.model() == model) {
+            Minecraft.getInstance().setScreen(null);
+        }
+    }
+
     @Override
     protected void init() {
         // A resize rebuilds the game's widgets from the model: core asks screen_init again first,

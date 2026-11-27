@@ -57,6 +57,19 @@ class GrugSliderMathTest {
     }
 
     @Test
+    void aValueIsBroughtIntoAUsableRangeAndAnUnusableOneIsLeftAlone() {
+        assertEquals(5.0, GrugSliderMath.clamp(5, 0, 10));
+        assertEquals(0.0, GrugSliderMath.clamp(-1, 0, 10));
+        assertEquals(10.0, GrugSliderMath.clamp(99, 0, 10));
+        // A range that is not usable is refused before any value is applied to it, so the drawn
+        // value is the one the slider already holds rather than a clamp to a broken track.
+        assertEquals(5.0, GrugSliderMath.clamp(5, Double.NaN, 10));
+        assertEquals(5.0, GrugSliderMath.clamp(5, 0, Double.POSITIVE_INFINITY));
+        assertEquals(5.0, GrugSliderMath.clamp(5, 5, 5));
+        assertEquals(5.0, GrugSliderMath.clamp(5, 10, 0));
+    }
+
+    @Test
     void theLabelRoundsTheValueToTenthsAsJavaPrintsIt() {
         assertEquals("level: 3.5", GrugSliderMath.label("level", 3.5));
         assertEquals("level: 3.5", GrugSliderMath.label("level", 3.54));

@@ -157,6 +157,7 @@ class GrugOwnedScreensTest {
         field.setAccessible(true);
         field.set(null, savedAdapter);
         GrugTestState.testRunActive = false;
+        GrugTestState.currentTestMod = null;
         GrugErrors.takeHostFunctionException();
         synchronized (GrugErrors.runtimeErrorQueue) {
             GrugErrors.runtimeErrorQueue.clear();
@@ -311,6 +312,17 @@ class GrugOwnedScreensTest {
         assertEquals(1, recorder.count(script.screenClosedFnId));
         assertTrue(screen.open());
         assertSame(screen, GrugOwnedScreens.openScreen());
+    }
+
+    @Test
+    void anOpenTimeThatWasAlreadyOpenKeepsItsGeneration() {
+        GrugOwnedScreen screen = openScreen();
+        long generation = screen.generation();
+        // The generation names one open time, and only a screen that was closed gets a new one, so
+        // a host that reports an open time already open must not make the model's records stale.
+        screen.setOpen(true);
+        assertTrue(screen.open());
+        assertEquals(generation, screen.generation());
     }
 
     @Test
@@ -759,6 +771,23 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void aPointOutsideEveryListReachesNoListEvenOverAnotherWidget() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] list = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    declareButton(screen, "button");
+                    list[0] = screen.declareList("far", 100, 100, 50, 20, 10).widget;
+                };
+        init(screen, 320, 240);
+
+        // The button at 1,2 is drawn above the list in the widget order, so a point inside it walks
+        // past it and the list, neither of which takes the wheel.
+        assertNull(GrugOwnedScreens.listAt(screen, 5, 5));
+        assertSame(list[0], GrugOwnedScreens.listAt(screen, 105, 105));
+    }
+
+    @Test
     void anInactiveListAnswersForTheWheelWithoutMoving() {
         GrugOwnedScreen screen = openScreen();
         GrugWidget[] lists = new GrugWidget[1];
@@ -833,6 +862,63 @@ class GrugOwnedScreensTest {
             assertEquals(index, list[0].frameRows().get(index).index());
             assertEquals("row " + index, list[0].frameRows().get(index).text());
         }
+    }
+
+    @Test
+    void aRowAnsweredBeforeTheListShrankIsNotDrawn() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] list = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    list[0] = screen.declareList("list", 0, 0, 100, 30, 10).widget;
+                    list[0].applyRows(3);
+                };
+        init(screen, 320, 240);
+        recorder.onListRow =
+                () -> {
+                    Asked call = recorder.asked.get(recorder.asked.size() - 1);
+                    HostFunctions.ListRowResponse_set_text(call.argumentId, "x");
+                    // The last visible row's own export shrinks the list, so the answer for the row
+                    // it just gave is for an index the list no longer has when the frame is drawn.
+                    if (list[0].rows() == 3) list[0].applyRows(2);
+                };
+        GrugOwnedScreens.prepareFrame(screen);
+
+        assertEquals(2, list[0].frameRows().size());
+        assertEquals(0, list[0].frameRows().get(0).index());
+        assertEquals(1, list[0].frameRows().get(1).index());
+        // A row answered before the list shrank stays in the frame's answers, and the frame drops
+        // it rather than drawing a row the mod says is gone.
+        list[0].addFrameRow(7, "gone", 0);
+        assertEquals(2, list[0].frameRows().size(), "a row the list no longer has is not drawn");
+    }
+
+    @Test
+    void aRowThatClosesAndReopensTheScreenEndsThePass() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] list = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    list[0] = screen.declareList("list", 0, 0, 100, 30, 10).widget;
+                    list[0].applyRows(3);
+                };
+        init(screen, 320, 240);
+        recorder.asked.clear();
+        recorder.onListRow =
+                () -> {
+                    recorder.onListRow = null;
+                    assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
+                    assertNull(GrugOwnedScreens.open(loader.adapter(), screen));
+                };
+        GrugOwnedScreens.prepareFrame(screen);
+
+        int rows = 0;
+        for (Asked call : recorder.asked) {
+            if (call.argumentId != 0) rows++;
+        }
+        assertEquals(1, rows, "the rows after a reopen would answer for dropped widgets");
+        assertEquals(1, recorder.count(script.screenClosedFnId), "the close ran once");
+        assertSame(screen, GrugOwnedScreens.openScreen());
     }
 
     @Test
@@ -1229,6 +1315,39 @@ class GrugOwnedScreensTest {
                     assertNotNull(screen.declareTextField("x", "x", 0, 0, 1, 1).problem);
                 };
         init(screen, 320, 240);
+    }
+
+    @Test
+    void droppingAScriptHidesNothingOnALoaderThatCannotShowAScreen() {
+        GrugOwnedScreen open = openScreen();
+        loader.supported = false;
+        GrugOwnedScreens.scriptDropped(script);
+        assertFalse(open.open());
+        assertTrue(loader.hidden.isEmpty(), "there is no host to hide when the loader has none");
+    }
+
+    @Test
+    void droppingAScriptWithNoLoaderAtAllStillEndsItsOpenScreen() throws Exception {
+        GrugOwnedScreen open = openScreen();
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        field.set(null, null);
+        GrugOwnedScreens.scriptDropped(script);
+        assertFalse(open.open());
+        assertTrue(loader.hidden.isEmpty());
+    }
+
+    @Test
+    void aFrameOfAnotherModsScreenIsNotTheRunningTestsFrame() {
+        GrugOwnedScreen screen = openScreen();
+        GrugOverlay.screenOpened();
+        assertFalse(GrugOverlay.overlayDrawn());
+        GrugTestState.currentTestMod = "another";
+        GrugOwnedScreens.noteScreenFrame(screen);
+        assertFalse(GrugOverlay.overlayDrawn(), "another mod's frame says nothing about this test");
+        GrugTestState.currentTestMod = "cov";
+        GrugOwnedScreens.noteScreenFrame(screen);
+        assertTrue(GrugOverlay.overlayDrawn(), "the screen's own mod's frame is the one waited on");
     }
 
     @Test

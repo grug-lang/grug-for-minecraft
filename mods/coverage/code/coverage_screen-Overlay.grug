@@ -27,6 +27,14 @@ row_mode: number = 0
 # every frame clears the responses it rooted.
 kept_row: Option[ListRowResponse] = Option.new()
 
+# The width `screen_render` measured for its title with the game's font, and what the empty text
+# measured, which is 0. A test presses Z before opening so that Escape closes the screen, and the
+# close happens only when both answers are what the font must give, so a text_width that answered
+# nothing leaves the screen open and the test fails.
+title_width: number = -1
+empty_width: number = -1
+close_on_escape: bool = false
+
 # The mode keys are world keys because a screen export cannot be reached from a test directly. H
 # opens the screen, which is only legal while no screen is open, so a test closes between openings.
 # G is also Build Guide's toggle_enable default, so the unanswered test's press proves that a test
@@ -46,6 +54,8 @@ export world_key(ctx: OverlayWorldKeyContext) {
         row_mode = 4
     } else if key == 88 {
         row_mode = 5
+    } else if key == 90 {
+        close_on_escape = true
     } else if key == 72 {
         screen.open()
     }
@@ -67,6 +77,10 @@ export screen_init(ctx: ScreenInitContext) {
 # The use is after that call returned, so it is the err the class's first rule names, and it is
 # reported while this export's own call is still running, with no test call around it.
 export screen_render(ctx: OverlayRenderContext) {
+    # Measured before the title is drawn, which is where a screen centres it. The answers are kept
+    # so the Escape below can refuse to close a screen whose font measurement is not the game's.
+    title_width = ctx.text_width("coverage screen")
+    empty_width = ctx.text_width("")
     ctx.draw_text("coverage screen", 10, ctx.screen_height() - 20, Color.rgb(255, 255, 255))
     if row_mode == 3 and kept_row.has() {
         index: number = kept_row.unwrap().index()
@@ -77,10 +91,15 @@ export screen_render(ctx: OverlayRenderContext) {
 # Escape reaches this export even while the screen's text field has focus, because the game closes
 # the screen with Escape and a mod whose screen close saves its state would otherwise never hear of
 # it. The export takes Escape and leaves the screen open, which is how the test observes that it was
-# asked rather than the game's own close.
+# asked rather than the game's own close. A test that pressed Z first gets the screen closed by this
+# export instead, through Screen.close, which is the close a mod's own screen_key runs.
 export screen_key(ctx: OverlayKeyContext) {
-    if ctx.key() == 256 {
+    key: number = ctx.key()
+    if key == 256 {
         ctx.take()
+        if close_on_escape and title_width > 0 and empty_width == 0 {
+            screen.close()
+        }
     }
 }
 

@@ -321,6 +321,46 @@ class HostFunctionsConfigAndScanTest {
     }
 
     @Test
+    void aTestPressSkipsTheOtherModsScripts() {
+        GrugOverlayScripts.Entities noExports =
+                new GrugOverlayScripts.Entities() {
+                    @Override
+                    public long create(long fileId, List<GrugObject> owner) {
+                        return 0;
+                    }
+
+                    @Override
+                    public void destroy(long entityHandle) {}
+
+                    @Override
+                    public long exportFnId(String entityType, String fnName) {
+                        return Grug.INVALID_GRUG_EXPORT_FN_ID;
+                    }
+                };
+        GrugOverlayScripts.Script mine =
+                new GrugOverlayScripts.Script(
+                        "coverage-Overlay", 0, Collections.emptyList(), "coverage");
+        mine.lookUpExports(noExports);
+        GrugOverlayScripts.Script theirs =
+                new GrugOverlayScripts.Script(
+                        "safesquares-Overlay", 0, Collections.emptyList(), "safesquares");
+        theirs.lookUpExports(noExports);
+        List<GrugOverlayScripts.Script> scripts = new ArrayList<>();
+        scripts.add(mine);
+        scripts.add(theirs);
+
+        // A test's press drives the running test's mod alone, so another mod's overlay is passed
+        // over even when the list holds it (#1873). Neither export reaches a VM here.
+        GrugWorldOverlay.pressForTest(scripts, "coverage", 'G', false);
+        // A press with no mod named reaches every mod, which is what a real press does; the
+        // argument is only null outside a test run, where nothing is being isolated.
+        GrugWorldOverlay.pressForTest(scripts, null, 'G', false);
+
+        assertFalse(GrugWorldOverlay.isOpen(), "the press closed its pass behind itself.");
+        assertTrue(drain().isEmpty());
+    }
+
+    @Test
     void aConfigOfAModThatDeclaresNothingAnswersEmptyValues() {
         GrugTestState.currentTestMod = "absent";
         long context = GrugTestContexts.tick();
