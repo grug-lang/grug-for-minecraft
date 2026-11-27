@@ -5,18 +5,14 @@
 # category's cap, 80 hostile, 17 passive and 6 water on Beta for one player alone (the caps are 79, 16
 # and 5), and 71, 11 and 6 on 1.20.6 (70, 10 and 5). Beta lets a category spawn only while its count is
 # at most its cap and 1.20.6 only while it is below it, so at cap + 1 the spawner adds nothing on
-# either, and the number is exactly that. Every tick from the fill on asserts the counts are still
-# those, so a mob that died, despawned or was removed fails the test instead of reaching the golden.
-# A count that gained one is put back rather than failed: the fill swept only the entities loaded at
-# that moment, so a chunk that finishes loading afterwards brings the mobs it holds, and no sweep
-# could have removed those. The spawner cannot be the cause either, because 1.20.6 spawns a category
-# only while its count is below its cap and Beta only while it is at most its cap, and one over is
-# past both. That is what moved the 1.20.6 dedicated leg's passive count from 11 to 12 five ticks
-# after the fill (#1819). The repair removes that category and fills it again, printing its count
-# and the tick, so a spawner that really does add mobs still leaves a witness in the log. The tick
-# after a repair waits rather than capturing, because the client draws the overlay from its own copy
-# of the level and learns of the repair from the packets the server sends at the end of that tick.
-# A count under the target is never repaired, because that direction can move the golden.
+# either, and the number is exactly that.
+# The fill waits until the world's own counts and caps have held unchanged for 20 ticks. A chunk that
+# finishes loading after the fill brings the mobs its entity storage holds, which no earlier sweep could
+# remove (#1819), and such a load changes a count or the cap of a chunk entering a player's set, so it
+# resets the wait instead. From the fill on, every tick asserts each count is exactly the target and
+# nothing repairs a category: a mob that died, despawned, was removed or arrived after the wait fails
+# the test instead of reaching the golden (#1849). The tick-0 case below pins that rule against the
+# review's example, one death and two arrivals, which is cap + 2 and must fail.
 # The spawned mobs stand behind the camera, which looks along +z from the room's middle, so they
 # are never in the capture: mobs jostling in view put a different picture behind the text in
 # every run. They are removed when the next room is built. Alpha 1.1.2_01 has flat caps of 200 and 15,
@@ -37,9 +33,16 @@ started: bool = false
 filled: bool = false
 pressed: bool = false
 settled_ticks: number = 0
+quiet_ticks: number = 0
 waited: number = 0
 filled_at: number = 0
 captured: bool = false
+last_hostile: number = -1
+last_hostile_cap: number = -1
+last_passive: number = -1
+last_passive_cap: number = -1
+last_water: number = -1
+last_water_cap: number = -1
 hostile_id: string = "PigZombie"
 passive_id: string = "Pig"
 water_id: string = "Squid"
@@ -50,6 +53,12 @@ export tick(ctx: TestTickContext) {
         if not me.world_overlay_supported() {
             return
         }
+        # The hold's rule has no tolerance: the review's example, one death and two arrivals, is
+        # cap + 2 and must fail rather than be repaired (#1849).
+        cap: number = ctx.get_client_level().get_mob_cap("hostile")
+        ctx.assert(not _at_target(cap + 2, cap), "A count above the target must fail, so a death followed by arrivals cannot pass.")
+        ctx.assert(not _at_target(cap - 1, cap), "A count below the target must fail.")
+        ctx.assert(_at_target(cap + 1, cap), "The target count must pass.")
         if me.loader_name() == "a1.1.2_01-ornithe" {
             ctx.set_box_radius(20)
         } else {
@@ -62,18 +71,12 @@ export tick(ctx: TestTickContext) {
     waited = waited + 1
     ctx.assert(waited < 1500, "The mob cap overlay test should finish.")
     if filled {
-        repaired: bool = _check_counts(ctx)
-        # The client draws the overlay from its own copy of the level, which learns of a repair
-        # from the packets the server sends at the end of this tick, so the capture waits one tick
-        # rather than pinning a count the client has not caught up with yet.
-        if repaired {
-            ctx.not_done()
-            return
-        }
+        _check_counts(ctx)
     }
 
     if not ctx.world_settled() {
         settled_ticks = 0
+        quiet_ticks = 0
         ctx.not_done()
         return
     }
@@ -84,6 +87,10 @@ export tick(ctx: TestTickContext) {
     }
 
     if not filled {
+        if not _world_ready(ctx.get_client_level()) {
+            ctx.not_done()
+            return
+        }
         filled = true
         filled_at = waited
         if me.loader_name() == "a1.1.2_01-ornithe" {
@@ -138,6 +145,54 @@ export tick(ctx: TestTickContext) {
     ctx.press_world_key(75, false)
 }
 
+# Whether the world's own counts and caps have held unchanged for 20 ticks. A chunk that finishes
+# loading changes a count when it brings the mobs its entity storage holds, and a chunk entering a
+# player's set changes a cap, so either resets the wait. Once the answer is true no chunk load is still
+# delivering mobs, and the fill's sweep can remove every one of them (#1819).
+local _world_ready(level: Level) bool {
+    hostile: number = level.count_mobs("hostile")
+    passive: number = level.count_mobs("passive")
+    hostile_cap: number = level.get_mob_cap("hostile")
+    passive_cap: number = level.get_mob_cap("passive")
+    water: number = -1
+    water_cap: number = -1
+    if level.has_mob_category("water") {
+        water = level.count_mobs("water")
+        water_cap = level.get_mob_cap("water")
+    }
+    steady: bool = true
+    if hostile != last_hostile {
+        steady = false
+    }
+    if passive != last_passive {
+        steady = false
+    }
+    if water != last_water {
+        steady = false
+    }
+    if hostile_cap != last_hostile_cap {
+        steady = false
+    }
+    if passive_cap != last_passive_cap {
+        steady = false
+    }
+    if water_cap != last_water_cap {
+        steady = false
+    }
+    if steady {
+        quiet_ticks = quiet_ticks + 1
+    } else {
+        quiet_ticks = 0
+        last_hostile = hostile
+        last_passive = passive
+        last_water = water
+        last_hostile_cap = hostile_cap
+        last_passive_cap = passive_cap
+        last_water_cap = water_cap
+    }
+    return quiet_ticks >= 20
+}
+
 # Removes the category's mobs, then spawns them spread over the room until the world holds one more
 # than the cap.
 local _fill(ctx: TestTickContext, id: string, category: string) {
@@ -187,51 +242,34 @@ local _fill(ctx: TestTickContext, id: string, category: string) {
     }
 }
 
-local _check_counts(ctx: TestTickContext) bool {
+# Asserts every category still holds exactly one more than its cap, and prints what it found when a
+# count moved. There is no repair: refilling an over-count could hide a death that arrivals masked,
+# so any change fails the test (#1849).
+local _check_counts(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
-    repaired: bool = false
-    if _repair(ctx, hostile_id, "hostile", "hostile count gained mobs after the fill, count and tick") {
-        repaired = true
-    }
-    if _repair(ctx, passive_id, "passive", "passive count gained mobs after the fill, count and tick") {
-        repaired = true
-    }
-    if level.has_mob_category("water") {
-        if _repair(ctx, water_id, "water", "water count gained mobs after the fill, count and tick") {
-            repaired = true
-        }
-    }
-    # A count that moved says which category, its count and its cap, so a leg's log names the
-    # difference instead of only that one exists (#1040).
-    if level.count_mobs("hostile") != level.get_mob_cap("hostile") + 1 {
+    if not _at_target(level.count_mobs("hostile"), level.get_mob_cap("hostile")) {
         print3("hostile count and cap", level.count_mobs("hostile"), level.get_mob_cap("hostile"))
     }
-    if level.count_mobs("passive") != level.get_mob_cap("passive") + 1 {
+    if not _at_target(level.count_mobs("passive"), level.get_mob_cap("passive")) {
         print3("passive count and cap", level.count_mobs("passive"), level.get_mob_cap("passive"))
         print3("passive count and tick of the first difference", level.count_mobs("passive"), waited)
     }
-    ctx.assert(level.count_mobs("hostile") == level.get_mob_cap("hostile") + 1, "The hostile count should stay one over its cap.")
-    ctx.assert(level.count_mobs("passive") == level.get_mob_cap("passive") + 1, "The passive count should stay one over its cap.")
     if level.has_mob_category("water") {
-        ctx.assert(level.count_mobs("water") == level.get_mob_cap("water") + 1, "The water count should stay one over its cap.")
+        if not _at_target(level.count_mobs("water"), level.get_mob_cap("water")) {
+            print3("water count and cap", level.count_mobs("water"), level.get_mob_cap("water"))
+        }
     }
-    return repaired
+    ctx.assert(_at_target(level.count_mobs("hostile"), level.get_mob_cap("hostile")), "The hostile count should stay one over its cap.")
+    ctx.assert(_at_target(level.count_mobs("passive"), level.get_mob_cap("passive")), "The passive count should stay one over its cap.")
+    if level.has_mob_category("water") {
+        ctx.assert(_at_target(level.count_mobs("water"), level.get_mob_cap("water")), "The water count should stay one over its cap.")
+    }
 }
 
-# Puts a category the world added a mob to back to one over its cap, and prints what it found. The
-# fill swept the entities loaded at that moment only, so a chunk that finishes loading after it
-# brings the mobs it holds, which the sweep could not have removed; the category is therefore
-# removed and filled again. A count under the target is left alone, so the asserts above still fail
-# on a mob that died, despawned or was removed (#1819). The answer says a repair happened.
-local _repair(ctx: TestTickContext, id: string, category: string, label: string) bool {
-    level: Level = ctx.get_client_level()
-    found: number = level.count_mobs(category)
-    if found > level.get_mob_cap(category) + 1 {
-        print3(label, found, waited)
-        _fill(ctx, id, category)
-        return true
-    }
-    return false
+# The one count the golden holds: one more than the cap. The tick-0 case above checks the rule on the
+# counts a death and two arrivals, or a death alone, would leave, so no tolerance creeps back in.
+local _at_target(found: number, cap: number) bool {
+    return found == cap + 1
 }
 
 # Clears the terrain that the room build leaves between the test area (16 blocks from the player) and

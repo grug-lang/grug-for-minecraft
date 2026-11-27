@@ -196,13 +196,19 @@ static union grug_value fail(const char* fmt, ...) {
     return none();
 }
 
-// The three coordinates of a call, floored. A host function receives a double, and casting one that
-// is not finite or does not fit a long is undefined, so a call with such a coordinate fails by name.
+// Java's (int) cast of a double, defined with the other converts below.
+static int32_t java_int(double d);
+
+// The three coordinates of a call, floored and narrowed as the Java host narrows a position:
+// (int) Math.floor(x), which saturates at the int ends instead of refusing a finite coordinate. A
+// finite coordinate past 2^31 therefore reads the same block in both hosts (#1849). A non-finite one
+// is still refused by name rather than floored to 0, so a test that passes NaN fails loudly; that
+// refusal already differed from Level.get_block and is not the range this pins.
 static bool pos_arg(const union grug_value a[], long out[3], const char* who) {
     for (int i = 0; i < 3; i++) {
         double d = a[1 + i]._number;
-        if (!isfinite(d) || fabs(d) > 1e15) { fail("%s: a coordinate is not a finite number within 1e15", who); return false; }
-        out[i] = (long)floor(d);
+        if (!isfinite(d)) { fail("%s: a coordinate is not a finite number", who); return false; }
+        out[i] = java_int(floor(d));
     }
     return true;
 }
@@ -292,6 +298,10 @@ static int toy_block_light(long x, long y, long z) {
         int emission = toy_emission(world[i].name);
         if (!emission) continue;
         long d = labs(world[i].x - x) + labs(world[i].y - y) + labs(world[i].z - z);
+        // The distance is 64-bit and can be past the emission radius by more than an int holds:
+        // narrowing it first wraps a far emitter to a small or negative distance and gives it light
+        // (#1849). Only a distance inside the radius is narrowed, and that one fits.
+        if (d >= emission) continue;
         int light = emission - (int)d;
         if (light > best) best = light;
     }

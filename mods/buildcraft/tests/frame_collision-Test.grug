@@ -1,9 +1,13 @@
 # Covers the frame block's collision list (#1773): the reference's entity collision is one union box
 # around the centre and every connected arm, never one box per arm. BlockFrame.c overrides
 # getCollisionBoundingBoxFromPool with that union (BlockFrame.java:42-81), and the base class's
-# getCollidingBoundingBoxes adds c()'s box, so the per-arm bounds BlockFrame.a sets at :89-122 are
-# never read as boxes. BlockFrame.d (:84) returns c() for the selection box, so picking is that same
-# union. An L of two frames therefore collides in the corner between its two arms, the corner on the
+# getCollidingBoundingBoxes is 1.2.5's pb.a(xd,int,int,int,wu,ArrayList), whose bytecode asks c() and
+# adds only the box it answers (javap -c pb.class on the 1.2.5 jar). BlockFrame.a's per-arm
+# `this.a(...)`/`super.a(...)` pairs (:89-122) each re-ask c() through that call, so every pair adds
+# the same union box and the per-arm bounds are never read. A reader who takes those pairs for a
+# per-arm list expects the corner between two arms to be empty, which is the reading #1849 filed; the
+# corner below is where the union and a per-arm list differ. BlockFrame.d (:84) returns c() for the
+# selection box, so picking is that same union. An L of two frames therefore collides in the corner between its two arms, the corner on the
 # far side of both arms is empty, and a single arm collides across its own cross-section.
 # The reference side places BuildCraft's own frameBlock, so the reference job checks the same answers
 # against the real BlockFrame; the port places grug:frame.
