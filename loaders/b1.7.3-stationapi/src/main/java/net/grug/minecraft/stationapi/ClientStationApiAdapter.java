@@ -49,13 +49,10 @@ public class ClientStationApiAdapter extends StationApiAdapter {
 
     @Override
     public void hideOwnedScreen(GrugOwnedScreen screen) {
-        Minecraft minecraft = game();
-        // Only the screen this loader made for this mod screen is taken away: another screen the
-        // player opened over it is theirs to keep. This version shows the world again where
-        // another version shows an empty screen.
-        if (minecraft.currentScreen instanceof GrugOwnedScreenHost host && host.model() == screen) {
-            minecraft.setScreen(null);
-        }
+        // The host decides whether it is still the screen the game shows: only the screen this
+        // loader made for this mod screen is taken away, because another screen the player opened
+        // over it is theirs to keep.
+        GrugOwnedScreenHost.hideIfShowing(screen);
     }
 
     @SuppressWarnings("deprecation")

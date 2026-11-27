@@ -1,5 +1,6 @@
 package net.grug.minecraft.stationapi.client;
 
+import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.grug.GrugListMath;
 import net.grug.minecraft.grug.GrugOverlay;
@@ -144,6 +145,18 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
     /** The model this screen shows, which is what {@code hideOwnedScreen} compares against. */
     public GrugOwnedScreen model() {
         return screen;
+    }
+
+    /**
+     * Takes the game's screen away when it is this model's host, which is what a screen close asks
+     * for. A screen the player opened over the host is theirs to keep, so it stays: this loader
+     * shows the world again where another version shows an empty screen.
+     */
+    public static void hideIfShowing(GrugOwnedScreen model) {
+        Minecraft minecraft = (Minecraft) FabricLoader.getInstance().getGameInstance();
+        if (minecraft.currentScreen instanceof GrugOwnedScreenHost host && host.model() == model) {
+            minecraft.setScreen(null);
+        }
     }
 
     @Override
