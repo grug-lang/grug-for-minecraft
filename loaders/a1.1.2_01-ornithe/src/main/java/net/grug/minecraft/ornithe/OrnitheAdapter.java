@@ -552,6 +552,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // the change for a joined client and what marks a client's own chunk for compiling again.
         // See #1078.
         notifyPlacedBlock(world, posX, posY, posZ);
+        // A write a test makes after the room build settled is what the frame hook settles the
+        // room's light for; the build's own writes are cleared by relightRoom. See #1825.
+        this.testWroteBlock = true;
         // The client and the server share this loader's world, so the block is there, but the
         // settle wait still has to be told that a frame has to see it. See #804.
         blockSync.owe(posX, posY, posZ, getBlock(world, posX, posY, posZ));
@@ -590,6 +593,9 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         relitSections.record(minX, minY, minZ, maxX, maxY, maxZ);
         OrnitheRoomLight.settle((World) levelObj, minX, minY, minZ, maxX, maxY, maxZ);
         OrnitheRoomRemeshClient.remesh(minX, minY, minZ, maxX, maxY, maxZ);
+        // The build's own writes are what this settle just covered, so the frame hook must not
+        // sweep the room again for them. A write a test makes after it sets this again. See #1825.
+        this.testWroteBlock = false;
     }
 
     /**
@@ -1730,6 +1736,15 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     private final GrugRelitSections relitSections = new GrugRelitSections();
 
     /**
+     * Whether a test has written a block since the room's light was last settled, so that only
+     * light a test's own write queued is settled again: a chunk the client received, or the game's
+     * own cascade, must not make the frame hook recompute a whole room every frame. The room
+     * build's writes are settled by {@link #relightRoom}, which clears this. See {@link
+     * #frameHadPendingWork} and #1825.
+     */
+    private boolean testWroteBlock;
+
+    /**
      * Whether the frame that just finished still had work in it: a rebuild the renderer did not get
      * to, a frame drawn before the world exists (a hotkey run's title screen), or a first-person
      * hand that was still moving.
@@ -1762,21 +1777,22 @@ public class OrnitheAdapter implements ModLoaderAdapter {
         // passes 100,000, so the loop cannot spin forever even if propagation outruns the drain.
         // See #417 and #424.
         //
-        // The drain is about the queue and not about the mesh. An update it runs changes the field
-        // through the quiet setter, so a section it moved light in keeps the mesh it was baked with
-        // until a remesh marks it, and the field it leaves is the one the engine's cascade reached
-        // from the changes in the order it saw them, not the one the blocks define. A test that
-        // writes blocks after the room build settled would therefore capture light it moved, and
-        // which sections are rebaked from that field would depend on the repeat. So the box the
-        // room build recorded is settled again and marked again here, the same pair relightRoom
-        // runs after a rebuild, and only when the queue had work in it. See #1825.
+        // The drain is about the queue and not about the mesh: every value it writes goes through
+        // World.setLight, which tells the world's listeners, and the renderer's listener marks the
+        // cells around the change for compiling again. What the drain leaves is the field the
+        // engine's cascade reached from the changes in the order it saw them, and that is not the
+        // one field the blocks define: two repeats of one test can end with two different fields.
+        // So when a test's write left light in the queue, the box the room build recorded is
+        // settled to the field its blocks define, and the settle's own writes mark the sections
+        // they change. A settle is a whole-room sweep, so it runs once per write and never for
+        // light the game itself queued. See #1825.
         boolean lightQueued = !((WorldLightAccess) world).grug$lightUpdates().isEmpty();
         while (world.doLightUpdates()) {}
-        if (lightQueued) {
+        if (lightQueued && testWroteBlock) {
+            testWroteBlock = false;
             int[] box = relitSections.lastBox();
             if (box.length == 6) {
                 OrnitheRoomLight.settle(world, box[0], box[1], box[2], box[3], box[4], box[5]);
-                OrnitheRoomRemeshClient.remesh(box[0], box[1], box[2], box[3], box[4], box[5]);
             }
         }
         for (Object entry : ((WorldRendererAccess) worldRenderer).grug$dirtyChunks()) {

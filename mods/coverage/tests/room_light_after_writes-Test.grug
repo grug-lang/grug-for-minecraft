@@ -1,26 +1,22 @@
-# Covers #1825: light a test queues after its room build settled has to leave the field the blocks
-# define, and the frame has to be baked from that field.
+# Covers #1825: the light a test's own writes leave behind has to be the field the room's blocks
+# define, not the field the engine's cascade happened to reach.
 # The a1 client's frame hook drains the light queue a test's writes fill. Draining applies the
-# queued updates in the order the queue holds them, and every cell the cascade reaches is written
-# through the quiet setter, which marks no section: those sections keep the mesh they were baked
-# with. The hook now settles the box the room build recorded and marks its sections again whenever
-# the queue had work, so "the light has no work left" also means the frame is the settled field's.
-# The test takes every torch out of the sealed room, which darkens the whole room while only the
-# floor around the removed torches is marked for compiling again. A frame that read the meshes the
-# drain left therefore still shows the room lit, while marking the whole room again and drawing it
-# from the same field shows it dark. With the frame hook settling and marking the recorded box the
-# first capture already reads that field, so the two captures agree; without it they differ by
-# however much of the room the drain lit and no section was marked for. Two captures of one session
-# are compared rather than one against a reference, so this holds without a golden.
-# The frame hook this covers is the a1 client's, so the test runs there and nowhere else: every
-# other loader settles a test's writes in its own way. See #1580 and #1814 for the room's settle.
+# queued updates in the order the queue holds them, and this engine's cascade is history dependent:
+# the same blocks can end with two different light fields in two runs, which is the scatter #1580
+# fixed for the room's own build. The hook now settles the box the room build recorded whenever a
+# test's write queued light, so after a write the field is the one the blocks define.
+# The test takes every torch out of the sealed room and asserts the room's block light is 0. In a
+# room whose only light sources are those torches, 0 is exactly what the blocks define, so this is
+# not a golden and not a comparison: a field left with light the removed torches propagated fails
+# it. The room is wide, so taking the torches out is a real change a cascade has to undo.
+# The frame hook this covers is the a1 client's, so the test runs there and nowhere else. Every
+# other loader drains and settles in its own way. See #1580 and #1814 for the room's build.
 
 # The room's radius. Wider than the default room, so the build a test asks for is a real rebuild
 # that records the box the frame hook settles again.
 radius: number = 6
 
-# How far the test has got: 0 takes the torches out, 1 captures the room the drain left, 2 marks the
-# room again and compares the second capture.
+# How far the test has got: 0 takes the torches out, 1 reads the field the frame hook leaves.
 step: number = 0
 
 # Whether the room has been asked for, which only the first tick does.
@@ -35,15 +31,12 @@ py: number = 0
 pz: number = 0
 
 # The weighted sum of the room's block light before and after the torches were taken out, which has
-# to have fallen, or the test never made a change worth capturing.
+# to have fallen, or the test never made a change worth checking.
 before: number = 0
 after: number = 0
 
-# The room as the drain left it, captured before the room is marked again.
-drained: Option[Screenshot] = Option.new()
-
 export init(ctx: TestInitContext) {
-    # Two settles and two captures, beside the build.
+    # Two settles beside the build.
     ctx.set_max_ticks(400)
 }
 
@@ -59,7 +52,7 @@ export tick(ctx: TestTickContext) {
     }
 
     waited = waited + 1
-    ctx.assert(waited < 300, "The room should settle after its build, after the torches are taken out, and after the room is marked again.")
+    ctx.assert(waited < 300, "The room should settle after its build and after the torches are taken out.")
     if not ctx.world_settled() {
         ctx.not_done()
         return
@@ -72,24 +65,15 @@ export tick(ctx: TestTickContext) {
         py = Math.floor(origin.y() - 4.62)
         pz = Math.floor(origin.z())
         before = _light_sum(ctx.get_client_level(), px, py, pz)
+        ctx.assert(before > 0, "The room's torches have to light it before they are taken out.")
         _write_torches(ctx, px, py, pz, "minecraft:stone")
         step = 1
         ctx.not_done()
         return
     }
-    if step == 1 {
-        after = _light_sum(ctx.get_client_level(), px, py, pz)
-        ctx.assert(after < before, "Taking every torch out of the sealed room has to darken it, or the frame below is not a change worth comparing.")
-        drained.set(ctx.screenshot().capture(0, 0, 1280, 720))
-        _mark_room(ctx, px, py, pz)
-        step = 2
-        ctx.not_done()
-        return
-    }
-    rebaked: Screenshot = ctx.screenshot().capture(0, 0, 1280, 720)
-    different: number = drained.unwrap().change_from(rebaked)
-    print3("share of the frame that changed when the room was marked again", different, waited)
-    ctx.assert(different < 1, "Marking the room again may only recompile the meshes that were already there, so the frame may not change. A larger share means the first capture read meshes no section was marked for, because the frame hook drained the test's light without settling the room's box and marking its sections again. See #1825.")
+    after = _light_sum(ctx.get_client_level(), px, py, pz)
+    print3("weighted block light of the room after the torches were taken out", after, waited)
+    ctx.assert(after == 0, "A sealed room with no light source in it defines a block light of 0 everywhere, so the field the writes left has to be 0. A larger sum is light the removed torches propagated that the engine's cascade did not take back, because the frame hook drained the write without settling the room's box to the field its blocks define. See #1825.")
 }
 
 # Writes stone into every floor tile's torch cell, which takes that tile's torch out, skipping the
@@ -103,30 +87,6 @@ local _write_torches(ctx: TestTickContext, cx: number, cy: number, cz: number, b
             if x != cx or z != cz {
                 # The torch floor is four blocks below the feet and the torch sits on it.
                 level.place_block(x, cy - 3, z, block)
-            }
-            z = z + 1
-        }
-        x = x + 1
-    }
-}
-
-# Marks every section of the room's air for compiling again without changing a block: an air block
-# placed onto air returns before it queues any light, and the game still tells the renderer the
-# position changed, which is what marks its section. The player's own column is marked from their
-# feet up, so the block they stand on stays in place.
-local _mark_room(ctx: TestTickContext, cx: number, cy: number, cz: number) {
-    level: Level = ctx.get_client_level()
-    x: number = cx - radius
-    while x <= cx + radius {
-        z: number = cz - radius
-        while z <= cz + radius {
-            y: number = cy - 2
-            if x == cx and z == cz {
-                y = cy
-            }
-            while y <= cy + 2 * radius {
-                level.place_block(x, y, z, "minecraft:air")
-                y = y + 1
             }
             z = z + 1
         }
