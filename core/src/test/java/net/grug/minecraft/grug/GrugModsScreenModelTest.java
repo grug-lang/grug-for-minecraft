@@ -448,9 +448,9 @@ class GrugModsScreenModelTest {
         GrugIdShortage.clear();
         try {
             GrugModsScreenModel fine = model(3);
-            assertFalse(fine.shortOfIds());
-            assertTrue(fine.idLines().isEmpty());
-            assertTrue(fine.idsFit());
+            assertFalse(fine.shortOfResources());
+            assertTrue(fine.kindLines().isEmpty());
+            assertTrue(fine.resourcesFit());
 
             GrugIdPool blocks = GrugIdPool.of("block", id -> false, 125, 129);
             blocks.take();
@@ -460,39 +460,63 @@ class GrugModsScreenModelTest {
 
             // The screen is opened after the loader found the ids short, which is when it sorts.
             GrugModsScreenModel model = model(3);
-            assertTrue(model.shortOfIds());
+            assertTrue(model.shortOfResources());
             assertEquals(
                     List.of("c: ON (5 blocks)", "a: ON (3 blocks, 1 item)", "b: OFF (2 items)"),
                     model.labels());
             assertEquals(
                     List.of(
-                            "Block ids: 4 short (8 needed, 4 free). Turn off mods to free them.",
-                            "Item ids: 1 short (3 needed, 2 free). Turn off mods to free them."),
-                    model.idLines());
-            assertFalse(model.idsFit());
+                            "Blocks: 4 short (8 needed, 4 free). Turn off mods to free them.",
+                            "Items: 1 short (3 needed, 2 free). Turn off mods to free them."),
+                    model.kindLines());
+            assertFalse(model.resourcesFit());
 
             model.click(0); // c, the one that needs the most, frees 5 blocks: 4 are short
             assertEquals(
                     List.of(
-                            "Block ids: enough once the game restarts.",
-                            "Item ids: 1 short (3 needed, 2 free). Turn off mods to free them."),
-                    model.idLines());
-            assertFalse(model.idsFit());
+                            "Blocks: enough once the game restarts.",
+                            "Items: 1 short (3 needed, 2 free). Turn off mods to free them."),
+                    model.kindLines());
+            assertFalse(model.resourcesFit());
 
             assertEquals("c: OFF (5 blocks)", model.labels().get(0)); // the order did not move
             model.click(1); // a frees 1 item
-            assertTrue(model.idsFit());
+            assertTrue(model.resourcesFit());
 
             // b was off when the screen opened and is in no count, so turning it on is refused,
             // while c, which was on, can be turned back on.
             model.click(2);
             assertEquals("b: OFF (2 items)", model.labels().get(2));
             assertEquals(
-                    "The game is short of ids, so b stays off. Turn off a mod first.",
+                    "The game is short of ids or sprites, so b stays off. Turn off a mod first.",
                     model.error());
             model.click(0);
             assertEquals("c: ON (5 blocks)", model.labels().get(0));
             assertNull(model.error());
+        } finally {
+            GrugIdShortage.clear();
+        }
+    }
+
+    @Test
+    void aGameShortOfSpritesShowsWhatEachModNeeds() throws IOException {
+        GrugIdShortage.clear();
+        try {
+            assertFalse(
+                    GrugSpriteSlots.Allocator.items(160)
+                            .hasRoomFor(97, "item sprite", needs("a", 96, "b", 1)));
+
+            GrugModsScreenModel model = model(3);
+            assertTrue(model.shortOfResources());
+            assertEquals(
+                    List.of("a: ON (96 item sprites)", "b: OFF (1 item sprite)", "c: ON"),
+                    model.labels());
+            assertEquals(
+                    List.of(
+                            "Item sprites: 1 short (97 needed, 96 free)."
+                                    + " Turn off mods to free them."),
+                    model.kindLines());
+            assertFalse(model.resourcesFit());
         } finally {
             GrugIdShortage.clear();
         }

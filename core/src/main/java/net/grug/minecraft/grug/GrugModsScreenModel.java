@@ -41,11 +41,11 @@ public final class GrugModsScreenModel {
 
     /**
      * Takes the manager's list, and remembers what each mod it has not listed before was. The mod
-     * that needs the most ids of the first kind that is short comes first, then the most of the
-     * next kind, then by name, so a player short of ids sees the mods worth turning off at the top,
-     * and the order does not move as they are turned off. The kinds are never added together: ids
-     * of one kind do not stand in for another, so a mod of one block and a hundred items does not
-     * outrank a mod of two blocks when blocks are what is short.
+     * that needs the most of the first kind that is short comes first, then the most of the next
+     * kind, then by name, so a player short of a resource sees the mods worth turning off at the
+     * top, and the order does not move as they are turned off. The kinds are never added together:
+     * ids of one kind do not stand in for another, so a mod of one block and a hundred items does
+     * not outrank a mod of two blocks when blocks are what is short.
      */
     private void refresh() {
         entries = new ArrayList<>(manager.list());
@@ -133,12 +133,12 @@ public final class GrugModsScreenModel {
 
     /**
      * The label of the button of a mod on this page: its name and whether it is on, then what it
-     * costs: the ids it needs while the game is short of them, or the download it would be.
+     * costs: what it needs of each kind that is short, or the download it would be.
      */
     public List<String> labels() {
         List<String> labels = new ArrayList<>();
         for (GrugModManager.Entry entry : pageEntries()) {
-            String cost = idNeeds(entry.name());
+            String cost = kindNeeds(entry.name());
             if (needsDownload(entry)) cost = "download, " + formatSize(entry.downloadSize());
             labels.add(
                     entry.name()
@@ -149,8 +149,8 @@ public final class GrugModsScreenModel {
         return labels;
     }
 
-    /** What a mod needs of the kinds of ids that are short, like "32 blocks, 1 item". */
-    private static String idNeeds(String mod) {
+    /** What a mod needs of the kinds that are short, like "32 blocks, 1 item". */
+    private static String kindNeeds(String mod) {
         StringBuilder needs = new StringBuilder();
         for (GrugIdShortage shortage : GrugIdShortage.all()) {
             int count = shortage.needs(mod);
@@ -161,16 +161,19 @@ public final class GrugModsScreenModel {
         return needs.toString();
     }
 
-    /** Whether the game ran short of ids, which makes this screen the way past the title screen. */
-    public boolean shortOfIds() {
+    /**
+     * Whether the game ran short of a resource, which makes this screen the way past the title
+     * screen.
+     */
+    public boolean shortOfResources() {
         return !GrugIdShortage.all().isEmpty();
     }
 
     /**
-     * What the screen says about the ids, a line for each kind that is short: how far short it is,
-     * or that turning off what the player has will be enough once the game restarts.
+     * What the screen says about the kinds that are short, a line for each: how far short it is, or
+     * that turning off what the player has will be enough once the game restarts.
      */
-    public List<String> idLines() {
+    public List<String> kindLines() {
         List<String> lines = new ArrayList<>();
         for (GrugIdShortage shortage : GrugIdShortage.all()) {
             int stillMissing = shortage.missing() - freed(shortage);
@@ -178,9 +181,9 @@ public final class GrugModsScreenModel {
                     Character.toUpperCase(shortage.kind().charAt(0)) + shortage.kind().substring(1);
             lines.add(
                     stillMissing <= 0
-                            ? kind + " ids: enough once the game restarts."
+                            ? kind + "s: enough once the game restarts."
                             : kind
-                                    + " ids: "
+                                    + "s: "
                                     + stillMissing
                                     + " short ("
                                     + shortage.needed()
@@ -191,15 +194,15 @@ public final class GrugModsScreenModel {
         return lines;
     }
 
-    /** Whether turning off what the player has makes every kind of id fit. */
-    public boolean idsFit() {
+    /** Whether turning off what the player has makes every kind that is short fit. */
+    public boolean resourcesFit() {
         for (GrugIdShortage shortage : GrugIdShortage.all()) {
             if (shortage.missing() - freed(shortage) > 0) return false;
         }
         return true;
     }
 
-    /** The ids of the kind that the mods turned off since the screen opened would give back. */
+    /** What the mods turned off since the screen opened would give back of the kind. */
     private int freed(GrugIdShortage shortage) {
         int freed = 0;
         for (GrugModManager.Entry entry : entries) {
@@ -296,10 +299,10 @@ public final class GrugModsScreenModel {
         if (blocked()) return; // a popup or a download blocks the rest
         GrugModManager.Entry entry = pageEntries().get(row);
         // A mod that was off when the screen opened is in no shortage count, so turning it on would
-        // spend ids the screen has promised to be free.
-        if (shortOfIds() && !entry.on() && !Boolean.TRUE.equals(atOpen.get(entry.name()))) {
+        // spend slots the screen has promised to be free.
+        if (shortOfResources() && !entry.on() && !Boolean.TRUE.equals(atOpen.get(entry.name()))) {
             error =
-                    "The game is short of ids, so "
+                    "The game is short of ids or sprites, so "
                             + entry.name()
                             + " stays off. Turn off a mod first.";
             return;

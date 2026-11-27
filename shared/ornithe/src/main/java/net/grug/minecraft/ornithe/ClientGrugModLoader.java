@@ -59,9 +59,9 @@ public class ClientGrugModLoader implements ClientModInitializer {
 
         MinecraftClientEvents.READY.register(
                 minecraft -> {
-                    // A game short of ids registered none of what did not fit, so the recipes that
-                    // give it would each fail, and the player cannot craft before turning mods off
-                    // (#510).
+                    // A game short of ids or sprites registered none of what did not fit, so the
+                    // recipes that give it would each fail, and the player cannot craft before
+                    // turning mods off (#510).
                     if (!GrugIdShortage.all().isEmpty()) return;
                     GrugModLoader.LOGGER.info("Parsing JSON recipes...");
                     GrugRecipeHelper.registerAutoDiscoveredRecipes(

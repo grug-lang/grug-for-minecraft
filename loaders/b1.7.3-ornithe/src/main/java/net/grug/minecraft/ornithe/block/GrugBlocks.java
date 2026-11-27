@@ -60,12 +60,22 @@ public final class GrugBlocks {
         GrugIdPool blockIds =
                 GrugIdPool.of(
                         "block", id -> Block.BY_ID[id] != null, START_BLOCK_ID, LAST_BLOCK_ID);
+        // Every block's faces are resolved before a slot is handed out, so the sprite shortage is
+        // known before the first block is registered rather than halfway through (#1858).
+        Map<String, String[]> blockFaces = new HashMap<>();
+        for (String cleanName : GrugModLoader.blockFiles.keySet()) {
+            blockFaces.put(cleanName, GrugBlockModels.resolveFaceTextures(cleanName));
+        }
+        Map<String, String> blockSpriteNeeds =
+                GrugSpriteSlots.blockSpriteNeeds(GrugModLoader.blockMods, blockFaces);
+        boolean blockIdsFit = blockIds.hasRoomFor(GrugModLoader.blockMods);
+        boolean blockSpritesFit =
+                BLOCK_SPRITE_SLOTS.hasRoomFor(
+                        blockSpriteNeeds.size(), "block sprite", blockSpriteNeeds);
         // Blocks that do not fit are not registered at all: the mod manager's screen takes over at
         // the title screen so the player can turn mods off (#510).
         Map<String, Long> blockFiles =
-                blockIds.hasRoomFor(GrugModLoader.blockMods)
-                        ? GrugModLoader.blockFiles
-                        : Collections.emptyMap();
+                blockIdsFit && blockSpritesFit ? GrugModLoader.blockFiles : Collections.emptyMap();
         for (Map.Entry<String, Long> entry : blockFiles.entrySet()) {
             String cleanName = entry.getKey();
             long blockFileId = entry.getValue();
@@ -88,7 +98,7 @@ public final class GrugBlocks {
             }
 
             // Texture Registration
-            String[] faceTextures = GrugBlockModels.resolveFaceTextures(cleanName);
+            String[] faceTextures = blockFaces.get(cleanName);
             if (faceTextures != null) {
                 int[] faceSprites = new int[faceTextures.length];
                 for (int face = 0; face < faceTextures.length; face++) {
@@ -114,10 +124,14 @@ public final class GrugBlocks {
         GrugIdPool itemIds =
                 GrugIdPool.of(
                         "item", id -> Item.BY_ID[id] != null, START_ITEM_ID, Item.BY_ID.length - 1);
+        // An item takes a sprite of its own, so the need is one per item and the items grid is
+        // bounded like the block grid (#1858).
+        boolean itemIdsFit = itemIds.hasRoomFor(GrugModLoader.itemMods);
+        boolean itemSpritesFit =
+                ITEM_SPRITE_SLOTS.hasRoomFor(
+                        GrugModLoader.itemFiles.size(), "item sprite", GrugModLoader.itemMods);
         Map<String, Long> itemFiles =
-                itemIds.hasRoomFor(GrugModLoader.itemMods)
-                        ? GrugModLoader.itemFiles
-                        : Collections.emptyMap();
+                itemIdsFit && itemSpritesFit ? GrugModLoader.itemFiles : Collections.emptyMap();
         for (Map.Entry<String, Long> entry : itemFiles.entrySet()) {
             String cleanName = entry.getKey();
             long itemFileId = entry.getValue();
