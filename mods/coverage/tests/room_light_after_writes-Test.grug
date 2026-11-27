@@ -1,16 +1,17 @@
-# Covers #1825: the light a test's own writes leave behind has to be the field the room's blocks
-# define, not the field the engine's cascade happened to reach.
+# Covers the a1 frame hook's settle path for #1825: light a test's own write queued has to be
+# settled to the box the room build recorded before the frame that the capture reads is compiled.
 # The a1 client's frame hook drains the light queue a test's writes fill. Draining applies the
-# queued updates in the order the queue holds them, and this engine's cascade is history dependent:
-# the same blocks can end with two different light fields in two runs, which is the scatter #1580
-# fixed for the room's own build. The hook now settles the box the room build recorded whenever a
-# test's write queued light, so after a write the field is the one the blocks define.
-# The test takes every torch out of the sealed room and asserts the room's block light is 0. In a
-# room whose only light sources are those torches, 0 is exactly what the blocks define, so this is
-# not a golden and not a comparison: a field left with light the removed torches propagated fails
-# it. The room is wide, so taking the torches out is a real change a cascade has to undo.
-# The frame hook this covers is the a1 client's, so the test runs there and nowhere else. Every
-# other loader drains and settles in its own way. See #1580 and #1814 for the room's build.
+# queued updates in the order the queue holds them, and this engine's cascade is history dependent,
+# so the same blocks can end with two different fields, which is the scatter #1580 fixed for the
+# room's own build. The hook now settles the recorded box whenever a test's write queued light.
+# The test takes every torch out of the sealed room and asserts the room's block light is 0. A
+# room whose only light sources were those torches defines 0 everywhere, so the assertion is about
+# the field the port must end with and not a golden or a comparison.
+# This is not the regression test for the capture difference: on this engine the drain's own
+# cascade already takes every level back in this room, so it reads 0 with and without the settle.
+# It exists to cover the settle path under the coverage gate, and the regression evidence is the
+# repeated capture dispatch the pull request names. The hook is the a1 client's, so the test runs
+# there and nowhere else. See #1580 and #1814 for the room's build.
 
 # The room's radius. Wider than the default room, so the build a test asks for is a real rebuild
 # that records the box the frame hook settles again.
@@ -73,7 +74,7 @@ export tick(ctx: TestTickContext) {
     }
     after = _light_sum(ctx.get_client_level(), px, py, pz)
     print3("weighted block light of the room after the torches were taken out", after, waited)
-    ctx.assert(after == 0, "A sealed room with no light source in it defines a block light of 0 everywhere, so the field the writes left has to be 0. A larger sum is light the removed torches propagated that the engine's cascade did not take back, because the frame hook drained the write without settling the room's box to the field its blocks define. See #1825.")
+    ctx.assert(after == 0, "A sealed room with no light source in it defines a block light of 0 everywhere, so the field the writes left has to be 0. A larger sum is light the removed torches propagated that the frame hook's settle did not take back. See #1825.")
 }
 
 # Writes stone into every floor tile's torch cell, which takes that tile's torch out, skipping the
