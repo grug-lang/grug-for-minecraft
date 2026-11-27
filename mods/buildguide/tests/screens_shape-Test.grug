@@ -138,23 +138,41 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
-        # Add is at (5, 90), 160 wide and 20 high, so (85, 100) is inside it. It appends a set at the
-        # state's new-set shape and selects it, which is what makes this test independent of the
-        # sets an earlier test left behind.
-        ctx.click_screen(85, 100, 0)
+        # The state remembers the shape the new-set dropdown last chose, and the state is one file
+        # per world, so a test that ran before this one can leave it on another shape. The
+        # dropdown's V is at (145, 70), and row 1 of its list is the circle this test drives below.
+        ctx.click_screen(155, 80, 0)
         step = 8
         ctx.not_done()
         return
     }
 
     if step == 8 {
-        ctx.press_screen_key(256, false, false, true)
+        # A dropdown list starts at (5, 90) and has 20-pixel rows, so row 1 is clicked at y 120.
+        ctx.click_screen(85, 120, 0)
         step = 9
         ctx.not_done()
         return
     }
 
     if step == 9 {
+        # The pick put the parent's Add back at (5, 90), 160 wide and 20 high, so (85, 100) is
+        # inside it. It appends the circle and selects it, which is what makes the rest of the test
+        # independent of the sets an earlier test left behind.
+        ctx.click_screen(85, 100, 0)
+        step = 10
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the screen after Add.")
@@ -166,13 +184,13 @@ export tick(ctx: TestTickContext) {
         ctx.assert(_current_index(state) >= 0, "Add should leave the appended set current.")
         ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "The appended set should hold the new-set circle at its defaults.")
         start_origin_x = _origin_x(state)
-        step = 10
+        step = 13
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
-    if step == 10 {
+    if step == 13 {
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "The binding should reopen the screen after Add.")
@@ -186,12 +204,12 @@ export tick(ctx: TestTickContext) {
         waited = 0
         # The Shape tab is the first chrome button, at x 5 to 125 and y 30 to 50.
         ctx.click_screen(65, 40, 0)
-        step = 11
+        step = 14
         ctx.not_done()
         return
     }
 
-    if step == 11 {
+    if step == 14 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Shape tab should draw a frame.")
@@ -201,60 +219,60 @@ export tick(ctx: TestTickContext) {
         waited = 0
         # Direction is row 0, and its right arrow is at (370, 70), 20 by 20: X becomes Y.
         ctx.click_screen(380, 80, 0)
-        step = 12
-        ctx.not_done()
-        return
-    }
-
-    if step == 12 {
-        # Radius is row 1, and its "+" is at (370, 90), 20 by 20: 3.0 becomes 4.0.
-        ctx.click_screen(380, 100, 0)
-        step = 13
-        ctx.not_done()
-        return
-    }
-
-    if step == 13 {
-        # Even mode is row 3, and its checkbox is at (320, 130), 20 by 20: false becomes true.
-        ctx.click_screen(330, 140, 0)
-        step = 14
-        ctx.not_done()
-        return
-    }
-
-    if step == 14 {
-        # The origin X row's "+" is at (145, 135), 20 by 20.
-        ctx.click_screen(155, 145, 0)
         step = 15
         ctx.not_done()
         return
     }
 
     if step == 15 {
-        # The origin X field is at (45, 135), 70 wide. A click near its right edge puts the caret
-        # after the text the shift wrote, so typing a zero appends to it.
-        ctx.click_screen(110, 145, 0)
+        # Radius is row 1, and its "+" is at (370, 90), 20 by 20: 3.0 becomes 4.0.
+        ctx.click_screen(380, 100, 0)
         step = 16
         ctx.not_done()
         return
     }
 
     if step == 16 {
-        ctx.press_screen_key(48, false, false, true)
+        # Even mode is row 3, and its checkbox is at (320, 130), 20 by 20: false becomes true.
+        ctx.click_screen(330, 140, 0)
         step = 17
         ctx.not_done()
         return
     }
 
     if step == 17 {
-        # The X row's Set button is at (115, 135), 30 wide, and writes the parsed field's value.
-        ctx.click_screen(130, 145, 0)
+        # The origin X row's "+" is at (145, 135), 20 by 20.
+        ctx.click_screen(155, 145, 0)
         step = 18
         ctx.not_done()
         return
     }
 
     if step == 18 {
+        # The origin X field is at (45, 135), 70 wide. A click near its right edge puts the caret
+        # after the text the shift wrote, so typing a zero appends to it.
+        ctx.click_screen(110, 145, 0)
+        step = 19
+        ctx.not_done()
+        return
+    }
+
+    if step == 19 {
+        ctx.press_screen_key(48, false, false, true)
+        step = 20
+        ctx.not_done()
+        return
+    }
+
+    if step == 20 {
+        # The X row's Set button is at (115, 135), 30 wide, and writes the parsed field's value.
+        ctx.click_screen(130, 145, 0)
+        step = 21
+        ctx.not_done()
+        return
+    }
+
+    if step == 21 {
         # The Set press moved the focus off the text field, so this Escape reaches the screen; a
         # press that the field keeps is tried again rather than failing the test on it.
         if ctx.screen_open() {
@@ -269,20 +287,20 @@ export tick(ctx: TestTickContext) {
         ctx.assert(_shape_values(state, "ShapeCircle") == "Y,4.0,1,true", "The panel should write the enum, the float step and the checkbox it was driven with.")
         ctx.assert(_origin_x(state) == (start_origin_x + 1) * 10, "The origin row's + should shift the set and its Set should take the typed field.")
         # The huge radius runs while persistence is still on, so the closings it does write the
-        # state it reads; the restore to the run's own persistence comes after it, at step 45.
-        step = 29
+        # state it reads; the restore to the run's own persistence comes after it, at step 48.
+        step = 32
         ctx.not_done()
         return
     }
 
-    if step == 29 {
-        step = 30
+    if step == 32 {
+        step = 33
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
-    if step == 30 {
+    if step == 33 {
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "The binding should reopen the screen for the huge radius.")
@@ -295,12 +313,12 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.click_screen(65, 40, 0)
-        step = 31
+        step = 34
         ctx.not_done()
         return
     }
 
-    if step == 31 {
+    if step == 34 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Shape tab should draw for the huge radius.")
@@ -310,86 +328,86 @@ export tick(ctx: TestTickContext) {
         waited = 0
         # Radius is row 1; its field is at (290, 90), 50 wide and 20 high.
         ctx.click_screen(315, 100, 0)
-        step = 32
-        ctx.not_done()
-        return
-    }
-
-    if step == 32 {
-        # Home puts the caret before the field's "4.0", and three Deletes remove it so the typed
-        # value is the whole text, as a player clearing the field would write it.
-        ctx.press_screen_key(268, false, false, true)
-        step = 33
-        ctx.not_done()
-        return
-    }
-
-    if step == 33 {
-        ctx.press_screen_key(261, false, false, true)
-        step = 34
-        ctx.not_done()
-        return
-    }
-
-    if step == 34 {
-        ctx.press_screen_key(261, false, false, true)
         step = 35
         ctx.not_done()
         return
     }
 
     if step == 35 {
-        ctx.press_screen_key(261, false, false, true)
+        # Home puts the caret before the field's "4.0", and three Deletes remove it so the typed
+        # value is the whole text, as a player clearing the field would write it.
+        ctx.press_screen_key(268, false, false, true)
         step = 36
         ctx.not_done()
         return
     }
 
     if step == 36 {
-        ctx.press_screen_key(49, false, false, true)
+        ctx.press_screen_key(261, false, false, true)
         step = 37
         ctx.not_done()
         return
     }
 
     if step == 37 {
-        ctx.press_screen_key(69, false, false, true)
+        ctx.press_screen_key(261, false, false, true)
         step = 38
         ctx.not_done()
         return
     }
 
     if step == 38 {
-        ctx.press_screen_key(50, false, false, true)
+        ctx.press_screen_key(261, false, false, true)
         step = 39
         ctx.not_done()
         return
     }
 
     if step == 39 {
-        ctx.press_screen_key(48, false, false, true)
+        ctx.press_screen_key(49, false, false, true)
         step = 40
         ctx.not_done()
         return
     }
 
     if step == 40 {
-        # The radius row's Set button is at (340, 90), 30 wide and 20 high.
-        ctx.click_screen(355, 100, 0)
+        ctx.press_screen_key(69, false, false, true)
         step = 41
         ctx.not_done()
         return
     }
 
     if step == 41 {
-        ctx.press_screen_key(256, false, false, true)
+        ctx.press_screen_key(50, false, false, true)
         step = 42
         ctx.not_done()
         return
     }
 
     if step == 42 {
-        # A press the field keeps is tried again rather than failing the test on it, as step 18 does.
+        ctx.press_screen_key(48, false, false, true)
+        step = 43
+        ctx.not_done()
+        return
+    }
+
+    if step == 43 {
+        # The radius row's Set button is at (340, 90), 30 wide and 20 high.
+        ctx.click_screen(355, 100, 0)
+        step = 44
+        ctx.not_done()
+        return
+    }
+
+    if step == 44 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 45
+        ctx.not_done()
+        return
+    }
+
+    if step == 45 {
+        # A press the field keeps is tried again rather than failing the test on it, as step 21 does.
         if ctx.screen_open() {
             presses = presses + 1
             ctx.assert(presses < 8, "Escape should close the Shape screen after the huge radius.")
@@ -400,16 +418,16 @@ export tick(ctx: TestTickContext) {
         presses = 0
         state: string = _saved_state(ctx)
         ctx.assert(_shape_values(state, "ShapeCircle") == "Y,1.0E20,1,true", "The Radius field should take 1e20 and the set should keep it.")
-        step = 43
+        step = 46
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
-    if step == 43 {
+    if step == 46 {
         # Opening the screen clears the drawn mark, and this screen's world frame counts every set's
         # cells, so a cell loop that cannot step past 1e20 stalls the frame that would set the mark
-        # and this test never gets past it. Reaching step 44 is the proof that a frame with the
+        # and this test never gets past it. Reaching step 47 is the proof that a frame with the
         # huge radius ran.
         if not ctx.screen_open() {
             waited = waited + 1
@@ -425,12 +443,12 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.press_screen_key(256, false, false, true)
-        step = 44
+        step = 47
         ctx.not_done()
         return
     }
 
-    if step == 44 {
+    if step == 47 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the screen after the huge frame.")
@@ -441,20 +459,20 @@ export tick(ctx: TestTickContext) {
         if was_persistent {
             return
         }
-        step = 45
+        step = 48
         ctx.not_done()
         return
     }
 
-    if step == 45 {
+    if step == 48 {
         # The run found persistence off, so the Configuration tab's box is ticked back off.
-        step = 46
+        step = 49
         ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
-    if step == 46 {
+    if step == 49 {
         if not ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "The binding should reopen the screen to put persistence back.")
@@ -472,12 +490,12 @@ export tick(ctx: TestTickContext) {
             tab_x = width - 10
         }
         ctx.click_screen(tab_x, 40, 0)
-        step = 47
+        step = 50
         ctx.not_done()
         return
     }
 
-    if step == 47 {
+    if step == 50 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
@@ -486,23 +504,23 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.click_screen(262, 168, 0)
-        step = 48
+        step = 51
         ctx.not_done()
         return
     }
 
-    if step == 48 {
+    if step == 51 {
         files: File = File.open(r"files")
         config: Option[string] = files.read_text("config/buildguide.cfg")
         ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
         ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
         ctx.press_screen_key(256, false, false, true)
-        step = 49
+        step = 52
         ctx.not_done()
         return
     }
 
-    if step == 49 {
+    if step == 52 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the Configuration screen.")
