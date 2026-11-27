@@ -176,7 +176,11 @@ public final class GrugOwnedScreenHost extends Screen {
                 } else {
                     mirror.setWidth((int) Math.round(widget.width()));
                     mirror.setHeight((int) Math.round(widget.height()));
-                    syncMessage(widget, mirror);
+                    // A list's own message is its name, not the mod's text: only a button has a
+                    // label to copy here.
+                    if (widget.kind() == GrugWidgetKind.BUTTON) {
+                        syncMessage(widget, mirror);
+                    }
                 }
             }
         } finally {
