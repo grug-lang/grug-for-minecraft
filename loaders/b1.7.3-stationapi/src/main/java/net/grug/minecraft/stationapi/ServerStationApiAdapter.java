@@ -296,18 +296,18 @@ public class ServerStationApiAdapter extends StationApiAdapter {
     }
 
     /**
-     * Builds the room around the height the run holds the player at, not wherever the player's box
+     * Anchors the room around the height the run holds the player at, not wherever the player's box
      * is this tick: a box a hair under a whole number put the stand block a block too low, and the
      * hold kept the player on it, so every later capture was drawn one block lower than a
      * client-only run's (#1068, #1629). Logs the feet the room is anchored at.
+     *
+     * <p>This is the server's half of the one room build in {@link StationApiAdapter#buildTestBox},
+     * so it cannot skip that build's settle reset and clock move (#1847).
      */
     @Override
-    public void buildTestBox(int radius) {
-        // The run holds the starter's height before its runner exists, and the runner is what
-        // builds a room, so there is always a player here.
-        PlayerEntity player = Objects.requireNonNull((PlayerEntity) testPlayer());
+    protected double buildFeet(PlayerEntity player) {
         double held = GrugServerRun.heldFeetY();
-        double anchor = GrugPlayerFloor.buildAnchor(player.boundingBox.minY, held);
+        double anchor = GrugServerRun.buildAnchor(player.boundingBox.minY);
         System.out.println(
                 "[GRUG CI] buildTestBox on the server: feet "
                         + player.boundingBox.minY
@@ -315,7 +315,7 @@ public class ServerStationApiAdapter extends StationApiAdapter {
                         + held
                         + " anchor "
                         + anchor);
-        super.buildTestBoxAt(radius, anchor);
+        return anchor;
     }
 
     /**

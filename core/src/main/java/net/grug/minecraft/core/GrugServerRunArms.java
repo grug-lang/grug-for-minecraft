@@ -35,15 +35,6 @@ public final class GrugServerRunArms {
         }
     }
 
-    /**
-     * The feet height a run holds its player at after the player was moved to {@code feetY}: that
-     * height rounded to a millionth, or {@code held} unchanged while no run has started to hold one
-     * (0).
-     */
-    public static double movedHeld(double held, double feetY) {
-        return held != 0 ? roundedHeight(feetY) : held;
-    }
-
     /** {@code feetY} rounded to a millionth, which sheds a float eye height's last bits. */
     public static double roundedHeight(double feetY) {
         return Math.rint(feetY * 1e6) / 1e6;
@@ -53,16 +44,21 @@ public final class GrugServerRunArms {
      * Holds {@code player} at the height the run keeps them at when they are a tolerance under it,
      * else on the floor when they are below it, else leaves them be. The floor is handed to the
      * on-floor arm, which put the player there, so that arm reads the world once rather than twice.
+     *
+     * <p>{@code holdsHeight} is separate from {@code held} because 0 is a height a run can hold: a
+     * test that moved the player to feet 0 would otherwise read as a run holding none, and the
+     * height arm would never run again (#1847).
      */
     public static <P> void hold(
             P player,
+            boolean holdsHeight,
             double held,
             double feet,
             double tolerance,
             double floor,
             Consumer<P> atHeight,
             ObjDoubleConsumer<P> onFloor) {
-        if (held != 0 && feet < held - tolerance) {
+        if (holdsHeight && feet < held - tolerance) {
             atHeight.accept(player);
         } else if (GrugPlayerFloor.below(feet, floor)) {
             onFloor.accept(player, floor);

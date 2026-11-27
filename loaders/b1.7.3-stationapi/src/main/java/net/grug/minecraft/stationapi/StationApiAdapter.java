@@ -538,11 +538,12 @@ public class StationApiAdapter implements ModLoaderAdapter {
         // renderer, so any settle answer from before it describes frames this test must not
         // capture. See GrugRenderSettle.reset.
         renderSettle.reset();
-        PlayerEntity player = (PlayerEntity) testPlayer();
-        if (player == null) return;
         // Beta lights what it draws with the sky light less the darkness the world's clock gives,
         // so a capture taken at night is a different frame from the golden's. A test that starts at
         // night has the clock moved on to the next noon, the way the a1 server's room build does.
+        // A dedicated server used to build through a method of its own that skipped both, so a room
+        // could be built under night lighting (#1847), which is why the server supplies only the
+        // feet below rather than a build of its own.
         net.minecraft.world.World clockWorld = (net.minecraft.world.World) getLevel();
         if (clockWorld != null && clockWorld.ambientDarkness != 0) {
             clockWorld.setTime(
@@ -552,19 +553,23 @@ public class StationApiAdapter implements ModLoaderAdapter {
             // under this version's name, which also tells the renderer the light changed.
             clockWorld.updateSkyBrightness();
         }
+        PlayerEntity player = (PlayerEntity) testPlayer();
+        if (player == null) return;
         // y is the eye reference in this version, so the feet come from the collision box. The room
         // is anchored to the feet: built around the eye, the block the player stands on lands
         // inside
         // their legs, they fall through it, and every test drops them a little further.
-        buildTestBoxAt(radius, player.boundingBox.minY);
-    }
-
-    /** Builds the room around the player's column with the feet at {@code feetY}. */
-    @GrugGenerated("no player: the run has no tests to build a room for until someone has joined")
-    protected void buildTestBoxAt(int radius, double feetY) {
-        PlayerEntity player = (PlayerEntity) testPlayer();
+        double feetY = buildFeet(player);
         System.out.println("[GRUG CI] buildTestBox anchored at feet " + feetY);
         GrugTestBox.build(this, getLevel(), player.x, feetY, player.z, radius, false);
+    }
+
+    /**
+     * The feet a room is built around. The client's are the bottom of the player's box; a dedicated
+     * server anchors them to the height the run holds the player at (#1068, #1629).
+     */
+    protected double buildFeet(PlayerEntity player) {
+        return player.boundingBox.minY;
     }
 
     @Override

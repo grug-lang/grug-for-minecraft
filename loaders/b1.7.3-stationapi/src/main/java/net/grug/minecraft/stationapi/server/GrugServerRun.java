@@ -46,17 +46,23 @@ public final class GrugServerRun {
     private static GrugTestRunner runner;
 
     /**
-     * The feet height the run holds the test player at, 0 before the run has started: where they
+     * The feet height the run holds the test player at, and whether it holds one yet: where they
      * stood when it began, rounded to a millionth to shed the float eye height's last bits. A room
      * built while the feet were a hair under a whole number put its stand block a block too low and
      * the hold then kept the player on it, so every later capture was drawn one block lower than a
-     * client-only run's (#1068, #1629).
+     * client-only run's (#1068, #1629). Whether a height is held is its own flag, so a held 0 is a
+     * real height (#1847).
      */
-    private static double heldFeetY = 0;
+    private static final GrugHeldFeet HELD = new GrugHeldFeet();
 
-    /** The held feet height, 0 before the run has started. */
+    /** The held feet height, 0 before the run holds one; a held 0 is a real height. */
     public static double heldFeetY() {
-        return heldFeetY;
+        return HELD.feetY();
+    }
+
+    /** The feet a room is built around: the held height, or {@code feetY} before one is held. */
+    public static double buildAnchor(double feetY) {
+        return HELD.buildAnchor(feetY);
     }
 
     private static long waitStartMillis;
@@ -291,8 +297,9 @@ public final class GrugServerRun {
                                 + (System.currentTimeMillis() - waitStartMillis)
                                 + " ms. Firing tests!");
                 PlayerEntity starter = (PlayerEntity) GrugCore.getAdapter().testPlayer();
-                heldFeetY = GrugServerRunArms.roundedHeight(starter.boundingBox.minY);
-                System.out.println("[GRUG CI] the run holds the test player at feet " + heldFeetY);
+                HELD.hold(starter.boundingBox.minY);
+                System.out.println(
+                        "[GRUG CI] the run holds the test player at feet " + HELD.feetY());
                 runner = new GrugTestRunner();
             } else {
                 failJoinTimeoutIfDue();
@@ -383,6 +390,9 @@ public final class GrugServerRun {
     }
 
     private static void snapServerPlayer(ServerPlayerEntity serverPlayer) {
+        // The height the run holds is saved with the player, so a test that moves the player and
+        // changes the held height leaves nothing behind for the next test's room build (#1847).
+        HELD.saveForTest();
         SNAP.save(
                 serverPlayer,
                 serverPlayer.x,
@@ -413,6 +423,9 @@ public final class GrugServerRun {
                 () ->
                         GrugLinkArms.applyTo(
                                 player, ServerPlayerEntity.class, GrugServerRun::restoreSnap));
+        // A save with no player to put back, such as one whose owner left, still puts the held
+        // height back, so the next test's room is built around the height this test inherited.
+        HELD.restoreAfterTest();
     }
 
     private static void restoreSnap(ServerPlayerEntity serverPlayer) {
@@ -433,7 +446,7 @@ public final class GrugServerRun {
                     serverPlayer.networkHandler.teleport(
                             x, feetY, z, serverPlayer.yaw, serverPlayer.pitch);
                     serverPlayer.velocityY = 0.0;
-                    heldFeetY = GrugServerRunArms.movedHeld(heldFeetY, feetY);
+                    HELD.moveTo(feetY);
                 });
     }
 
@@ -464,7 +477,8 @@ public final class GrugServerRun {
         double feet = player.boundingBox.minY;
         GrugServerRunArms.hold(
                 player,
-                heldFeetY,
+                HELD.isHeld(),
+                HELD.feetY(),
                 feet,
                 HELD_TOLERANCE,
                 floorUnder(world, player),
@@ -487,7 +501,7 @@ public final class GrugServerRun {
                     + " the run holds them at, which a test cannot make happen (#1629)")
     private static void holdAtHeight(PlayerEntity player) {
         ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
-        double feetY = heldFeetY;
+        double feetY = HELD.feetY();
         serverPlayer.networkHandler.teleport(
                 serverPlayer.x, feetY, serverPlayer.z, serverPlayer.yaw, serverPlayer.pitch);
         serverPlayer.velocityY = 0.0;
