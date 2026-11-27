@@ -406,6 +406,9 @@ public class GrugClientHooks implements ITickHandler {
      * game tick, the cadence the other four loaders use.
      */
     private void gameTick(Minecraft minecraft) {
+        // A mod screen the game took away reports itself before this tick's work, so a
+        // screen_closed that opens another screen runs on a client that finished replacing it.
+        GrugOwnedScreenHost.flushRemoved();
         net.grug.minecraft.forge125.Grug125Adapter.holdPlayerForTest(minecraft.thePlayer);
         GrugControl125Client.onClientTick(minecraft, this);
         GrugOverlayHost.pollWorldKeys(minecraft);

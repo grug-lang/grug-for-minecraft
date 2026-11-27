@@ -30,10 +30,11 @@ import java.util.zip.ZipOutputStream;
  * frame.
  *
  * <p>1.2.5's game classes are loaded by launchwrapper's parent loader and cannot see the mod's
- * child loader, so the injected code cannot call the loader directly. The loader instead puts two
- * handlers into static fields added to {@code GuiScreen}; the game calls them from its own input
- * loop and from {@code Minecraft.displayGuiScreen}. The field type is a JDK functional interface,
- * which both class loaders can see.
+ * child loader, so the injected code cannot call the loader directly. The loader instead puts its
+ * handlers into static fields added to {@code GuiScreen} and {@code Minecraft}; the game calls them
+ * from its own input loop, from {@code Minecraft.displayGuiScreen} and from {@code
+ * Minecraft.changeWorld}. The field type is a JDK functional interface, which both class loaders
+ * can see.
  *
  * <p>{@code GuiScreen.handleInput} asks the mouse handler after {@code Mouse.next()} has selected
  * an event and before {@code handleMouseInput} runs. A true answer skips the screen's handler for
@@ -57,6 +58,7 @@ public final class PatchGuiInput {
     private static final String MOUSE_HOOK = "grugMouseHook";
     private static final String KEY_HOOK = "grugKeyHook";
     private static final String OPEN_HOOK = "grugScreenOpenHook";
+    private static final String WORLD_HOOK = "grugWorldChangeHook";
 
     private static final String PREDICATE = "Ljava/util/function/Predicate;";
     private static final String CONSUMER = "Ljava/util/function/Consumer;";
@@ -175,6 +177,13 @@ public final class PatchGuiInput {
         ClassNode node = new ClassNode();
         new ClassReader(original).accept(node, ClassReader.SKIP_FRAMES);
 
+        // A handler for the world going away, for the same class-loader reason as GuiScreen's:
+        // Minecraft is loaded by launchwrapper's parent loader and cannot see the mod's classes.
+        node.fields.add(
+                new FieldNode(
+                        Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, WORLD_HOOK, CONSUMER, null, null));
+        node.methods.add(worldHelper());
+
         MethodNode display = findMethod(node, "displayGuiScreen", "(L" + GUI_SCREEN + ";)V");
         AbstractInsnNode assignment = null;
         for (AbstractInsnNode instruction = display.instructions.getFirst();
@@ -204,6 +213,44 @@ public final class PatchGuiInput {
                         "(L" + GUI_SCREEN + ";)V",
                         false));
         display.instructions.insert(assignment, opened);
+
+        // A mod screen's screen_closed runs before the world it draws over is torn down, so the
+        // mod can still read and save what its screen changed. changeWorld is the path every world
+        // change goes through: changeWorld1 and changeWorld2 forward to it. Only the hook that
+        // carries null ends the screen, because a dimension change hands the client another world
+        // and keeps the screen open. The hook runs first, while theWorld is still the one being
+        // left, so the mod's exports see the world they drew over.
+        MethodNode changeWorld =
+                findMethod(
+                        node,
+                        "changeWorld",
+                        "(Lnet/minecraft/src/World;Ljava/lang/String;Lnet/minecraft/src/EntityPlayer;)V");
+        InsnList changing = new InsnList();
+        changing.add(new VarInsnNode(Opcodes.ALOAD, 1));
+        changing.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        MINECRAFT,
+                        "grugWorldChanging",
+                        "(Ljava/lang/Object;)V",
+                        false));
+        changeWorld.instructions.insert(changing);
+
+        // exitToMainMenu nulls theWorld before it calls changeWorld, so the hook above would run
+        // with the world already gone. It is asked first, while the world being left is still the
+        // one a screen_closed reads, and the changeWorld call after it is then a no-op for a
+        // screen that already ended.
+        MethodNode exitToMainMenu = findMethod(node, "exitToMainMenu", "(Ljava/lang/String;)V");
+        InsnList leaving = new InsnList();
+        leaving.add(new InsnNode(Opcodes.ACONST_NULL));
+        leaving.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKESTATIC,
+                        MINECRAFT,
+                        "grugWorldChanging",
+                        "(Ljava/lang/Object;)V",
+                        false));
+        exitToMainMenu.instructions.insert(leaving);
 
         return write(node);
     }
@@ -267,6 +314,32 @@ public final class PatchGuiInput {
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, GUI_SCREEN, OPEN_HOOK, CONSUMER));
         code.add(new JumpInsnNode(Opcodes.IFNULL, none));
         code.add(new FieldInsnNode(Opcodes.GETSTATIC, GUI_SCREEN, OPEN_HOOK, CONSUMER));
+        code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+        code.add(
+                new MethodInsnNode(
+                        Opcodes.INVOKEINTERFACE,
+                        "java/util/function/Consumer",
+                        "accept",
+                        "(Ljava/lang/Object;)V",
+                        true));
+        code.add(none);
+        code.add(new InsnNode(Opcodes.RETURN));
+        return method;
+    }
+
+    private static MethodNode worldHelper() {
+        MethodNode method =
+                new MethodNode(
+                        Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+                        "grugWorldChanging",
+                        "(Ljava/lang/Object;)V",
+                        null,
+                        null);
+        LabelNode none = new LabelNode();
+        InsnList code = method.instructions;
+        code.add(new FieldInsnNode(Opcodes.GETSTATIC, MINECRAFT, WORLD_HOOK, CONSUMER));
+        code.add(new JumpInsnNode(Opcodes.IFNULL, none));
+        code.add(new FieldInsnNode(Opcodes.GETSTATIC, MINECRAFT, WORLD_HOOK, CONSUMER));
         code.add(new VarInsnNode(Opcodes.ALOAD, 0));
         code.add(
                 new MethodInsnNode(
