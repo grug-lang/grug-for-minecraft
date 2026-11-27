@@ -1055,6 +1055,28 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void aNewOpenTimeForgetsTheRowDefectThePreviousOneReported() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] list = new GrugWidget[1];
+        recorder.onInit =
+                () -> {
+                    list[0] = screen.declareList("list", 0, 0, 100, 30, 10).widget;
+                    list[0].applyRows(1);
+                };
+        init(screen, 320, 240);
+        GrugTestState.testRunActive = true;
+        GrugOwnedScreens.prepareFrame(screen);
+        assertFalse(GrugListRowResponse.lastDefect().isEmpty(), "the unanswered row is a defect");
+
+        // A screen has one open time at a time, so reopening it starts a new one. The defect
+        // belonged to the rows the last one asked, and a test that watches this open time must not
+        // read the previous one's.
+        assertNull(GrugOwnedScreens.open(loader.adapter(), screen));
+        assertEquals(
+                "", GrugListRowResponse.lastDefect(), "a new open time starts with no row defect");
+    }
+
+    @Test
     void aResizeDropsTheWidgetsTheNewInitDidNotDeclare() {
         GrugOwnedScreen screen = openScreen();
         recorder.onInit =

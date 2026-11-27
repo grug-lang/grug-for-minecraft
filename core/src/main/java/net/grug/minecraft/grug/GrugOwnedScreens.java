@@ -238,6 +238,10 @@ public final class GrugOwnedScreens {
         }
         screen.setOpen(true);
         openScreen = screen;
+        // A row defect belongs to the open time whose frame asked the row: a test that reads
+        // list_row_error after opening a screen would otherwise see the previous screen's defect,
+        // which may belong to another mod's export (#1760).
+        GrugListRowResponse.clearLastDefect();
         adapter.showOwnedScreen(screen);
         return null;
     }

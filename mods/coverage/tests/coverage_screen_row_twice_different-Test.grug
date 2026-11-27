@@ -122,6 +122,7 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
+        print2("row defect: ", reported)
         ctx.assert(String.index_of(reported, "already been answered") >= 0, "Answering a row twice should report that it was already answered.")
         ctx.assert(twice.unwrap().change_from(normal.unwrap()) < 1, "The row should still show the first answer, because a second one is refused.")
         ctx.close_screen()
