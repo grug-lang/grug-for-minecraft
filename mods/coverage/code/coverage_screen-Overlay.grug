@@ -28,9 +28,10 @@ row_mode: number = 0
 kept_row: Option[ListRowResponse] = Option.new()
 
 # The width `screen_render` measured for its title with the game's font, and what the empty text
-# measured, which is 0. A test presses Z before opening so that Escape closes the screen, and the
-# close happens only when both answers are what the font must give, so a text_width that answered
-# nothing leaves the screen open and the test fails.
+# measured, which is 0. A test presses Z on the open screen to arm the close, and Escape then closes
+# it only when both answers are what the font must give, so a text_width that answered nothing
+# leaves the screen open and the test fails. Arming is per open time: `screen_init` clears it, so a
+# test that runs after this one never inherits a screen that closes itself.
 title_width: number = -1
 empty_width: number = -1
 close_on_escape: bool = false
@@ -54,14 +55,15 @@ export world_key(ctx: OverlayWorldKeyContext) {
         row_mode = 4
     } else if key == 88 {
         row_mode = 5
-    } else if key == 90 {
-        close_on_escape = true
     } else if key == 72 {
         screen.open()
     }
 }
 
 export screen_init(ctx: ScreenInitContext) {
+    # Every open time starts unarmed, so only the test that presses Z on this screen gets a close
+    # from its own key.
+    close_on_escape = false
     width: number = ctx.screen_width()
     button.set(screen.add_button("press", "Press", 10, 10, 70, 20))
     checkbox.set(screen.add_checkbox("tick", "Tick", false, 10, 40, 70, 20))
@@ -91,13 +93,19 @@ export screen_render(ctx: OverlayRenderContext) {
 # Escape reaches this export even while the screen's text field has focus, because the game closes
 # the screen with Escape and a mod whose screen close saves its state would otherwise never hear of
 # it. The export takes Escape and leaves the screen open, which is how the test observes that it was
-# asked rather than the game's own close. A test that pressed Z first gets the screen closed by this
-# export instead, through Screen.close, which is the close a mod's own screen_key runs.
+# asked rather than the game's own close. A screen that pressed Z first arms its close, and Escape
+# then closes it through Screen.close, which is the close a mod's own screen_key runs.
 export screen_key(ctx: OverlayKeyContext) {
     key: number = ctx.key()
+    if key == 90 {
+        ctx.take()
+        close_on_escape = true
+        return
+    }
     if key == 256 {
         ctx.take()
         if close_on_escape and title_width > 0 and empty_width == 0 {
+            close_on_escape = false
             screen.close()
         }
     }
