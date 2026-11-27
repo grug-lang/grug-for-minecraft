@@ -152,6 +152,11 @@
 					"what": "The Shape list tab's visible checkbox shows the current set's own flag when the tab opens, where the reference hardcodes it ticked and only corrects it when a row is selected, so a set saved invisible reads as visible until the player touches the list.",
 					"why": "A checkbox the port declares is given the value the state holds, because the screen is laid out from the state on every open; reproducing the stale box would need the port to declare a value it knows to be wrong and to correct it only from a selection callback, and the state it would then show is one the player has no way to believe.",
 					"tracking_issue": 1752
+				},
+				{
+					"what": "The Shape and Shape list dropdowns are a list drawn inside their parent screen, not the reference's DropdownOverlayScreen shown over it: the V hides itself, the X and the fifteen rows take its place, and the parent's own widgets and texts step aside while the list is up. The reference's quirk that leaving the dropdown by a tab and returning to that tab leaves the V missing is not reproduced, because every open declares the screen's button again.",
+					"why": "The host's Screen holds one screen at a time, and opening another closes the one that is open (#1760's gap 2), so a screen over its parent has no entry; a list inside the parent needs no new API and keeps the state the parent was opened with.",
+					"tracking_issue": 1752
 				}
 			]
 		}

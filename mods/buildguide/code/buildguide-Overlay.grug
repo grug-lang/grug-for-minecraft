@@ -1,11 +1,11 @@
 # Build Guide 0.4.9's behaviour for 1.20.6-forge, the loader the reference itself ships: the fifteen
 # shape generators, the per-world state file, the three config options, the world drawing of every
-# visible set with its origin cube, and the five screens with their widgets (#1752).
+# visible set with its origin cube, and the four screens with their widgets (#1752).
 # The reference is one client-side shape projector: a set is an origin, a shape class with its own
 # properties, a colour for the shape and one for the origin, and two cube sizes. There is no build
 # capture, no schematic and no server side, and the only persisted data is the set list and the
 # config, so nothing here reads or writes a world.
-# A screen is one of the reference's five, opened by its B key or a tab button and laid out again on
+# A screen is one of the reference's four, opened by its B key or a tab button and laid out again on
 # every open and resize, and its close saves the whole state when persistence is on. Its graphics
 # captures are the last stage (#1752), and so is the reference job's comparison.
 # Everything lives in this file because a grug local function is visible only inside the file that
@@ -54,26 +54,25 @@ pending_global_origin: number = 0
 # loadPersistence and read by every loop that would otherwise carry on after it.
 load_failed: bool = false
 
-# The five screens: the reference's BaseScreen and its four tabs, and the dropdown that the Shape and
-# Shape list tabs open over themselves. A screen is created at member scope, opened with `open`, and
-# asked to declare its widgets in `screen_init` on every open and after every resize; the host asks
-# the `screen_*` exports only while one of them is open.
+# The reference's BaseScreen and its four tabs. A screen is created at member scope, opened with
+# `open`, and asked to declare its widgets in `screen_init` on every open and after every resize;
+# the host asks the `screen_*` exports only while one of them is open.
 shape_screen: Screen = Screen.new()
 visualisation_screen: Screen = Screen.new()
 shapelist_screen: Screen = Screen.new()
 configuration_screen: Screen = Screen.new()
-dropdown_screen: Screen = Screen.new()
 
-# State.currentScreen: the tab a screen shows and the B key opens. The dropdown is not a tab, so it
-# keeps its parent's name in `tab_screen` and remembers its parent in `dropdown_parent` while open.
-# `active_screen` is the screen that is open, and empty while none is, which is what tells the world
-# frame whether to count the shapes a screen will show.
+# State.currentScreen: the tab a screen shows and the B key opens. `active_screen` is the screen
+# that is open, and empty while none is, which is what tells the world frame whether to count the
+# shapes a screen will show. `dropdown_open` is the Shape or Shape list dropdown, which the host's
+# API cannot show over its parent, so it is a list inside the parent that hides the parent's own
+# widgets while it is up; every later open of a screen starts with it closed.
 tab_screen: string = "shape"
 active_screen: string = ""
-dropdown_parent: string = "shape"
+dropdown_open: bool = false
 
 # The chrome's six widgets, which every screen declares for itself in _chrome_init. Only the open
-# screen's widgets exist, so one handle per widget serves all five screens.
+# screen's widgets exist, so one handle per widget serves all four screens.
 w_enabled: Option[Widget] = Option.new()
 w_close: Option[Widget] = Option.new()
 w_tab_shape: Option[Widget] = Option.new()
@@ -131,6 +130,16 @@ s_z_field: Option[Widget] = Option.new()
 s_z_set: Option[Widget] = Option.new()
 s_z_inc: Option[Widget] = Option.new()
 s_list: Option[Widget] = Option.new()
+
+# The two dropdowns: ShapeScreen's V button, its X and its list of the fifteen shape names, and
+# ShapelistScreen's own three, which choose the new set's shape instead. Each screen declares its
+# own names, so one handle per role holds whichever screen is open.
+q_open: Option[Widget] = Option.new()
+q_close: Option[Widget] = Option.new()
+q_list: Option[Widget] = Option.new()
+n_open: Option[Widget] = Option.new()
+n_close: Option[Widget] = Option.new()
+n_list: Option[Widget] = Option.new()
 
 # ShapeScreen's thirteen origin widgets: Set origin and one row of a decrease button, an origin text
 # field, a Set button and an increase button per axis, at the reference's own positions.
@@ -304,9 +313,10 @@ export world_binding(ctx: OverlayWorldBindingContext) {
     }
 }
 
-# The five screens of #1752's second stage. Every one of them starts with BaseScreen's chrome and
+# The four screens of #1752's second stage. Every one of them starts with BaseScreen's chrome and
 # State.initCheck, which the reference runs from the screen's own constructor as well as from the
-# toggle key, and the dropdown is the second screen over its parent rather than a widget inside it.
+# toggle key. The Shape and Shape list dropdowns are lists inside their screens, because the host's
+# Screen holds one screen at a time (#1760's gap 2).
 
 export screen_init(ctx: ScreenInitContext) {
     width: number = ctx.screen_width()
@@ -325,11 +335,7 @@ export screen_init(ctx: ScreenInitContext) {
         _shapelist_init(width, ctx.screen_height())
         return
     }
-    if active_screen == "dropdown" {
-        _chrome_init(dropdown_screen, width, dropdown_parent, _state_enabled())
-        return
-    }
-    _shape_init(width)
+    _shape_init(width, ctx.screen_height())
 }
 
 export screen_render(ctx: OverlayRenderContext) {
@@ -398,6 +404,16 @@ export screen_widget_changed(ctx: ScreenWidgetContext) {
 # text follows the state without the port touching the list after a change.
 
 export screen_list_row(ctx: ListRowResponse) {
+    if dropdown_open {
+        if active_screen == "shape" {
+            _dropdown_row(ctx, q_list.unwrap())
+            return
+        }
+        if active_screen == "shapelist" {
+            _dropdown_row(ctx, n_list.unwrap())
+        }
+        return
+    }
     if active_screen == "shapelist" {
         _shapelist_row(ctx)
     }
@@ -3039,7 +3055,8 @@ local _chrome_changed(widget: Widget) bool {
 }
 
 # BaseScreen.onScreenClosed, reached by the close button, Escape, and a tab press that opens a screen
-# over this one. The dropdown's close button returns to its parent screen instead of leaving the tab.
+# over this one. The Shape and Shape list dropdowns are part of their own screen, so closing one
+# closes the screen and not a tab.
 
 local _close_active() {
     if active_screen == "visualisation" {
@@ -3057,13 +3074,6 @@ local _close_active() {
         configuration_screen.close()
         return
     }
-    if active_screen == "dropdown" {
-        parent: string = dropdown_parent
-        active_screen = ""
-        dropdown_screen.close()
-        _open_tab(parent)
-        return
-    }
     active_screen = ""
     shape_screen.close()
 }
@@ -3075,6 +3085,7 @@ local _close_active() {
 local _open_tab(name: string) {
     tab_screen = name
     active_screen = name
+    dropdown_open = false
     if name == "visualisation" {
         visualisation_screen.open()
         return
@@ -3112,9 +3123,9 @@ local _configuration_init(width: number) {
 }
 
 # BaseScreen.init: the enable checkbox at (5, 5), the close button at (width - 25, 5) labelled X, and
-# the four tabs at y 30, each 120 wide from x 5, 130, 255 and 380. The tab of the screen this opens
-# over is inactive, which is the reference's `currentScreen != ActiveScreen.X` argument, and the
-# dropdown passes its parent's tab. The checkbox keeps the game's own size whatever it is asked for.
+# the four tabs at y 30, each 120 wide from x 5, 130, 255 and 380. The screen's own tab is inactive,
+# which is the reference's `currentScreen != ActiveScreen.X` argument. The checkbox keeps the game's
+# own size whatever it is asked for.
 
 local _chrome_init(screen: Screen, width: number, current: string, enabled: bool) {
     box: Widget = screen.add_checkbox("enabled", "", enabled, 5, 5, 20, 20)
@@ -3668,6 +3679,8 @@ local _state_save() {
 
 local _shapelist_init(width: number, height: number) {
     _chrome_init(shapelist_screen, width, "shapelist", _state_enabled())
+    open_dropdown: Widget = shapelist_screen.add_button("new_dropdown_open", "V", 145, 70, 20, 20)
+    n_open.set(open_dropdown)
     add: Widget = shapelist_screen.add_button("add", "Add", 5, 90, 160, 20)
     s_add.set(add)
     visible: Widget = shapelist_screen.add_checkbox("visible", "", true, 5, 135, 20, 20)
@@ -3702,9 +3715,16 @@ local _shapelist_init(width: number, height: number) {
     s_z_inc.set(z_inc)
     list: Widget = shapelist_screen.add_list("shapes", 180, 70, 145, height - 70, 20)
     s_list.set(list)
+    close_dropdown: Widget = shapelist_screen.add_button("new_dropdown_close", "X", 145, 70, 20, 20)
+    n_close.set(close_dropdown)
+    options: Widget = shapelist_screen.add_list("new_options", 5, 90, 160, height - 90, 20)
+    n_list.set(options)
     _shapelist_active()
     _shapelist_rows()
     _shapelist_fields()
+    if dropdown_open {
+        _shapelist_dropdown_visible()
+    }
 }
 
 # ShapelistScreen.render after super.render: the two add-shape texts over the dropdown's place, the
@@ -3714,6 +3734,10 @@ local _shapelist_init(width: number, height: number) {
 local _shapelist_render(ctx: OverlayRenderContext, width: number) {
     _chrome_render(ctx, width)
     white: Color = Color.rgb(255, 255, 255)
+    if dropdown_open {
+        _draw_centred(ctx, _shape_name(_new_shape_index()), 85, 75, white)
+        return
+    }
     dim: Color = Color.rgb(68, 68, 68)
     active: bool = _state_set_count() > 0
     _draw_centred(ctx, "§nAdd new shape", 85, 55, white)
@@ -3739,6 +3763,18 @@ local _shapelist_render(ctx: OverlayRenderContext, width: number) {
 
 local _shapelist_changed(widget: Widget) {
     if _chrome_changed(widget) {
+        return
+    }
+    if equals(widget, n_open.unwrap()) {
+        _dropdown_open()
+        return
+    }
+    if equals(widget, n_close.unwrap()) {
+        _dropdown_close()
+        return
+    }
+    if equals(widget, n_list.unwrap()) {
+        _dropdown_pick(widget.selected())
         return
     }
     list: Widget = s_list.unwrap()
@@ -4104,13 +4140,16 @@ local _shape_row_colour(set: string) Color {
 
 # ---------------------------------------------------------------- ShapeScreen
 
-# ShapeScreen.init after super.init: Set origin at (5, 115), the three origin rows at y 135, 155 and
+# ShapeScreen.init after super.init: the dropdown's V at (145, 70) and its list at (5, 90) with the
+# X, which only the dropdown shows, Set origin at (5, 115), the three origin rows at y 135, 155 and
 # 175 with their decrease button at 25, their 70-wide field at 45, their Set at 115 and their
-# increase button at 145, then the property panel's eight-row pool. The ten buttons that act on the
-# set are inactive while the state has none, and the three fields then hold "-".
+# increase button at 145, then the property panel's eight-row pool. The eleven buttons that act on
+# the set are inactive while the state has none, and the three fields then hold "-".
 
-local _shape_init(width: number) {
+local _shape_init(width: number, height: number) {
     _chrome_init(shape_screen, width, "shape", _state_enabled())
+    open_dropdown: Widget = shape_screen.add_button("shape_dropdown_open", "V", 145, 70, 20, 20)
+    q_open.set(open_dropdown)
     set_origin: Widget = shape_screen.add_button("set_origin", "Set origin", 5, 115, 160, 20)
     o_set.set(set_origin)
     x_dec: Widget = shape_screen.add_button("x_dec", "-", 25, 135, 20, 20)
@@ -4142,9 +4181,16 @@ local _shape_init(width: number) {
         _shape_pool_build(row)
         row = row + 1
     }
+    close_dropdown: Widget = shape_screen.add_button("shape_dropdown_close", "X", 145, 70, 20, 20)
+    q_close.set(close_dropdown)
+    options: Widget = shape_screen.add_list("shape_options", 5, 90, 160, height - 90, 20)
+    q_list.set(options)
     _shape_active(_shape_available())
     _shape_fields()
     _shape_relayout()
+    if dropdown_open {
+        _shape_dropdown_visible()
+    }
 }
 
 # ShapeScreen.render after super.render: the shape and origin headings on the left, the current
@@ -4156,6 +4202,13 @@ local _shape_init(width: number) {
 local _shape_render(ctx: OverlayRenderContext, width: number) {
     _chrome_render(ctx, width)
     white: Color = Color.rgb(255, 255, 255)
+    if dropdown_open {
+        id: number = _shape_current_id()
+        if id >= 0 {
+            _draw_centred(ctx, _shape_name(id), 85, 75, white)
+        }
+        return
+    }
     set: string = _state_current_set()
     _draw_centred(ctx, "§nShape", 85, 55, white)
     _draw_centred(ctx, _shape_row_text(set), 85, 75, _shape_row_colour(set))
@@ -4198,6 +4251,18 @@ local _shape_render(ctx: OverlayRenderContext, width: number) {
 
 local _shape_changed(widget: Widget) {
     if _chrome_changed(widget) {
+        return
+    }
+    if equals(widget, q_open.unwrap()) {
+        _dropdown_open()
+        return
+    }
+    if equals(widget, q_close.unwrap()) {
+        _dropdown_close()
+        return
+    }
+    if equals(widget, q_list.unwrap()) {
+        _dropdown_pick(widget.selected())
         return
     }
     if equals(widget, o_set.unwrap()) {
@@ -4414,6 +4479,7 @@ local _shape_pool_build(row: number) {
 # state has no set, and the three fields are typeable either way, as the reference leaves them.
 
 local _shape_active(available: bool) {
+    q_open.unwrap().set_active(available)
     o_set.unwrap().set_active(available)
     o_x_dec.unwrap().set_active(available)
     o_x_set.unwrap().set_active(available)
@@ -5212,4 +5278,167 @@ local _prop_widget(row: number, slot: number) Widget {
         return p7h.unwrap()
     }
     return p7h.unwrap()
+}
+
+# ---------------------------------------------------------------- the two dropdowns
+
+# DropdownOverlayScreen is a screen shown over its parent, and the host's Screen cannot hold a second
+# one, so the fallback #1760 leaves is the same list inside the parent: the V hides itself, the X
+# and the list take its place, and the parent's own widgets and texts go away while it is up. A row
+# or the X puts them back. The reference's quirk of leaving by a tab and coming back to a missing V
+# (map section 8) cannot be reproduced, because every open declares the parent's button again.
+
+local _dropdown_open() {
+    dropdown_open = true
+    _dropdown_visible()
+}
+
+local _dropdown_close() {
+    dropdown_open = false
+    _dropdown_visible()
+}
+
+# The parent's callback: setShape on the Shape tab, which starts a shape it has not built yet at its
+# defaults and leaves one it has at the values it holds, and setIShapeNew on the Shape list tab,
+# which changes the shape the Add button will push.
+
+local _dropdown_pick(index: number) {
+    if index < 0 {
+        return
+    }
+    if active_screen == "shape" {
+        _shape_choose(index)
+        return
+    }
+    state = _state_with_field(state, "iShapeNew", String.from_number(index))
+    _dropdown_close()
+}
+
+local _shape_choose(id: number) {
+    if _state_set_count() > 0 {
+        set: string = _state_current_set()
+        values: string = _set_shape_values(set, id)
+        if String.length(values) == 0 {
+            values = _shape_defaults(id)
+        }
+        set = _set_put_shape(set, id, values, false)
+        set = _set_with_field(set, "index", String.from_number(id))
+        state = _state_with_set(state, _state_index(), set)
+    }
+    _dropdown_close()
+}
+
+local _dropdown_visible() {
+    if active_screen == "shapelist" {
+        _shapelist_dropdown_visible()
+        return
+    }
+    _shape_dropdown_visible()
+}
+
+local _shape_dropdown_visible() {
+    q_open.unwrap().set_visible(not dropdown_open)
+    q_close.unwrap().set_visible(dropdown_open)
+    q_list.unwrap().set_visible(dropdown_open)
+    _shape_active(_shape_available())
+    if dropdown_open {
+        _shape_parent_visible(false)
+        _shape_hide_rows()
+        _dropdown_rows()
+        return
+    }
+    _shape_parent_visible(true)
+    _shape_relayout()
+    _shape_fields()
+}
+
+local _shapelist_dropdown_visible() {
+    n_open.unwrap().set_visible(not dropdown_open)
+    n_close.unwrap().set_visible(dropdown_open)
+    n_list.unwrap().set_visible(dropdown_open)
+    _shapelist_active()
+    if dropdown_open {
+        _shapelist_parent_visible(false)
+        _dropdown_rows()
+        return
+    }
+    _shapelist_parent_visible(true)
+    _shapelist_rows()
+    _shapelist_fields()
+}
+
+# The list's fifteen rows are the registry's shape names in registration order, and it starts on
+# the shape the parent would draw at (85, 75): the current set's on the Shape tab, the new set's on
+# the Shape list tab.
+
+local _dropdown_rows() {
+    if active_screen == "shapelist" {
+        list: Widget = n_list.unwrap()
+        current: number = _new_shape_index()
+        list.set_rows(_shape_count())
+        if current >= 0 {
+            list.select(current)
+        }
+        return
+    }
+    list: Widget = q_list.unwrap()
+    current: number = _shape_current_id()
+    list.set_rows(_shape_count())
+    if current >= 0 {
+        list.select(current)
+    }
+}
+
+local _dropdown_row(ctx: ListRowResponse, list: Widget) {
+    if not equals(ctx.widget(), list) {
+        return
+    }
+    ctx.set_text(_shape_name(ctx.index()))
+}
+
+# The rows of the property panel are already the relayout's to show, so the dropdown hides them all
+# and the relayout brings back the current shape's. Everything else is the parent's own.
+
+local _shape_hide_rows() {
+    row: number = 0
+    while row < 8 {
+        _shape_row_hide(row)
+        row = row + 1
+    }
+}
+
+local _shape_parent_visible(visible: bool) {
+    o_set.unwrap().set_visible(visible)
+    o_x_dec.unwrap().set_visible(visible)
+    o_x_field.unwrap().set_visible(visible)
+    o_x_set.unwrap().set_visible(visible)
+    o_x_inc.unwrap().set_visible(visible)
+    o_y_dec.unwrap().set_visible(visible)
+    o_y_field.unwrap().set_visible(visible)
+    o_y_set.unwrap().set_visible(visible)
+    o_y_inc.unwrap().set_visible(visible)
+    o_z_dec.unwrap().set_visible(visible)
+    o_z_field.unwrap().set_visible(visible)
+    o_z_set.unwrap().set_visible(visible)
+    o_z_inc.unwrap().set_visible(visible)
+}
+
+local _shapelist_parent_visible(visible: bool) {
+    s_add.unwrap().set_visible(visible)
+    s_visible.unwrap().set_visible(visible)
+    s_delete.unwrap().set_visible(visible)
+    s_global.unwrap().set_visible(visible)
+    s_x_dec.unwrap().set_visible(visible)
+    s_x_field.unwrap().set_visible(visible)
+    s_x_set.unwrap().set_visible(visible)
+    s_x_inc.unwrap().set_visible(visible)
+    s_y_dec.unwrap().set_visible(visible)
+    s_y_field.unwrap().set_visible(visible)
+    s_y_set.unwrap().set_visible(visible)
+    s_y_inc.unwrap().set_visible(visible)
+    s_z_dec.unwrap().set_visible(visible)
+    s_z_field.unwrap().set_visible(visible)
+    s_z_set.unwrap().set_visible(visible)
+    s_z_inc.unwrap().set_visible(visible)
+    s_list.unwrap().set_visible(visible)
 }
