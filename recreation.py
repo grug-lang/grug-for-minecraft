@@ -37,8 +37,8 @@ INSTALL_SUMMARIES = {
 
 # The fields that belong to the build a port recreates. The first derived_from entry is that build
 # and the only one that may carry them; about_schema.py holds the same list for the rules it
-# enforces, and the schema itself requires four of them on any entry that carries one.
-RECREATION_FIELDS = ("artifacts", "runtime", "install", "deviations")
+# enforces, and the schema requires artifacts, runtime and install on any entry that carries one.
+RECREATION_FIELDS = ("artifacts", "runtime", "install", "deviations", "platform_differences")
 
 
 def load_recreation(about_path: Path) -> dict | None:

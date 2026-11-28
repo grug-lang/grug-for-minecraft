@@ -659,9 +659,11 @@ public final class GrugMetadata {
 
     /**
      * The upper case character code of a one-character key name, which is the shape a declaration's
-     * {@code default_key} has, or {@link #UNBOUND_KEY} when the name is anything else. Letters and
+     * {@code default_key} has, or -1 for anything that is not one letter or digit. Letters and
      * digits are the keys a world key and a binding are delivered for, so they are the names a
-     * declaration may use.
+     * declaration may use, and a present key that is anything else is malformed. An absent {@code
+     * default_key} is a different case: {@link #readKey} keeps that binding with {@link
+     * #UNBOUND_KEY} so the Controls screen lists it.
      */
     public static int keyCode(String name) {
         if (name == null || name.length() != 1) return -1;
