@@ -1719,6 +1719,22 @@
 				}
 			}
 		},
+		"Chat": {
+			"description": "The game's chat, for a mod to tell the player something. A call that reaches the game's own chat goes to the player at this client only, and it is not a server message, so no other player sees it.",
+			"static_methods": {
+				"send": {
+					"description": "Adds `text` to this client's chat as one line, as a mod's own message. Only a client has a chat: a dedicated server reports the call and sends nothing, and there is no player to see a line when no client has joined.",
+					"parameters": [
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				}
+			}
+		},
 		"Color": {
 			"description": "An RGB color.",
 			"static_methods": {

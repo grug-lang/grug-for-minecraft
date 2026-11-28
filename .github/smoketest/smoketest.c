@@ -5673,6 +5673,21 @@ static void mod_screen_render(void) {
 }
 
 // =============================================================================================
+// SECTION: Chat
+// =============================================================================================
+// The chat HUD is the client's, and this host draws none. A line is recorded so a run at -O0 shows
+// what a mod said, and dropped: no committed test can read the HUD back, so the client arm is
+// asserted only by the call answering without a report. A dedicated server's refusal is the Java
+// interface's own default, which this host does not model (the smoke host is a client).
+static char chat_last_line[4096];
+static union grug_value hf_chat_send(ARGS) {
+    UNUSED;
+    snprintf(chat_last_line, sizeof chat_last_line, "%s", a[0]._string);
+    return none();
+}
+REGISTER("Chat", "send", hf_chat_send);
+
+// =============================================================================================
 // SECTION: Mod files
 // =============================================================================================
 // The one directory a mod may write (#1757). The writable copy is this host's own temp game

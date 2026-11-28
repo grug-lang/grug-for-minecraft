@@ -39,6 +39,7 @@ import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -321,6 +322,17 @@ public class ClientForgeAdapter extends ForgeAdapter {
         container
                 .getMenu()
                 .setCarried(itemObj == null ? ItemStack.EMPTY : new ItemStack((Item) itemObj, 1));
+    }
+
+    /**
+     * Adds the line to the chat the client's HUD draws. No refusal arm is needed here: this class
+     * is loaded only in a client process, where the chat HUD always exists.
+     */
+    @Override
+    public void chatSend(String text) {
+        // The chat HUD belongs to the client thread, and a test calls this from the server's.
+        onClientThread(
+                () -> Minecraft.getInstance().gui.getChat().addMessage(Component.literal(text)));
     }
 
     @Override

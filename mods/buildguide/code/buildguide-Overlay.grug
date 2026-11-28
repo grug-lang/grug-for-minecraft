@@ -2061,14 +2061,22 @@ local _store_state_width(at: number) number {
 # The state for a world: loaded from its file on the first access when persistence is enabled. The
 # set a fresh state gets, and the origin a set without one gets, wait for initCheck, which the toggle
 # key runs, so nothing here takes the player's position except the load's own defaults for a set the
-# file left an origin out of.
+# file left an origin out of. A file that exists but cannot be read sends the reference's load-failed
+# line to the player's chat, with this port's path where the reference has the exception's message.
 
 local _state_open(files: File, name: string, dimension: string, persistence: bool, x: number, y: number, z: number) string {
     loaded: string = _state_new()
     if persistence {
-        text: Option[string] = files.read_text(_state_path(name, dimension))
-        if text.has() {
-            loaded = _state_load(text.unwrap(), x, y, z)
+        path: string = _state_path(name, dimension)
+        # The reference loads only a file that exists, so an absent one is not a failure and gets no
+        # line.
+        if files.exists(path) {
+            text: Option[string] = files.read_text(path)
+            if text.has() {
+                loaded = _state_load(text.unwrap(), x, y, z)
+            } else {
+                Chat.send(String.concat("Build Guide persistence failed to load: ", path))
+            }
         }
     }
     return loaded
@@ -3946,11 +3954,14 @@ local _state_save() {
     }
     files: File = File.open(r"files")
     # State.savePersistence throws on a refused write and BaseScreen.onScreenClosed catches it and
-    # leaves shouldUpdatePersistence set, so the next close tries again. The written text and flag
-    # move only when the write landed, which makes this close's save retry the next one.
+    # leaves shouldUpdatePersistence set, so the next close tries again, and the player is told the
+    # write failed as the reference's own catch tells them. The written text and flag move only when
+    # the write landed, which makes this close's save retry the next one.
     if files.try_write_text(_state_path(world_name, world_dimension), text) {
         persistence_text = text
         persistence_written = true
+    } else {
+        Chat.send(String.concat("Build Guide persistence failed to save: ", _state_path(world_name, world_dimension)))
     }
 }
 

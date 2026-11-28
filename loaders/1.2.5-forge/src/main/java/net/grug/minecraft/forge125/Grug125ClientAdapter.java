@@ -125,6 +125,11 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     }
 
     @Override
+    public void chatSend(String text) {
+        ModLoader.getMinecraftInstance().ingameGUI.addChatMessage(text);
+    }
+
+    @Override
     public Object getLevel() {
         return ModLoader.getMinecraftInstance().theWorld;
     }
