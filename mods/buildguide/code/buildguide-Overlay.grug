@@ -2329,14 +2329,13 @@ local _config_default_values() string {
 }
 
 # Config.write: a "# " comment line, then "key = value", for each of the three in order. The comment
-# is the en_us sentence, where the reference writes the client's language through Translatable, which
-# is #1817's deviation.
+# is the reference's own Translatable, read in the client's language when the file is written.
 
 local _config_text(values: string) string {
     async: string = _piece(values, ",", 0)
     random: string = _piece(values, ",", 1)
     persistence: string = _piece(values, ",", 2)
-    return String.concat(_line("# Enable asynchronous (multithreaded) shape generation."), String.concat(_line(String.concat("asyncEnabled = ", async)), String.concat(_line("# Enable random colors for new shapes added to the shape list by default."), String.concat(_line(String.concat("shapeListRandomColorsDefaultEnabled = ", random)), String.concat(_line("# Allow shapes to be saved to a file so they can be restored after restarting the client."), _line(String.concat("persistenceEnabled = ", persistence)))))))
+    return String.concat(_line(String.concat("# ", String.translate("config.buildguide.asyncEnabledComment"))), String.concat(_line(String.concat("asyncEnabled = ", async)), String.concat(_line(String.concat("# ", String.translate("config.buildguide.shapeListRandomColorsDefaultEnabledComment"))), String.concat(_line(String.concat("shapeListRandomColorsDefaultEnabled = ", random)), String.concat(_line(String.concat("# ", String.translate("config.buildguide.persistenceEnabledComment"))), _line(String.concat("persistenceEnabled = ", persistence)))))))
 }
 
 # Whether any of the three keys is absent, which makes Config.write rewrite the whole file.
@@ -3395,15 +3394,15 @@ local _configuration_init(width: number) {
     _chrome_init(configuration_screen, width, "configuration", _state_enabled())
     async_box: Widget = configuration_screen.add_checkbox("async", "", _config_on(config_values, 0), 255, 60, 20, 20)
     c_async.set(async_box)
-    async_default: Widget = configuration_screen.add_button("async_default", "Default", 280, 60, 50, 20)
+    async_default: Widget = configuration_screen.add_button("async_default", String.translate("screen.buildguide.default"), 280, 60, 50, 20)
     c_async_default.set(async_default)
     random_box: Widget = configuration_screen.add_checkbox("random", "", _config_on(config_values, 1), 255, 110, 20, 20)
     c_random.set(random_box)
-    random_default: Widget = configuration_screen.add_button("random_default", "Default", 280, 110, 50, 20)
+    random_default: Widget = configuration_screen.add_button("random_default", String.translate("screen.buildguide.default"), 280, 110, 50, 20)
     c_random_default.set(random_default)
     persistence_box: Widget = configuration_screen.add_checkbox("persistence", "", _config_on(config_values, 2), 255, 160, 20, 20)
     c_persistence.set(persistence_box)
-    persistence_default: Widget = configuration_screen.add_button("persistence_default", "Default", 280, 160, 50, 20)
+    persistence_default: Widget = configuration_screen.add_button("persistence_default", String.translate("screen.buildguide.default"), 280, 160, 50, 20)
     c_persistence_default.set(persistence_default)
 }
 
@@ -3417,16 +3416,16 @@ local _chrome_init(screen: Screen, width: number, current: string, enabled: bool
     w_enabled.set(box)
     close_button: Widget = screen.add_button("close", "X", width - 25, 5, 20, 20)
     w_close.set(close_button)
-    tab_shape: Widget = screen.add_button("tab_shape", "Shape", 5, 30, 120, 20)
+    tab_shape: Widget = screen.add_button("tab_shape", String.translate("screen.buildguide.shape"), 5, 30, 120, 20)
     tab_shape.set_active(current != "shape")
     w_tab_shape.set(tab_shape)
-    tab_visualisation: Widget = screen.add_button("tab_visualisation", "Visualization", 130, 30, 120, 20)
+    tab_visualisation: Widget = screen.add_button("tab_visualisation", String.translate("screen.buildguide.visualisation"), 130, 30, 120, 20)
     tab_visualisation.set_active(current != "visualisation")
     w_tab_visualisation.set(tab_visualisation)
-    tab_shapelist: Widget = screen.add_button("tab_shapelist", "Shape list", 255, 30, 120, 20)
+    tab_shapelist: Widget = screen.add_button("tab_shapelist", String.translate("screen.buildguide.shapelist"), 255, 30, 120, 20)
     tab_shapelist.set_active(current != "shapelist")
     w_tab_shapelist.set(tab_shapelist)
-    tab_configuration: Widget = screen.add_button("tab_configuration", "Configuration", 380, 30, 120, 20)
+    tab_configuration: Widget = screen.add_button("tab_configuration", String.translate("screen.buildguide.configuration"), 380, 30, 120, 20)
     tab_configuration.set_active(current != "configuration")
     w_tab_configuration.set(tab_configuration)
 }
@@ -3437,12 +3436,12 @@ local _chrome_init(screen: Screen, width: number, current: string, enabled: bool
 local _configuration_render(ctx: OverlayRenderContext, width: number) {
     _chrome_render(ctx, width)
     white: Color = Color.rgb(255, 255, 255)
-    ctx.draw_text("§nAsynchronous shape generation", 10, 65, white)
-    ctx.draw_text("Enable asynchronous (multithreaded) shape generation.", 10, 84, white)
-    ctx.draw_text("§nShape list random colors", 10, 115, white)
-    ctx.draw_text("Enable random colors for new shapes added to the shape list by default.", 10, 135, white)
-    ctx.draw_text("§nShape persistence", 10, 165, white)
-    ctx.draw_text("Allow shapes to be saved to a file so they can be restored after restarting the client.", 10, 185, white)
+    ctx.draw_text(String.concat("§n", String.translate("config.buildguide.asyncEnabled")), 10, 65, white)
+    ctx.draw_text(String.translate("config.buildguide.asyncEnabledComment"), 10, 84, white)
+    ctx.draw_text(String.concat("§n", String.translate("config.buildguide.shapeListRandomColorsDefaultEnabled")), 10, 115, white)
+    ctx.draw_text(String.translate("config.buildguide.shapeListRandomColorsDefaultEnabledComment"), 10, 135, white)
+    ctx.draw_text(String.concat("§n", String.translate("config.buildguide.persistenceEnabled")), 10, 165, white)
+    ctx.draw_text(String.translate("config.buildguide.persistenceEnabledComment"), 10, 185, white)
 }
 
 # BaseScreen.render's six texts: the title centred at the window's middle, Enable at x 30, and the two
@@ -3452,12 +3451,12 @@ local _configuration_render(ctx: OverlayRenderContext, width: number) {
 local _chrome_render(ctx: OverlayRenderContext, width: number) {
     white: Color = Color.rgb(255, 255, 255)
     mid: number = Math.floor(width / 2)
-    title: string = "Build Guide"
+    title: string = String.translate("screen.buildguide.title")
     title_width: number = ctx.text_width(title)
     ctx.draw_text(title, mid - Math.floor(title_width / 2), 10, white)
-    ctx.draw_text("Enable", 30, 10, white)
-    shape_title: string = "Number of blocks (shape)"
-    total_title: string = "Number of blocks (total)"
+    ctx.draw_text(String.translate("screen.buildguide.enable"), 30, 10, white)
+    shape_title: string = String.translate("screen.buildguide.numberofblocksshape")
+    total_title: string = String.translate("screen.buildguide.numberofblockstotal")
     shape_width: number = ctx.text_width(shape_title)
     total_width: number = ctx.text_width(total_title)
     titles: number = shape_width
@@ -3558,11 +3557,11 @@ local _visualisation_init(width: number) {
     v_shape_b.set(s3)
     s4: Widget = visualisation_screen.add_slider("shape_a", _visual_label("A", shape_a), 0.0, 1.0, shape_a, 5, 130, 120, 20)
     v_shape_a.set(s4)
-    b1: Widget = visualisation_screen.add_button("set_shape", "Set", 5, 150, 120, 20)
+    b1: Widget = visualisation_screen.add_button("set_shape", String.translate("screen.buildguide.set"), 5, 150, 120, 20)
     v_set_shape.set(b1)
-    b2: Widget = visualisation_screen.add_button("set_shape_random", "Set random", 5, 170, 120, 20)
+    b2: Widget = visualisation_screen.add_button("set_shape_random", String.translate("screen.buildguide.setrandom"), 5, 170, 120, 20)
     v_random_shape.set(b2)
-    b3: Widget = visualisation_screen.add_button("default_shape", "Default", 5, 190, 120, 20)
+    b3: Widget = visualisation_screen.add_button("default_shape", String.translate("screen.buildguide.default"), 5, 190, 120, 20)
     v_default_shape.set(b3)
     s5: Widget = visualisation_screen.add_slider("origin_r", _visual_label("R", origin_r), 0.0, 1.0, origin_r, 140, 70, 120, 20)
     v_origin_r.set(s5)
@@ -3572,21 +3571,21 @@ local _visualisation_init(width: number) {
     v_origin_b.set(s7)
     s8: Widget = visualisation_screen.add_slider("origin_a", _visual_label("A", origin_a), 0.0, 1.0, origin_a, 140, 130, 120, 20)
     v_origin_a.set(s8)
-    b4: Widget = visualisation_screen.add_button("set_origin", "Set", 140, 150, 120, 20)
+    b4: Widget = visualisation_screen.add_button("set_origin", String.translate("screen.buildguide.set"), 140, 150, 120, 20)
     v_set_origin.set(b4)
-    b5: Widget = visualisation_screen.add_button("set_origin_random", "Set random", 140, 170, 120, 20)
+    b5: Widget = visualisation_screen.add_button("set_origin_random", String.translate("screen.buildguide.setrandom"), 140, 170, 120, 20)
     v_random_origin.set(b5)
-    b6: Widget = visualisation_screen.add_button("default_origin", "Default", 140, 190, 120, 20)
+    b6: Widget = visualisation_screen.add_button("default_origin", String.translate("screen.buildguide.default"), 140, 190, 120, 20)
     v_default_origin.set(b6)
     depth: Widget = visualisation_screen.add_checkbox("depth_test", "", _visual_depth(), 5, 235, 20, 20)
     v_depth.set(depth)
-    s9: Widget = visualisation_screen.add_slider("shape_cube", _visual_label("Shape", shape_cube), 0.0, 1.0, shape_cube, 140, 235, 120, 20)
+    s9: Widget = visualisation_screen.add_slider("shape_cube", _visual_label(String.translate("screen.buildguide.shape"), shape_cube), 0.0, 1.0, shape_cube, 140, 235, 120, 20)
     v_shape_cube.set(s9)
-    s10: Widget = visualisation_screen.add_slider("origin_cube", _visual_label("Origin", origin_cube), 0.0, 1.0, origin_cube, 140, 255, 120, 20)
+    s10: Widget = visualisation_screen.add_slider("origin_cube", _visual_label(String.translate("screen.buildguide.origin"), origin_cube), 0.0, 1.0, origin_cube, 140, 255, 120, 20)
     v_origin_cube.set(s10)
-    b7: Widget = visualisation_screen.add_button("set_cube", "Set", 140, 275, 120, 20)
+    b7: Widget = visualisation_screen.add_button("set_cube", String.translate("screen.buildguide.set"), 140, 275, 120, 20)
     v_set_cube.set(b7)
-    b8: Widget = visualisation_screen.add_button("default_cube", "Default", 140, 295, 120, 20)
+    b8: Widget = visualisation_screen.add_button("default_cube", String.translate("screen.buildguide.default"), 140, 295, 120, 20)
     v_default_cube.set(b8)
     if not available {
         s1.set_active(false)
@@ -3612,11 +3611,11 @@ local _visualisation_init(width: number) {
 local _visualisation_render(ctx: OverlayRenderContext, width: number) {
     _chrome_render(ctx, width)
     white: Color = Color.rgb(255, 255, 255)
-    _draw_centred(ctx, "§nShape color", 65, 55, white)
-    _draw_centred(ctx, "§nOrigin color", 200, 55, white)
-    _draw_centred(ctx, "§nRendering", 65, 220, white)
-    ctx.draw_text("Depth test", 30, 240, white)
-    _draw_centred(ctx, "§nCube size", 200, 220, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.shapecolour")), 65, 55, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.origincolour")), 200, 55, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.rendering")), 65, 220, white)
+    ctx.draw_text(String.translate("screen.buildguide.depthtest"), 30, 240, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.cubesize")), 200, 220, white)
 }
 
 # A slider's label follows its handle: the reference's updateMessage is `name + ": " + round(10v)/10`,
@@ -3641,9 +3640,9 @@ local _visual_slider_text(widget: Widget) {
     } else if equals(widget, v_origin_a.unwrap()) {
         _visual_put_slider(widget, "A", widget.value())
     } else if equals(widget, v_shape_cube.unwrap()) {
-        _visual_put_slider(widget, "Shape", widget.value())
+        _visual_put_slider(widget, String.translate("screen.buildguide.shape"), widget.value())
     } else {
-        _visual_put_slider(widget, "Origin", widget.value())
+        _visual_put_slider(widget, String.translate("screen.buildguide.origin"), widget.value())
     }
 }
 
@@ -3659,7 +3658,8 @@ local _visual_set_shape_colour() {
 
 # setShapeColour with three fresh draws and the slider's own alpha. The reference makes a new Random
 # for the press and sets each slider to random.nextDouble(), so the port draws the same double; a
-# grug number is a double, and the color is not narrowed to a float the way the reference's cast is.
+# grug number is a double, and the colour is written with String.from_float, which narrows to 32 bits
+# exactly as the reference's cast does.
 
 local _visual_random_shape() {
     if _state_set_count() == 0 {
@@ -3733,8 +3733,8 @@ local _visual_set_cube_size() {
 }
 
 local _visual_default_cube_size() {
-    _visual_put_slider(v_shape_cube.unwrap(), "Shape", 0.6)
-    _visual_put_slider(v_origin_cube.unwrap(), "Origin", 0.2)
+    _visual_put_slider(v_shape_cube.unwrap(), String.translate("screen.buildguide.shape"), 0.6)
+    _visual_put_slider(v_origin_cube.unwrap(), String.translate("screen.buildguide.origin"), 0.2)
     if _state_set_count() == 0 {
         return
     }
@@ -3981,19 +3981,19 @@ local _shapelist_init(width: number, height: number) {
     _chrome_init(shapelist_screen, width, "shapelist", _state_enabled())
     open_dropdown: Widget = shapelist_screen.add_button("new_dropdown_open", "V", 145, 70, 20, 20)
     n_open.set(open_dropdown)
-    add: Widget = shapelist_screen.add_button("add", "Add", 5, 90, 160, 20)
+    add: Widget = shapelist_screen.add_button("add", String.translate("screen.buildguide.add"), 5, 90, 160, 20)
     s_add.set(add)
     visible: Widget = shapelist_screen.add_checkbox("visible", "", true, 5, 135, 20, 20)
     s_visible.set(visible)
-    delete: Widget = shapelist_screen.add_button("delete", "Delete", 5, 155, 160, 20)
+    delete: Widget = shapelist_screen.add_button("delete", String.translate("screen.buildguide.delete"), 5, 155, 160, 20)
     s_delete.set(delete)
-    global_origin: Widget = shapelist_screen.add_button("global_origin", "Set global origin", 5, 200, 160, 20)
+    global_origin: Widget = shapelist_screen.add_button("global_origin", String.translate("screen.buildguide.setglobalorigin"), 5, 200, 160, 20)
     s_global.set(global_origin)
     x_dec: Widget = shapelist_screen.add_button("x_dec", "-", 25, 220, 20, 20)
     s_x_dec.set(x_dec)
     x_field: Widget = shapelist_screen.add_text_field("x_field", "", 45, 220, 70, 20)
     s_x_field.set(x_field)
-    x_set: Widget = shapelist_screen.add_button("x_set", "Set", 115, 220, 30, 20)
+    x_set: Widget = shapelist_screen.add_button("x_set", String.translate("screen.buildguide.set"), 115, 220, 30, 20)
     s_x_set.set(x_set)
     x_inc: Widget = shapelist_screen.add_button("x_inc", "+", 145, 220, 20, 20)
     s_x_inc.set(x_inc)
@@ -4001,7 +4001,7 @@ local _shapelist_init(width: number, height: number) {
     s_y_dec.set(y_dec)
     y_field: Widget = shapelist_screen.add_text_field("y_field", "", 45, 240, 70, 20)
     s_y_field.set(y_field)
-    y_set: Widget = shapelist_screen.add_button("y_set", "Set", 115, 240, 30, 20)
+    y_set: Widget = shapelist_screen.add_button("y_set", String.translate("screen.buildguide.set"), 115, 240, 30, 20)
     s_y_set.set(y_set)
     y_inc: Widget = shapelist_screen.add_button("y_inc", "+", 145, 240, 20, 20)
     s_y_inc.set(y_inc)
@@ -4009,7 +4009,7 @@ local _shapelist_init(width: number, height: number) {
     s_z_dec.set(z_dec)
     z_field: Widget = shapelist_screen.add_text_field("z_field", "", 45, 260, 70, 20)
     s_z_field.set(z_field)
-    z_set: Widget = shapelist_screen.add_button("z_set", "Set", 115, 260, 30, 20)
+    z_set: Widget = shapelist_screen.add_button("z_set", String.translate("screen.buildguide.set"), 115, 260, 30, 20)
     s_z_set.set(z_set)
     z_inc: Widget = shapelist_screen.add_button("z_inc", "+", 145, 260, 20, 20)
     s_z_inc.set(z_inc)
@@ -4043,19 +4043,19 @@ local _shapelist_render(ctx: OverlayRenderContext, width: number) {
     }
     dim: Color = Color.rgb(68, 68, 68)
     active: bool = _state_set_count() > 0
-    _draw_centred(ctx, "§nAdd new shape", 85, 55, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.newshape")), 85, 55, white)
     _draw_centred(ctx, _shape_name(_new_shape_index()), 85, 75, white)
-    _draw_centred(ctx, "§nSelected shape", 85, 120, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.selectedshape")), 85, 120, white)
     label: Color = dim
     if active {
         label = white
     }
-    ctx.draw_text("Visible", 30, 140, label)
-    _draw_centred(ctx, "§nGlobal origin", 85, 185, white)
+    ctx.draw_text(String.translate("screen.buildguide.visible"), 30, 140, label)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.globalorigin")), 85, 185, white)
     ctx.draw_text("X", 10, 225, label)
     ctx.draw_text("Y", 10, 245, label)
     ctx.draw_text("Z", 10, 265, label)
-    _draw_centred(ctx, "§nShapes", 250, 55, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.shapes")), 250, 55, white)
 }
 
 # Every widget of the tab. A row click moves the state's current set, refreshes the fields and
@@ -4363,56 +4363,56 @@ local _new_shape_index() number {
     return _clamp(_int_or(_state_field(state, "iShapeNew", "1"), 1), 0, _shape_count() - 1)
 }
 
-# The English name of a registry entry, as ShapeRegistry's translation key resolves it. An index past
+# The name of a registry entry, resolved the way ShapeRegistry's translation key is. An index past
 # the registry answers the no-shape name, which the reference draws for a set that has no shape.
 
 local _shape_name(id: number) string {
     if id == 0 {
-        return "Catenary"
+        return String.translate("shape.buildguide.catenary")
     }
     if id == 1 {
-        return "Circle"
+        return String.translate("shape.buildguide.circle")
     }
     if id == 2 {
-        return "Cone"
+        return String.translate("shape.buildguide.cone")
     }
     if id == 3 {
-        return "Cuboid"
+        return String.translate("shape.buildguide.cuboid")
     }
     if id == 4 {
-        return "Ellipse"
+        return String.translate("shape.buildguide.ellipse")
     }
     if id == 5 {
-        return "Ellipsoid"
+        return String.translate("shape.buildguide.ellipsoid")
     }
     if id == 6 {
-        return "Grid"
+        return String.translate("shape.buildguide.grid")
     }
     if id == 7 {
-        return "Helix"
+        return String.translate("shape.buildguide.helix")
     }
     if id == 8 {
-        return "Line"
+        return String.translate("shape.buildguide.line")
     }
     if id == 9 {
-        return "Parabola"
+        return String.translate("shape.buildguide.parabola")
     }
     if id == 10 {
-        return "Paraboloid"
+        return String.translate("shape.buildguide.paraboloid")
     }
     if id == 11 {
-        return "Polygon"
+        return String.translate("shape.buildguide.polygon")
     }
     if id == 12 {
-        return "Polygonal pyramid"
+        return String.translate("shape.buildguide.polygonalpyramid")
     }
     if id == 13 {
-        return "Sphere"
+        return String.translate("shape.buildguide.sphere")
     }
     if id == 14 {
-        return "Torus"
+        return String.translate("shape.buildguide.torus")
     }
-    return "None"
+    return String.translate("shape.buildguide.none")
 }
 
 # getFormattedShapeName: a set's shape name, struck through while the set is invisible. Not visible
@@ -4420,11 +4420,11 @@ local _shape_name(id: number) string {
 
 local _shape_row_text(set: string) string {
     if String.length(set) == 0 {
-        return "None"
+        return String.translate("shape.buildguide.none")
     }
     id: number = _set_int(set, "index", 0)
     if id < 0 or id >= _shape_count() {
-        return "None"
+        return String.translate("shape.buildguide.none")
     }
     name: string = _shape_name(id)
     if _set_field_value(set, "visible") != "true" {
@@ -4457,13 +4457,13 @@ local _shape_init(width: number, height: number) {
     _chrome_init(shape_screen, width, "shape", _state_enabled())
     open_dropdown: Widget = shape_screen.add_button("shape_dropdown_open", "V", 145, 70, 20, 20)
     q_open.set(open_dropdown)
-    set_origin: Widget = shape_screen.add_button("set_origin", "Set origin", 5, 115, 160, 20)
+    set_origin: Widget = shape_screen.add_button("set_origin", String.translate("screen.buildguide.setorigin"), 5, 115, 160, 20)
     o_set.set(set_origin)
     x_dec: Widget = shape_screen.add_button("x_dec", "-", 25, 135, 20, 20)
     o_x_dec.set(x_dec)
     x_field: Widget = shape_screen.add_text_field("x_field", "", 45, 135, 70, 20)
     o_x_field.set(x_field)
-    x_set: Widget = shape_screen.add_button("x_set", "Set", 115, 135, 30, 20)
+    x_set: Widget = shape_screen.add_button("x_set", String.translate("screen.buildguide.set"), 115, 135, 30, 20)
     o_x_set.set(x_set)
     x_inc: Widget = shape_screen.add_button("x_inc", "+", 145, 135, 20, 20)
     o_x_inc.set(x_inc)
@@ -4471,7 +4471,7 @@ local _shape_init(width: number, height: number) {
     o_y_dec.set(y_dec)
     y_field: Widget = shape_screen.add_text_field("y_field", "", 45, 155, 70, 20)
     o_y_field.set(y_field)
-    y_set: Widget = shape_screen.add_button("y_set", "Set", 115, 155, 30, 20)
+    y_set: Widget = shape_screen.add_button("y_set", String.translate("screen.buildguide.set"), 115, 155, 30, 20)
     o_y_set.set(y_set)
     y_inc: Widget = shape_screen.add_button("y_inc", "+", 145, 155, 20, 20)
     o_y_inc.set(y_inc)
@@ -4479,7 +4479,7 @@ local _shape_init(width: number, height: number) {
     o_z_dec.set(z_dec)
     z_field: Widget = shape_screen.add_text_field("z_field", "", 45, 175, 70, 20)
     o_z_field.set(z_field)
-    z_set: Widget = shape_screen.add_button("z_set", "Set", 115, 175, 30, 20)
+    z_set: Widget = shape_screen.add_button("z_set", String.translate("screen.buildguide.set"), 115, 175, 30, 20)
     o_z_set.set(z_set)
     z_inc: Widget = shape_screen.add_button("z_inc", "+", 145, 175, 20, 20)
     o_z_inc.set(z_inc)
@@ -4520,9 +4520,9 @@ local _shape_render(ctx: OverlayRenderContext, width: number) {
         return
     }
     set: string = _state_current_set()
-    _draw_centred(ctx, "§nShape", 85, 55, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.shape")), 85, 55, white)
     _draw_centred(ctx, _shape_row_text(set), 85, 75, _shape_row_colour(set))
-    _draw_centred(ctx, "§nOrigin", 85, 100, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.origin")), 85, 100, white)
     label: Color = Color.rgb(68, 68, 68)
     if _shape_available() {
         label = white
@@ -4530,7 +4530,7 @@ local _shape_render(ctx: OverlayRenderContext, width: number) {
     ctx.draw_text("X", 10, 140, label)
     ctx.draw_text("Y", 10, 160, label)
     ctx.draw_text("Z", 10, 180, label)
-    _draw_centred(ctx, "§nShape properties", 285, 55, white)
+    _draw_centred(ctx, String.concat("§n", String.translate("screen.buildguide.shapeproperties")), 285, 55, white)
     id: number = _shape_current_id()
     if id < 0 {
         return
@@ -4544,7 +4544,7 @@ local _shape_render(ctx: OverlayRenderContext, width: number) {
         kind: string = _piece(kinds, ";", row)
         letter: string = String.substring(kind, 0, 1)
         if letter != "r" {
-            ctx.draw_text(_piece(labels, "|", row), 185, 75 + row * 20, white)
+            ctx.draw_text(_shape_label_text(_piece(labels, "|", row)), 185, 75 + row * 20, white)
         }
         if letter == "e" {
             _draw_centred(ctx, _enum_display(kind, _enum_index(kind, _piece(values, ",", row))), 330, 75 + row * 20, white)
@@ -4623,13 +4623,14 @@ local _shape_changed(widget: Widget) {
 # until a relayout shows it, so a shape change never needs a new screen.
 
 local _shape_pool_build(row: number) {
+    set_label: string = String.translate("screen.buildguide.set")
     if row == 0 {
         base: string = "prop0"
         dec: Widget = shape_screen.add_button(String.concat(base, "_dec"), "-", 0, 0, 20, 20)
         p0a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p0b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p0c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p0d.set(inc)
@@ -4649,7 +4650,7 @@ local _shape_pool_build(row: number) {
         p1a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p1b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p1c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p1d.set(inc)
@@ -4669,7 +4670,7 @@ local _shape_pool_build(row: number) {
         p2a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p2b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p2c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p2d.set(inc)
@@ -4689,7 +4690,7 @@ local _shape_pool_build(row: number) {
         p3a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p3b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p3c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p3d.set(inc)
@@ -4709,7 +4710,7 @@ local _shape_pool_build(row: number) {
         p4a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p4b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p4c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p4d.set(inc)
@@ -4729,7 +4730,7 @@ local _shape_pool_build(row: number) {
         p5a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p5b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p5c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p5d.set(inc)
@@ -4749,7 +4750,7 @@ local _shape_pool_build(row: number) {
         p6a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p6b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p6c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p6d.set(inc)
@@ -4769,7 +4770,7 @@ local _shape_pool_build(row: number) {
         p7a.set(dec)
         field: Widget = shape_screen.add_text_field(String.concat(base, "_field"), "", 0, 0, 50, 20)
         p7b.set(field)
-        set: Widget = shape_screen.add_button(String.concat(base, "_set"), "Set", 0, 0, 30, 20)
+        set: Widget = shape_screen.add_button(String.concat(base, "_set"), set_label, 0, 0, 30, 20)
         p7c.set(set)
         inc: Widget = shape_screen.add_button(String.concat(base, "_inc"), "+", 0, 0, 20, 20)
         p7d.set(inc)
@@ -4882,7 +4883,7 @@ local _shape_row_show(row: number, id: number, kind: string, values: string) {
     if letter == "r" {
         run: Widget = _prop_widget(row, 7)
         run.set_position(180, y)
-        run.set_text(_piece(_shape_labels(id), "|", row))
+        run.set_text(_shape_label_text(_piece(_shape_labels(id), "|", row)))
         run.set_visible(true)
         return
     }
@@ -5265,54 +5266,71 @@ local _shape_available() bool {
     return _shape_current_id() >= 0
 }
 
-# The property names of each shape, in the class's own row order. The translatable keys of the
-# reference resolve to these en_us sentences, with the delta, axis, step, offset, semi-axis and
-# half-width ones filled with their axis letter.
+# The property names of each shape, in the class's own row order, as the reference's translation
+# keys. A key followed by ":X" is one the reference fills with the axis letter, and a ":@key" one it
+# fills with another translated key (the helix's "Degrees offset"). A row that is a bare axis letter
+# is a key in no language file, so it resolves to itself, as the reference's Translatable does.
 
 local _shape_labels(id: number) string {
     if id == 0 {
-        return "Delta X|Delta Y|Delta Z|Set endpoint|Additional length|Invert"
+        return "property.buildguide.delta:X|property.buildguide.delta:Y|property.buildguide.delta:Z|property.buildguide.setendpoint|property.buildguide.addlength|property.buildguide.invert"
     }
     if id == 1 {
-        return "Direction|Radius|Depth|Even mode"
+        return "property.buildguide.direction|property.buildguide.radius|property.buildguide.depth|property.buildguide.evenmode"
     }
     if id == 2 {
-        return "Direction|Radius|Height|Even mode"
+        return "property.buildguide.direction|property.buildguide.radius|property.buildguide.height|property.buildguide.evenmode"
     }
     if id == 3 {
-        return "X|Y|Z|Walls|Centered origin"
+        return "X|Y|Z|property.buildguide.walls|property.buildguide.centredorigin"
     }
     if id == 4 {
-        return "Direction|Y semi-axis|Z semi-axis|Depth|Even mode"
+        return "property.buildguide.direction|property.buildguide.semiaxis:Y|property.buildguide.semiaxis:Z|property.buildguide.depth|property.buildguide.evenmode"
     }
     if id == 5 {
-        return "X semi-axis|Y semi-axis|Z semi-axis|Dome|Even mode"
+        return "property.buildguide.semiaxis:X|property.buildguide.semiaxis:Y|property.buildguide.semiaxis:Z|property.buildguide.dome|property.buildguide.evenmode"
     }
     if id == 6 {
-        return "X steps|Y steps|Z steps|X offset|Y offset|Z offset"
+        return "property.buildguide.steps:X|property.buildguide.steps:Y|property.buildguide.steps:Z|property.buildguide.offset:X|property.buildguide.offset:Y|property.buildguide.offset:Z"
     }
     if id == 7 {
-        return "Direction|Outer radius|Inner radius|Height|Degrees|Degrees offset|Invert|Even mode"
+        return "property.buildguide.direction|property.buildguide.outerradius|property.buildguide.innerradius|property.buildguide.height|property.buildguide.degrees|property.buildguide.offset:@property.buildguide.degrees|property.buildguide.invert|property.buildguide.evenmode"
     }
     if id == 8 {
-        return "Delta X|Delta Y|Delta Z|Set endpoint"
+        return "property.buildguide.delta:X|property.buildguide.delta:Y|property.buildguide.delta:Z|property.buildguide.setendpoint"
     }
     if id == 9 {
-        return "Direction|Rotation|Half-width|Height|Depth|Even mode"
+        return "property.buildguide.direction|property.buildguide.rotation|property.buildguide.halfwidth|property.buildguide.height|property.buildguide.depth|property.buildguide.evenmode"
     }
     if id == 10 {
-        return "Direction|Y half-width|Z half-width|Height|Even mode"
+        return "property.buildguide.direction|property.buildguide.halfwidthdir:Y|property.buildguide.halfwidthdir:Z|property.buildguide.height|property.buildguide.evenmode"
     }
     if id == 11 {
-        return "Sides|Radius|Direction|Rotation|Depth|Even mode"
+        return "property.buildguide.sides|property.buildguide.radius|property.buildguide.direction|property.buildguide.rotation|property.buildguide.depth|property.buildguide.evenmode"
     }
     if id == 12 {
-        return "Sides|Radius|Direction|Rotation|Height|Even mode"
+        return "property.buildguide.sides|property.buildguide.radius|property.buildguide.direction|property.buildguide.rotation|property.buildguide.height|property.buildguide.evenmode"
     }
     if id == 13 {
-        return "Radius|Dome|Even mode"
+        return "property.buildguide.radius|property.buildguide.dome|property.buildguide.evenmode"
     }
-    return "Direction|Outer radius|Inner radius|Outer even mode|Inner even mode"
+    return "property.buildguide.direction|property.buildguide.outerradius|property.buildguide.innerradius|property.buildguide.outerevenmode|property.buildguide.innerevenmode"
+}
+
+# One property row's label: its key translated, with the axis letter or nested key the reference
+# fills into the delta, step, offset, semi-axis and half-width ones.
+
+local _shape_label_text(spec: string) string {
+    at: number = String.index_of(spec, ":")
+    if at < 0 {
+        return String.translate(spec)
+    }
+    key: string = String.substring(spec, 0, at)
+    argument: string = String.substring(spec, at + 1, String.length(spec))
+    if String.length(argument) > 0 and String.substring(argument, 0, 1) == "@" {
+        return String.translate_with(key, String.translate(String.substring(argument, 1, String.length(argument))))
+    }
+    return String.translate_with(key, argument)
 }
 
 # The ordinal a stored enum constant has among its kind's names, which is its Java ordinal.

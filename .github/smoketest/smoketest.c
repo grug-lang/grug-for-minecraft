@@ -6263,6 +6263,92 @@ static void remove_game_dir(void) {
 }
 
 // =============================================================================================
+// SECTION: Translated text
+// =============================================================================================
+// String.translate and String.translate_with read the running test's mod language file. The
+// smoketest has no client language manager, so the language is always en_us, which every mod that
+// translates a key ships, and no game's language selection is modelled. The file is the reference's
+// flat JSON object of "key": "text" pairs, which this scans for the key: a value the reference ships
+// holds no escape, so the first quote after the value's opening one ends it. The quote is a named
+// constant, so a line that compares against it holds no quote character and can carry a coverage
+// marker.
+static const char JSON_QUOTE = '"';
+
+static const char* skip_json_space(const char* p) {
+    while (isspace((unsigned char)*p)) p++;
+    return p;
+}
+
+static const char* smoke_language_text(const char* mod, const char* key) {
+    const char* text = NULL;
+    if (read_tree(mod, true, "lang/en_us.json", "String.translate", &text) != TREE_FILE) return NULL;  // SMOKETEST_EXCL_BRANCH: the only mod whose tests run here ships this file, so the missing-file arm a game run can take has no committed test; the Java unit test covers it there
+    size_t key_len = strlen(key);
+    const char* p = text;
+    while ((p = strchr(p, JSON_QUOTE)) != NULL) {
+        const char* name = ++p;
+        while (*p && *p != JSON_QUOTE) p++;  // SMOKETEST_EXCL_BRANCH: a shipped language file closes every name before its end, so the end-of-text arm has no test
+        if (!*p) return NULL;  // SMOKETEST_EXCL_BRANCH: a shipped language file is well-formed JSON, so no name runs to the end of its text
+        size_t name_len = (size_t)(p - name);
+        p = skip_json_space(p + 1);
+        // A quoted string followed by a comma is a value, not a name, so scanning goes on after it.
+        if (*p == ':' && name_len == key_len && !strncmp(name, key, key_len)) {
+            p = skip_json_space(p + 1);
+            if (*p != JSON_QUOTE) return NULL;  // SMOKETEST_EXCL_BRANCH: a well-formed language file has a string value after every name
+            const char* value = p + 1;
+            const char* end = strchr(value, JSON_QUOTE);
+            if (!end) return NULL;  // SMOKETEST_EXCL_BRANCH: a well-formed language file closes every value, and no shipped value holds an escape
+            size_t value_len = (size_t)(end - value);
+            char* out = xmalloc(value_len + 1);
+            memcpy(out, value, value_len);
+            out[value_len] = 0;
+            return keep(out);
+        }
+        p++;
+    }
+    return NULL;
+}
+
+// The mod the smoketest is running a script of, or NULL outside a test. Every export a test drives
+// belongs to the test's own mod, and no other mod's script runs in the smoketest, so the running
+// test's mod is the script's mod.
+static const char* smoke_script_mod(const char* method) {
+    if (!cur_test_mod)  // SMOKETEST_EXCL_BRANCH: every test the smoketest runs belongs to a mod, so the refusal a game run has for a call outside a script is unreachable here; the Java unit test covers it there
+        fail("%s: no overlay, screen or test script of a mod is running, so there is no mod whose language file could answer the key.", method);  // SMOKETEST_EXCL: the refusal line the branch above excludes
+    return cur_test_mod;
+}
+
+static union grug_value String_translate(ARGS) {
+    UNUSED;
+    const char* key = a[0]._string;
+    const char* mod = smoke_script_mod("String.translate");
+    if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: smoke_script_mod answers only the test's own mod, so its failure arm above cannot leave null here
+    const char* text = smoke_language_text(mod, key);
+    // A key in neither the mod's file nor en_us is its own text, as the game answers it.
+    return str(keep(xstrdup(text ? text : key)));
+}
+REGISTER("String", "translate", String_translate);
+
+static union grug_value String_translate_with(ARGS) {
+    UNUSED;
+    const char* key = a[0]._string;
+    const char* value = a[1]._string;
+    const char* mod = smoke_script_mod("String.translate_with");
+    if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: as String.translate's above
+    const char* text = smoke_language_text(mod, key);
+    if (!text) text = key;
+    const char* at = strstr(text, "%s");
+    if (!at) return str(keep(xstrdup(text)));
+    size_t before = (size_t)(at - text), added = strlen(value), after = strlen(at + 2);
+    char* out = xmalloc(before + added + after + 1);
+    memcpy(out, text, before);
+    memcpy(out + before, value, added);
+    memcpy(out + before + added, at + 2, after + 1);
+    return str(keep(out));
+}
+REGISTER("String", "translate_with", String_translate_with);
+
+
+// =============================================================================================
 // SECTION: Registry and contract
 // =============================================================================================
 // The registry: every entry of mod_api.json, and which of them have an implementation.

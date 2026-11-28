@@ -12,6 +12,7 @@ import net.grug.minecraft.grug.GrugGenerated;
 import net.grug.minecraft.grug.GrugModsWatcher;
 import net.grug.minecraft.grug.GrugReference;
 import net.grug.minecraft.grug.GrugScreenshots;
+import net.grug.minecraft.grug.GrugScriptDispatch;
 import net.grug.minecraft.grug.GrugTestState;
 
 import java.io.IOException;
@@ -1297,6 +1298,9 @@ public class GrugTestRunner {
         }
 
         boolean completed;
+        // The test's own script is the mod whose files a host entry such as String.translate may
+        // read, for the whole dispatch and not only inside it.
+        String previousMod = GrugScriptDispatch.begin(owningMod(path));
         try {
             if (currentTickFnId == Grug.INVALID_GRUG_EXPORT_FN_ID) {
                 completed = callFirstTick(path);
@@ -1317,6 +1321,8 @@ public class GrugTestRunner {
             }
             fail(path, msg);
             return;
+        } finally {
+            GrugScriptDispatch.end(previousMod);
         }
 
         if (!completed) {
@@ -1740,7 +1746,15 @@ public class GrugTestRunner {
         GrugEntities.beginTestEntities();
 
         try {
-            currentEntityHandle = ops.createEntity(entry.getValue());
+            // The test entity's member scope is the mod's own script, so a host entry that needs
+            // the
+            // running mod, such as String.translate, reads the test's mod there too.
+            String previousMod = GrugScriptDispatch.begin(owningMod(path));
+            try {
+                currentEntityHandle = ops.createEntity(entry.getValue());
+            } finally {
+                GrugScriptDispatch.end(previousMod);
+            }
             if (currentEntityHandle == 0) {
                 throw new RuntimeException("Failed to create an entity for the test.");
             }
@@ -1788,7 +1802,12 @@ public class GrugTestRunner {
         long initFnId = ops.getExportFnId("Test", "init");
         if (initFnId != Grug.INVALID_GRUG_EXPORT_FN_ID) {
             int errorsBefore = GrugTestState.runtimeErrorCount;
-            ops.callInitFn(currentEntityHandle, initFnId);
+            String previousMod = GrugScriptDispatch.begin(owningMod(path));
+            try {
+                ops.callInitFn(currentEntityHandle, initFnId);
+            } finally {
+                GrugScriptDispatch.end(previousMod);
+            }
             if (GrugTestState.runtimeErrorCount != errorsBefore) {
                 fail(
                         path,

@@ -403,11 +403,16 @@ public final class GrugOwnedScreens {
                 long fnId = screen.script().screenInitFnId;
                 if (canAsk(screen.script(), fnId)) {
                     asked = true;
-                    calls.callContext(
-                            screen.script().entityHandle,
-                            fnId,
-                            GrugEntityType.ScreenInitContext,
-                            context);
+                    String previousMod = GrugScriptDispatch.begin(screen.script().mod);
+                    try {
+                        calls.callContext(
+                                screen.script().entityHandle,
+                                fnId,
+                                GrugEntityType.ScreenInitContext,
+                                context);
+                    } finally {
+                        GrugScriptDispatch.end(previousMod);
+                    }
                 }
             } finally {
                 initContext = enclosingContext;
@@ -659,6 +664,7 @@ public final class GrugOwnedScreens {
             GrugScreenWidgetContext context = new GrugScreenWidgetContext(screen, widget);
             GrugScreenWidgetContext enclosingContext = widgetContext;
             widgetContext = context;
+            String previousMod = GrugScriptDispatch.begin(script.mod);
             try {
                 calls.callContext(
                         script.entityHandle,
@@ -666,6 +672,7 @@ public final class GrugOwnedScreens {
                         GrugEntityType.ScreenWidgetContext,
                         context);
             } finally {
+                GrugScriptDispatch.end(previousMod);
                 widgetContext = enclosingContext;
             }
         } finally {
@@ -677,7 +684,12 @@ public final class GrugOwnedScreens {
         if (!canAsk(script, script.screenClosedFnId)) return;
         GrugStateLock.lock();
         try {
-            calls.callNoArgs(script.entityHandle, script.screenClosedFnId);
+            String previousMod = GrugScriptDispatch.begin(script.mod);
+            try {
+                calls.callNoArgs(script.entityHandle, script.screenClosedFnId);
+            } finally {
+                GrugScriptDispatch.end(previousMod);
+            }
         } finally {
             GrugStateLock.unlock();
         }
@@ -689,7 +701,12 @@ public final class GrugOwnedScreens {
         GrugListRowResponse response = new GrugListRowResponse(index, widget);
         long responseId =
                 GrugEntities.addEntity(GrugEntityType.ListRowResponse, response, frameRowRoots);
-        calls.callWithId(script.entityHandle, script.screenListRowFnId, responseId);
+        String previousMod = GrugScriptDispatch.begin(script.mod);
+        try {
+            calls.callWithId(script.entityHandle, script.screenListRowFnId, responseId);
+        } finally {
+            GrugScriptDispatch.end(previousMod);
+        }
         if (response.finish()) {
             widget.addFrameRow(index, response.answeredText(), response.answeredRgb());
         }

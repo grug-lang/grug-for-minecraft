@@ -98,6 +98,16 @@ public class ClientForgeAdapter extends ForgeAdapter {
     }
 
     /**
+     * The code of the language the client selected, such as {@code en_us}, which names the resource
+     * file a mod's {@code String.translate} reads. The language manager is made in the client's
+     * constructor, before any world a script runs in exists, and always has a selection.
+     */
+    @Override
+    public String languageCode() {
+        return Minecraft.getInstance().getLanguageManager().getSelected();
+    }
+
+    /**
      * The client's own copy of the world, which its frame pass draws.
      *
      * <p>In singleplayer this is the client's mirror of the integrated server's world, a different

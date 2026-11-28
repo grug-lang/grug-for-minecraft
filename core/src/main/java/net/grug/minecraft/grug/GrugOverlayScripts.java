@@ -136,6 +136,14 @@ public final class GrugOverlayScripts {
     private static final List<Script> scripts = new ArrayList<>();
 
     /**
+     * The mod of each live script, by the entity handle a call is made on, so {@link #modOfEntity}
+     * answers with a lookup rather than a search: every caller of {@link GrugOverlay#callExport}
+     * already holds a handle a live script made, so a search could only end without a match on a
+     * handle no caller passes.
+     */
+    private static final Map<Long, String> modsByHandle = new TreeMap<>();
+
+    /**
      * The clean names of the overlay files the engine compiled again since the last {@link
      * #ensureCreated}, each of which is dropped and made again on the next frame. A sorted set so a
      * batch that reports several files puts them back in the list in the same order the load did.
@@ -209,6 +217,20 @@ public final class GrugOverlayScripts {
     }
 
     /**
+     * The mod whose overlay script {@code entityHandle} is, or null when no live overlay script has
+     * that handle.
+     *
+     * <p>It is what a host entry with no mod-relative literal of its own, such as {@code
+     * String.translate}, uses to learn which mod is calling: the dispatch passes only the entity
+     * handle, which names the script and so the mod it was made for. A handle from a test entity or
+     * a block entity belongs to no overlay script and answers null; a test's own dispatch sets the
+     * mod through {@link GrugScriptDispatch#begin} instead.
+     */
+    public static String modOfEntity(long entityHandle) {
+        return modsByHandle.get(entityHandle);
+    }
+
+    /**
      * Every overlay that may answer a declared key binding, in clean-name order. A test presses a
      * declared key through these, and a loader that registers no binding polls them; the first
      * overlay of a mod that answers is the one whose handler runs.
@@ -278,6 +300,7 @@ public final class GrugOverlayScripts {
             return;
         }
         script.entityHandle = handle;
+        modsByHandle.put(handle, script.mod);
         script.lookUpExports(entities);
         int at = 0;
         while (at < scripts.size() && scripts.get(at).name.compareTo(name) < 0) at++;
@@ -290,6 +313,7 @@ public final class GrugOverlayScripts {
             Script script = iterator.next();
             if (!script.name.equals(name)) continue;
             GrugOwnedScreens.scriptDropped(script);
+            modsByHandle.remove(script.entityHandle);
             entities.destroy(script.entityHandle);
             script.owner.clear();
             iterator.remove();
@@ -314,6 +338,7 @@ public final class GrugOverlayScripts {
         entities = NATIVE;
         fileIds = new TreeMap<>();
         mods = new TreeMap<>();
+        modsByHandle.clear();
         scripts.clear();
         pending.clear();
         created = false;

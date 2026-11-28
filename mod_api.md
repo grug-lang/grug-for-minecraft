@@ -403,6 +403,8 @@ String.substring(text: string, start: number, end: number) string
 String.to_float(text: string) Option[number]
 String.to_integer(text: string) Option[number]
 String.to_number(text: string) Option[number]
+String.translate(key: string) string
+String.translate_with(key: string, value: string) string
 String.trim(text: string) string
 
 ## TestInitContext

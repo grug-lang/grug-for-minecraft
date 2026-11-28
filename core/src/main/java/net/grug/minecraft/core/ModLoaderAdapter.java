@@ -42,6 +42,20 @@ public interface ModLoaderAdapter {
     GrugSide getSide();
 
     /**
+     * The code of the language the player's client runs, in the game's own spelling and lowercase
+     * as the resource files name it ({@code en_us}, {@code zh_cn}), which is what a mod's language
+     * file is named after.
+     *
+     * <p>A dedicated server, and a loader that cannot name its client's language, answers {@code
+     * en_us}, which is the language the game itself loads first and falls back to. Reading the
+     * selected code from the client is the loader's own job, so a name this interface does not know
+     * is impossible.
+     */
+    default String languageCode() {
+        return "en_us";
+    }
+
+    /**
      * Refuses a call that needs a client when this process is a dedicated server, and says whether
      * it refused.
      *

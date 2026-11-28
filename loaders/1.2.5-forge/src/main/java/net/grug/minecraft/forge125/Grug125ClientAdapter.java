@@ -67,6 +67,19 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         return GrugSide.CLIENT;
     }
 
+    /**
+     * The language the client selected, such as {@code en_US}, which names the resource file a
+     * mod's {@code String.translate} reads. {@code GameSettings} holds {@code en_US} until the
+     * player picks another, so a client that never changed its language names the fallback.
+     */
+    @Override
+    public String languageCode() {
+        return ModLoader.getMinecraftInstance()
+                .gameSettings
+                .language
+                .toLowerCase(java.util.Locale.ROOT);
+    }
+
     @Override
     public void openGui(Object playerObj, Object blockEntityObj, Object guiBuilderObj) {
         // The player and builder types cannot be wrong because of a script, so cast directly.

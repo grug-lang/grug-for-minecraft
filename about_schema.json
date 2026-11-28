@@ -499,6 +499,11 @@
                     "type": "string",
                     "minLength": 1
                 },
+                "name_key": {
+                    "description": "The language key a loader's Controls screen resolves in place of name, such as key.buildguide.toggleenable, where the loader can show a translated key. A loader that cannot, and the placeholder a key with no text falls back to, shows name, which stays the declaration's required literal so every loader has a name to show.",
+                    "type": "string",
+                    "minLength": 1
+                },
                 "default_key": {
                     "description": "The key the binding starts on, as one letter or digit, such as L. An absent default_key registers the version's unbound key, which the Controls screen lists so the player can bind it, as a reference that leaves a binding unbound does. A binding on any other key cannot be polled by a loader that has no registration, so a present key that is not one letter or digit is refused.",
                     "type": "string",

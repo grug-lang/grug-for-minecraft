@@ -59,8 +59,9 @@ class GrugMetadataTest {
     }
 
     private static final String ABOUT =
-            "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle SafeSquares\", \"default_key\":"
-                    + " \"l\"}, {\"id\": \"unbound\", \"name\": \"Unbound\"}, 7, {\"id\":"
+            "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle SafeSquares\", \"name_key\":"
+                    + " \"key.mod.toggle\", \"default_key\": \"l\"}, {\"id\": \"unbound\","
+                    + " \"name\": \"Unbound\", \"name_key\": 7}, 7, {\"id\":"
                     + " \"no-key\"}, {\"name\": \"no-id\", \"default_key\":"
                     + " \"L\"}, {\"id\": \"too-long\", \"name\": \"x\", \"default_key\":"
                     + " \"LL\"}], \"config\": [{\"key\": \"on\", \"type\": \"boolean\","
@@ -97,10 +98,13 @@ class GrugMetadataTest {
         GrugMetadata.Key key = mod.keys().get(0);
         assertEquals("toggle", key.id());
         assertEquals("Toggle SafeSquares", key.name());
+        assertEquals("key.mod.toggle", key.nameKey());
         assertEquals('L', key.code());
         GrugMetadata.Key unbound = mod.keys().get(1);
         assertEquals("unbound", unbound.id());
         assertEquals("Unbound", unbound.name());
+        assertNull(
+                unbound.nameKey(), "A name_key that is not a text is dropped, as for every text.");
         assertEquals(
                 GrugMetadata.UNBOUND_KEY,
                 unbound.code(),
