@@ -4621,6 +4621,17 @@ public class HostFunctions {
         return GrugWorldOverlay.playerZ();
     }
 
+    /**
+     * Sets the depth test this frame's world geometry is drawn with: false draws it through the
+     * blocks in front, as a guide a player can see behind a hill, and true hides it behind them.
+     * The value in effect when the export returns is the one the loader applies to that export's
+     * lines and triangles, and the game's own depth-test state is restored after the draw.
+     */
+    public static void OverlayWorldContext_set_depth_test(long contextId, boolean enabled) {
+        if (!requireWorldContext("OverlayWorldContext.set_depth_test", contextId)) return;
+        GrugWorldOverlay.requestDepthTest(enabled);
+    }
+
     /** The running pass's mod, which owns the configuration a context hands out. */
     private static long addConfig(String method, String callerMod) {
         if (callerMod == null) {

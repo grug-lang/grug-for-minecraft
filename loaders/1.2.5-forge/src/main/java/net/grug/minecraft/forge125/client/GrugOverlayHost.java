@@ -911,6 +911,7 @@ public final class GrugOverlayHost {
             boolean fog = GL11.glIsEnabled(GL11.GL_FOG);
             boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
             boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+            boolean depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
             boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
             int blendSrc = GL11.glGetInteger(GL11.GL_BLEND_SRC);
             int blendDst = GL11.glGetInteger(GL11.GL_BLEND_DST);
@@ -918,6 +919,14 @@ public final class GrugOverlayHost {
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_FOG);
             GL11.glLineWidth(2.0F);
+            // The export's own depth test wraps the whole of its geometry, as the reference toggles
+            // GL_DEPTH_TEST around a shape set's buffer; the game's value comes back in the
+            // finally.
+            if (GrugWorldOverlay.depthTest()) {
+                GL11.glEnable(GL11.GL_DEPTH_TEST);
+            } else {
+                GL11.glDisable(GL11.GL_DEPTH_TEST);
+            }
             try {
                 GL11.glBegin(GL11.GL_LINES);
                 for (GrugWorldOverlay.Line line : lines) {
@@ -943,6 +952,11 @@ public final class GrugOverlayHost {
                 GL11.glLineWidth(1.0F);
                 GL11.glBlendFunc(blendSrc, blendDst);
                 GL11.glDepthMask(depthMask);
+                if (depthTest) {
+                    GL11.glEnable(GL11.GL_DEPTH_TEST);
+                } else {
+                    GL11.glDisable(GL11.GL_DEPTH_TEST);
+                }
                 if (cull) GL11.glEnable(GL11.GL_CULL_FACE);
                 if (blend) {
                     GL11.glEnable(GL11.GL_BLEND);

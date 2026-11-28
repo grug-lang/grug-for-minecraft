@@ -1775,6 +1775,7 @@ static void call_contained(void* entity, uint64_t fn, const union grug_value* ar
 // refused, as the game refuses it.
 static double world_pass_serial;  // 0 while no pass is open
 static double world_pass_count;   // the serial the last opened pass took, which never repeats
+static bool world_depth_test;     // what the open world pass asked its geometry to be drawn with
 static double overlay_key_code;
 static bool overlay_ctrl;
 static const char* overlay_binding_id;
@@ -1795,6 +1796,7 @@ static void ask_world_overlays(uint64_t fn, enum kind kind, const char* name) {
         if (overlay_disabled(overlays[i].path)) continue;
         char err[sizeof last_msg];
         world_pass_serial = ++world_pass_count;
+        if (kind == K_WORLD_CTX) world_depth_test = true;  // every export starts depth-tested
         uint64_t ctx = new_obj(kind);
         objs[ctx - 1].x = world_pass_serial;
         union grug_value arg = id(ctx);
@@ -3665,6 +3667,16 @@ static union grug_value OverlayWorldContext_draw_triangle(ARGS) {
     return none();
 }
 REGISTER("OverlayWorldContext", "draw_triangle", OverlayWorldContext_draw_triangle);
+// The depth test a frame's geometry is drawn with. The smoketest stubs every graphics call, so the
+// request is recorded in world_depth_test rather than applied to a GL context, and every world pass
+// starts it again as GrugWorldOverlay.openWorld does.
+static union grug_value OverlayWorldContext_set_depth_test(ARGS) {
+    UNUSED;
+    if (!pass_ctx(a, K_WORLD_CTX, "OverlayWorldContext.set_depth_test", "render_world")) return none();
+    world_depth_test = a[1]._bool;
+    return none();
+}
+REGISTER("OverlayWorldContext", "set_depth_test", OverlayWorldContext_set_depth_test);
 static union grug_value OverlayWorldKeyContext_key(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_KEY_CTX, "OverlayWorldKeyContext.key", "world_key") ? num(overlay_key_code) : none(); }
 REGISTER("OverlayWorldKeyContext", "key", OverlayWorldKeyContext_key);
 static union grug_value OverlayWorldKeyContext_ctrl(ARGS) { UNUSED; return pass_ctx(a, K_WORLD_KEY_CTX, "OverlayWorldKeyContext.ctrl", "world_key") ? boolean(overlay_ctrl) : none(); }

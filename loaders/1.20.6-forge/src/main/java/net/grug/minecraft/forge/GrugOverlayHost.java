@@ -610,42 +610,73 @@ public final class GrugOverlayHost {
             if (overlay.mod.equals(testMod)) {
                 GrugWorldOverlay.noteDrawn();
             }
-            MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-            PoseStack.Pose pose = new PoseStack().last();
-            if (!lines.isEmpty()) {
-                VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
-                for (GrugWorldOverlay.Line line : lines) {
-                    int rgb = line.rgb();
-                    int r = (rgb >> 16) & 0xFF;
-                    int g = (rgb >> 8) & 0xFF;
-                    int b = rgb & 0xFF;
-                    float x1 = (float) (line.x1() - position.x);
-                    float y1 = (float) (line.y1() - position.y);
-                    float z1 = (float) (line.z1() - position.z);
-                    float x2 = (float) (line.x2() - position.x);
-                    float y2 = (float) (line.y2() - position.y);
-                    float z2 = (float) (line.z2() - position.z);
-                    float dx = x2 - x1;
-                    float dy = y2 - y1;
-                    float dz = z2 - z1;
-                    float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-                    if (length > 0.0F) {
-                        dx /= length;
-                        dy /= length;
-                        dz /= length;
+            // The export's own depth test wraps the whole of its geometry, as the reference toggles
+            // GL_DEPTH_TEST around a shape set's buffer, and the game's value comes back after the
+            // draw. RenderSystem has no getter for it, so the state is read off the GL context.
+            boolean depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+            try {
+                MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+                PoseStack.Pose pose = new PoseStack().last();
+                if (!lines.isEmpty()) {
+                    // The line render type sets up its own depth test when the buffer is flushed,
+                    // so the request rides in the type the lines are built into.
+                    boolean depthTestRequested = GrugWorldOverlay.depthTest();
+                    RenderType linesType =
+                            depthTestRequested
+                                    ? RenderType.lines()
+                                    : GrugOverlayRenderTypes.NO_DEPTH_LINES;
+                    // The see-through type deliberately sets no depth test of its own, so the state
+                    // it leaves is the one the flush draws with.
+                    if (!depthTestRequested) {
+                        RenderSystem.disableDepthTest();
                     }
-                    consumer.vertex(pose.pose(), x1, y1, z1)
-                            .color(r, g, b, 255)
-                            .normal(pose, dx, dy, dz)
-                            .endVertex();
-                    consumer.vertex(pose.pose(), x2, y2, z2)
-                            .color(r, g, b, 255)
-                            .normal(pose, dx, dy, dz)
-                            .endVertex();
+                    VertexConsumer consumer = buffers.getBuffer(linesType);
+                    for (GrugWorldOverlay.Line line : lines) {
+                        int rgb = line.rgb();
+                        int r = (rgb >> 16) & 0xFF;
+                        int g = (rgb >> 8) & 0xFF;
+                        int b = rgb & 0xFF;
+                        float x1 = (float) (line.x1() - position.x);
+                        float y1 = (float) (line.y1() - position.y);
+                        float z1 = (float) (line.z1() - position.z);
+                        float x2 = (float) (line.x2() - position.x);
+                        float y2 = (float) (line.y2() - position.y);
+                        float z2 = (float) (line.z2() - position.z);
+                        float dx = x2 - x1;
+                        float dy = y2 - y1;
+                        float dz = z2 - z1;
+                        float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        if (length > 0.0F) {
+                            dx /= length;
+                            dy /= length;
+                            dz /= length;
+                        }
+                        consumer.vertex(pose.pose(), x1, y1, z1)
+                                .color(r, g, b, 255)
+                                .normal(pose, dx, dy, dz)
+                                .endVertex();
+                        consumer.vertex(pose.pose(), x2, y2, z2)
+                                .color(r, g, b, 255)
+                                .normal(pose, dx, dy, dz)
+                                .endVertex();
+                    }
+                    buffers.endBatch(linesType);
                 }
-                buffers.endBatch(RenderType.lines());
+                // The triangles go through an immediate draw, which uses the render system's own
+                // depth test, so the request is applied here.
+                if (GrugWorldOverlay.depthTest()) {
+                    RenderSystem.enableDepthTest();
+                } else {
+                    RenderSystem.disableDepthTest();
+                }
+                drawTriangles(pose, triangles, position);
+            } finally {
+                if (depthTest) {
+                    RenderSystem.enableDepthTest();
+                } else {
+                    RenderSystem.disableDepthTest();
+                }
             }
-            drawTriangles(pose, triangles, position);
         }
         RenderSystem.depthMask(depthMask);
     }

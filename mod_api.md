@@ -323,6 +323,7 @@ Option.new() Option[$Value]
 .player_x() number
 .player_y() number
 .player_z() number
+.set_depth_test(enabled: bool)
 
 ## OverlayWorldKeyContext
 .ctrl() bool
