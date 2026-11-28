@@ -118,11 +118,6 @@
 					"what": "The quarry clears a flowing liquid inside its box, and puts a frame over flowing lava, where 2.2.14's builder leaves flowing lava alone and does not clear flowing water.",
 					"why": "Level.get_block names a flowing liquid minecraft:unknown on 1.2.5, so flowing water, flowing lava and every other unnamed block are the same to the builder.",
 					"tracking_issue": 1626
-				},
-				{
-					"what": "A column of tanks is a set of separate tanks: a full one answers 0 to an offer instead of passing the rest to the tank above it, and a nearly empty one answers only what it holds instead of drawing from the tank below, where 2.2.14's TileTank walks the column in fill/actualFill and empty/actualEmtpy. The block texture does drop the bottom rim where a tank stands on another, as BlockTank.d does.",
-					"why": "The reference's fill enters the column through ILiquidContainer on the one tile a pipe targets, and that tile then walks the column itself; a grug export is called by the host rather than by another block entity, so the tank's offer_liquid cannot hand the rest of an offer to the tank above it.",
-					"tracking_issue": 1788
 				}
 			]
 		}
