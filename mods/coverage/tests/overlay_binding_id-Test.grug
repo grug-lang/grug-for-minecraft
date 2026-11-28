@@ -5,7 +5,10 @@
 # own mark when the id arrives, which the next frame draws. A second press by id turns the mark off
 # again, so the state is the one the test found and a test after it draws nothing. An id the mod
 # does not declare is refused and not pressed, and the test ends on that refusal. See
-# overlay_binding-Test.grug for the binding a real key press reaches.
+# overlay_binding-Test.grug for the binding a real key press reaches. The call presses the overlay
+# script of the process the test runs in, which a real press reaches over the test-control channel
+# instead, so only a client observes the frame it changes: a dedicated server presses its own copy
+# and the joined client draws nothing.
 started: bool = false
 pressed: bool = false
 turned_off: bool = false
@@ -14,7 +17,7 @@ cleared_at: number = 0
 
 export tick(ctx: TestTickContext) {
     if not started {
-        if not me.world_overlay_supported() {
+        if not me.world_overlay_supported() or me.on_dedicated_server() {
             started = true
             return
         }
