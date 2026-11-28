@@ -17,10 +17,12 @@ import java.util.Set;
  * what asks {@code screen_widget_changed}. A mod's own {@code set_*} and {@code select} change the
  * model only, so writing a value never asks the export.
  *
- * <p>The widgets are keyed by the name their declaration gave them and keep the order they were
- * first declared in, which is the order the frame draws them. A {@code screen_init} after a resize
- * answers the same Widget for a name it declares again; an open time that ends drops them all, so a
- * screen that is opened again starts with fresh widgets, as {@code screen_closed} documents.
+ * <p>The widgets are keyed by the name their declaration gave them and keep the order the latest
+ * {@code screen_init} declared them in, which is the order the frame draws them and the wheel
+ * searches them. A {@code screen_init} after a resize answers the same Widget for a name it
+ * declares again and moves it to where that init declared it; an open time that ends drops them
+ * all, so a screen that is opened again starts with fresh widgets, as {@code screen_closed}
+ * documents.
  */
 public final class GrugOwnedScreen {
 
@@ -49,6 +51,9 @@ public final class GrugOwnedScreen {
 
     private final Map<String, GrugWidget> widgets = new LinkedHashMap<>();
     private final Set<String> declaredThisInit = new HashSet<>();
+
+    /** The names the running {@code screen_init} declared, in the order it declared them. */
+    private final List<String> declaredOrder = new ArrayList<>();
 
     private boolean open;
 
@@ -93,7 +98,7 @@ public final class GrugOwnedScreen {
         open = nowOpen;
     }
 
-    /** The widgets in declaration order, which is the order the frame draws them. */
+    /** The widgets in the latest declaration order, which is the order the frame draws them. */
     public List<GrugWidget> widgets() {
         return new ArrayList<>(widgets.values());
     }
@@ -105,6 +110,7 @@ public final class GrugOwnedScreen {
 
     void beginInit() {
         declaredThisInit.clear();
+        declaredOrder.clear();
     }
 
     /**
@@ -125,8 +131,19 @@ public final class GrugOwnedScreen {
                 GrugEntities.removeEntity(widget.entityId, roots);
                 iterator.remove();
             }
+            // The latest declaration order is the order the frame draws, so the survivors are put
+            // back in it. Rebuilding the map keeps every widget object and its state, and a widget
+            // this init did not declare was just dropped. An init that was not asked leaves the
+            // order alone, as it leaves the widgets alone.
+            Map<String, GrugWidget> ordered = new LinkedHashMap<>();
+            for (String name : declaredOrder) {
+                ordered.put(name, widgets.get(name));
+            }
+            widgets.clear();
+            widgets.putAll(ordered);
         }
         declaredThisInit.clear();
+        declaredOrder.clear();
     }
 
     /**
@@ -140,6 +157,7 @@ public final class GrugOwnedScreen {
         }
         widgets.clear();
         declaredThisInit.clear();
+        declaredOrder.clear();
     }
 
     private GrugWidget reuse(
@@ -155,6 +173,7 @@ public final class GrugOwnedScreen {
         widget.width = width;
         widget.height = height;
         declaredThisInit.add(name);
+        declaredOrder.add(name);
         return widget;
     }
 
