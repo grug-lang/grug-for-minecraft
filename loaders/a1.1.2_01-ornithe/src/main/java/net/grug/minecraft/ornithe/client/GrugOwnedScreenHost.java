@@ -270,6 +270,10 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         // The rows are asked before anything is drawn, because the lists draw the answers this
         // frame.
         GrugOwnedScreens.prepareFrame(screen);
+        // A row export may have closed or reopened the screen, which ends this host's open time:
+        // the copies it would sync and draw belong to the new open time, which its own host owns
+        // (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return;
         // A row export may have moved, shown or hidden a widget while it answered, and the game's
         // copies are a frame behind: syncing again here draws and hit-tests the widgets the mod
         // laid out for this frame (#1871's review).
@@ -293,6 +297,9 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         // and titles on top of them.
         GrugOverlayGeometry geometry =
                 GrugOwnedScreens.renderScreen(screen, width, height, mouseX, mouseY);
+        // screen_render may have closed or reopened the screen too, and neither the old open
+        // time's geometry nor its drawn mark belongs to the screen the game shows now (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return;
         GrugOverlayHost.drawGeometry(this, minecraft, geometry);
         GrugOwnedScreens.noteScreenFrame(screen);
     }
@@ -306,6 +313,10 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             GrugOverlay.noteTestPressTaken();
             return;
         }
+        // A screen_click answer may have closed or reopened the screen, so the widget loop below
+        // would hit-test the new open time's widgets with a press the player made on the old one
+        // (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return;
         // The mod may have shown, hidden or moved a widget during that call, and the mirrors are a
         // frame behind. A press is routed by a mirror's own visibility, bounds and active flag, so
         // the mirrors are brought up to date first: otherwise a list the mod just hid still takes
@@ -401,10 +412,18 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             closeScreen();
             return true;
         }
-        Field focused = focusedField();
+        Map.Entry<GrugWidget, Field> focused = focusedField();
         if (focused != null) {
-            if (focused.edit(character, key)) reportFieldText(focused);
-            return true;
+            Field field = focused.getValue();
+            // The widget is the truth: the mod may have rewritten the text or deactivated the field
+            // since the last frame copied them, and a key applied to the frame's copy would commit
+            // the old text or be swallowed by a field the mod disabled (#1884). A rewrite moves the
+            // caret to the end of the new text, and an echo leaves it where it was.
+            field.syncFrom(focused.getKey());
+            if (field.focused) {
+                if (field.edit(character, key)) reportFieldText(field);
+                return true;
+            }
         }
         GrugOverlayHost.pressOwnedScreenKey(this, character, key);
         return true;
@@ -419,6 +438,10 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             GrugOverlay.noteTestPressTaken();
             return true;
         }
+        // A screen_scroll answer may have closed or reopened the screen, and the list fallback
+        // below would then scroll a list of the new open time with the old event. A scroll that
+        // stayed in this open time still reaches the list under the wheel (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return true;
         GrugWidget list = GrugOwnedScreens.listAt(screen, x, y);
         if (list != null) {
             // A list that is not active does not move, but the wheel over it is still absorbed
@@ -430,9 +453,9 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
     }
 
     /** The field that has the keyboard, or null when none does. */
-    private Field focusedField() {
-        for (Field field : fields.values()) {
-            if (field.focused) return field;
+    private Map.Entry<GrugWidget, Field> focusedField() {
+        for (Map.Entry<GrugWidget, Field> entry : fields.entrySet()) {
+            if (entry.getValue().focused) return entry;
         }
         return null;
     }

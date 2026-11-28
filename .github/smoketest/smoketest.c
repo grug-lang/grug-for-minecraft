@@ -4223,6 +4223,11 @@ REGISTER("Test", "overlay_supported", Test_overlay_supported);
 // test that asks for one belongs here and runs rather than skipping.
 static union grug_value Test_owned_screens_supported(ARGS) { UNUSED; return boolean(true); }
 REGISTER("Test", "owned_screens_supported", Test_owned_screens_supported);
+// The smoketest runs a mod screen's exports without the game's own focus and key plumbing, so no
+// field here ever takes a character. A typing test asks this and returns early rather than failing
+// for a focus the smoketest does not model.
+static union grug_value Test_text_field_typing_supported(ARGS) { UNUSED; return boolean(false); }
+REGISTER("Test", "text_field_typing_supported", Test_text_field_typing_supported);
 // The smoketest paints nothing, so every capture is blank and two captures never differ. A test
 // that would assert a rendering difference asks this and skips the assertion.
 static union grug_value Test_screenshots_supported(ARGS) { UNUSED; return boolean(false); }
@@ -5433,6 +5438,7 @@ static bool widget_contains(const struct owned_widget* w, double x, double y) {
 static bool mod_screen_click(double x, double y, double button) {
     struct owned_screen* s = open_owned_screen;
     if (!s || !s->open) return false;
+    unsigned generation = s->generation;
     overlay_click_x = x;
     overlay_click_y = y;
     overlay_click_button = button;
@@ -5446,7 +5452,10 @@ static bool mod_screen_click(double x, double y, double button) {
         if (overlay_pass_taken) return true;
     }
     if (button != 0) return false;  // a button, a box, a list and a slider react to the left button only
-    if (open_owned_screen != s || !s->open) return false;
+    // A screen_click answer may have closed or reopened the screen, which ends the open time this
+    // press began in: the widget loop below would hit-test the new open time's widgets with it
+    // (#1885).
+    if (open_owned_screen != s || !s->open || s->generation != generation) return false;
     for (size_t i = 0; i < s->nwidgets; i++) {
         struct owned_widget* w = s->widgets[i];
         if (!w->visible || !w->active || !widget_contains(w, x, y)) continue;
@@ -5517,6 +5526,7 @@ static bool mod_screen_key(double key, double character, bool ctrl, bool shift, 
 static bool mod_screen_scroll(double x, double y, double delta) {
     struct owned_screen* s = open_owned_screen;
     if (!s || !s->open) return false;
+    unsigned generation = s->generation;
     overlay_scroll_x = x;
     overlay_scroll_y = y;
     overlay_scroll_delta = delta;
@@ -5529,7 +5539,10 @@ static bool mod_screen_scroll(double x, double y, double delta) {
         call_screen_export(s, screen_scroll_fn, &arg, 1);
         if (overlay_pass_taken) return true;
     }
-    if (open_owned_screen != s || !s->open) return false;
+    // A screen_scroll answer may have closed or reopened the screen, and the list fallback below
+    // would then scroll a list of the new open time with the old event. A scroll that stayed in
+    // this open time still reaches the list under the wheel (#1885).
+    if (open_owned_screen != s || !s->open || s->generation != generation) return false;
     // The list under the point takes the wheel, even when it is not active: an inactive list does
     // not scroll (its set_active says so) and the movement does not fall through to a list behind
     // it, which is what the game's own list does, since its isMouseOver checks only the bounds.
@@ -5571,6 +5584,12 @@ static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
 static void mod_screen_render(void) {
     struct owned_screen* s = open_owned_screen;
     if (!s || !s->open) return;
+    // A mod-owned screen draws no overlay pass, so its first frame is recorded here, as
+    // render_overlays records a container screen's (#1391).
+    if (!overlay_first_frame_recorded) {
+        overlay_first_frame_recorded = true;
+        overlay_first_frame_cleared = !overlay_drawn;
+    }
     unsigned generation = s->generation;
     frame_asked_a_row = false;
     struct owned_widget** widgets = NULL;
@@ -5610,6 +5629,9 @@ static void mod_screen_render(void) {
         // drawn when it draws such a frame (GrugOwnedScreens.noteScreenFrame), not when a container
         // screen draws an overlay, so this pass sets the same mark after it draws the screen.
         call_screen_export(s, screen_render_fn, &arg, 1);
+        // screen_render may have closed or reopened the screen, and the drawn mark belongs to the
+        // open time this frame began in, not to the one a reopen started (#1885).
+        if (open_owned_screen != s || !s->open || s->generation != generation) return;
         overlay_drawn = true;
     }
 }

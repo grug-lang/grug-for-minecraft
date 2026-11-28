@@ -1373,6 +1373,21 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void stillOpenNamesOnlyTheOpenScreenAtItsOwnOpenTime() {
+        GrugOwnedScreen screen = openScreen();
+        long generation = screen.generation();
+        assertTrue(GrugOwnedScreens.stillOpen(screen, generation));
+        // A reopen bumps the generation, so the frame, press or wheel call that began before it
+        // belongs to an open time that has ended (#1885).
+        assertFalse(GrugOwnedScreens.stillOpen(screen, generation + 1));
+        assertFalse(
+                GrugOwnedScreens.stillOpen(createScreen(), generation),
+                "another screen is not the one the host began its call for");
+        assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
+        assertFalse(GrugOwnedScreens.stillOpen(screen, generation), "a closed screen is not open");
+    }
+
+    @Test
     void droppingAScriptLeavesTheScreensOfAnotherScript() {
         GrugOwnedScreen mine = openScreen();
         GrugOverlayScripts.Script other = newScript(88);

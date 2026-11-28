@@ -1,0 +1,225 @@
+# Typing into a mod screen's text field through the game's own field: the coverage screen's field
+# starts as "text", a click focuses it, and each key is pressed the way a player's press arrives.
+# The overlay writes the field's text to the mod's own file whenever it changes, so every step reads
+# what the field holds after the key, and a caret key is proved by the character that lands after it
+# (#1884's typing half, #1882's test half).
+# The mod may rewrite the field's text or deactivate it from its own export, and a field it
+# deactivated must take nothing; that half is the screen_field_sync test's, because it needs the
+# overlay's field chain armed in the same tick as the key.
+# The game's own text field belongs to the loader, and the logic smoketest has no focus and no key
+# plumbing, so the test asks text_field_typing_supported and returns early where it is false. It also
+# returns early on a loader without a screen host and on the dedicated server, whose joined client
+# owns the screen.
+# Shift+Left selects the character before the caret on the loaders whose field reads the test's own
+# shift flag. The two Forge loaders' fields ask the physical keyboard instead, which a test press
+# cannot hold, so the selection step is skipped there and the field's plain caret movement is what
+# the step before it proves.
+started: bool = false
+step: number = 0
+waited: number = 0
+forge: bool = false
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        if not me.text_field_typing_supported() {
+            return
+        }
+        forge = String.index_of(me.loader_name(), "forge") >= 0
+        files: File = File.open(r"files")
+        # The writable directory outlives a run, so the marker starts empty and a later run of the
+        # suite cannot read what this test wrote before.
+        files.write_text("screen_typing/edit.txt", "")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is typed into.")
+            ctx.not_done()
+            return
+        }
+        # The text field is the fourth widget, at (10, 100) and 160 wide by 20 high, so a click in
+        # it focuses it. End then puts the caret after the field's "text" whatever index the click
+        # landed on, so every expected text below is the same on every loader.
+        ctx.click_screen(20, 110, 0)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        ctx.press_screen_key(269, false, false, true)
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # The 1 key types its character at the end of the field.
+        ctx.press_screen_key(49, false, false, true)
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        ctx.assert(_text(ctx) == "text1", "A typed 1 should land at the end of the field's text.")
+        # Backspace removes the character before the caret.
+        ctx.press_screen_key(259, false, false, true)
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        ctx.assert(_text(ctx) == "text", "Backspace should remove the last character.")
+        # Home puts the caret before the first character.
+        ctx.press_screen_key(268, false, false, true)
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        # Delete removes the character at the caret, which Home put on the first one.
+        ctx.press_screen_key(261, false, false, true)
+        step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        ctx.assert(_text(ctx) == "ext", "Home and Delete should remove the first character.")
+        # End puts the caret back after the last character.
+        ctx.press_screen_key(269, false, false, true)
+        step = 8
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        ctx.press_screen_key(50, false, false, true)
+        step = 9
+        ctx.not_done()
+        return
+    }
+
+    if step == 9 {
+        ctx.assert(_text(ctx) == "ext2", "End and a typed 2 should append the character.")
+        # Left moves the caret one character back, so the next character lands before the 2.
+        ctx.press_screen_key(263, false, false, true)
+        step = 10
+        ctx.not_done()
+        return
+    }
+
+    if step == 10 {
+        ctx.press_screen_key(51, false, false, true)
+        step = 11
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        ctx.assert(_text(ctx) == "ext32", "Left should move the caret so a typed 3 lands before the 2.")
+        # Right moves the caret from between the 3 and the 2 to the end, so the next character
+        # lands after the 2.
+        ctx.press_screen_key(262, false, false, true)
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        ctx.press_screen_key(52, false, false, true)
+        step = 13
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        ctx.assert(_text(ctx) == "ext324", "Right should move the caret so a typed 4 lands after the 2.")
+        if forge {
+            step = 16
+            ctx.not_done()
+            return
+        }
+        # Shift+Left selects the 4 before the caret, which the shift flag of the test press extends.
+        ctx.press_screen_key(263, false, true, true)
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        # A typed character replaces the selection rather than landing beside it.
+        ctx.press_screen_key(53, false, false, true)
+        step = 15
+        ctx.not_done()
+        return
+    }
+
+    if step == 15 {
+        ctx.assert(_text(ctx) == "ext325", "A typed 5 should replace the character Shift+Left selected.")
+        step = 16
+        ctx.not_done()
+        return
+    }
+
+    if step == 16 {
+        if forge {
+            ctx.assert(_text(ctx) == "ext324", "The caret keys should leave the text the field's plain keys wrote, with no shift selection on this loader.")
+        }
+        ctx.close_screen()
+        ctx.assert(not ctx.screen_open(), "The test's own close should leave no screen open.")
+        return
+    }
+
+    ctx.not_done()
+}
+
+# The text the overlay last reported for its field. The file is written in the same tick as the key
+# that changed the text, because the field reports its edit from the game's own key handler.
+local _text(ctx: TestTickContext) string {
+    files: File = File.open(r"files")
+    return files.read_text("screen_typing/edit.txt").unwrap()
+}

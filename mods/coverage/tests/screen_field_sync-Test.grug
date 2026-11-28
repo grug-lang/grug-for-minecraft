@@ -1,0 +1,137 @@
+# A key the player types has to land on the text the mod wrote from the screen's own export, and a
+# field the mod deactivated has to give the keyboard up before the next frame copies the flag
+# (#1884). The overlay's screen_key rewrites the focused field's text on the next Escape and
+# deactivates it on the one after, and screen_widget_changed writes the field's text to the mod's own
+# file. The test presses each key in the same tick as the rewrite or the deactivation, so no frame
+# can have copied the stale value first: without the host syncing its field before delivering the
+# key, the character would land on the old text, and without it dropping a deactivated field's focus
+# the character would still be taken. Left then proves the field lost the keyboard: screen_key takes
+# it and writes the text the field still holds.
+# The game's own text field belongs to the loader, and the logic smoketest has no focus and no key
+# plumbing, so the test asks text_field_typing_supported and returns early where it is false. It also
+# returns early on a loader without a screen host and on the dedicated server, whose joined client
+# owns the screen.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        if not me.text_field_typing_supported() {
+            return
+        }
+        files: File = File.open(r"files")
+        # The writable directory outlives a run, so both markers start empty and a later run of the
+        # suite cannot read what this test wrote before.
+        files.write_text("screen_typing/edit.txt", "")
+        files.write_text("screen_typing/left.txt", "")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # O arms the field chain: the next Escape rewrites the field's text and the one after
+        # deactivates it.
+        ctx.press_world_key(79, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is typed into.")
+            ctx.not_done()
+            return
+        }
+        # The text field is the fourth widget, at (10, 100) and 160 wide by 20 high, so a click in
+        # it focuses it.
+        ctx.click_screen(20, 110, 0)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        took: bool = ctx.press_screen_key(256, false, false, true)
+        ctx.assert(took, "Escape should reach screen_key, which rewrites the field's text.")
+        # The same tick, so no frame copies the rewrite first: without the host's sync the game's
+        # field still holds "text" when this key arrives.
+        ctx.press_screen_key(51, false, false, true)
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        files: File = File.open(r"files")
+        text: string = files.read_text("screen_typing/edit.txt").unwrap()
+        ctx.assert(text == "73", "The typed 3 should land on the 7 the mod wrote, so the field holds 73.")
+        took: bool = ctx.press_screen_key(256, false, false, true)
+        ctx.assert(took, "Escape should reach screen_key, which deactivates the field.")
+        # Again in the same tick: the field the mod just deactivated must not take this key.
+        ctx.press_screen_key(51, false, false, true)
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        files: File = File.open(r"files")
+        text: string = files.read_text("screen_typing/edit.txt").unwrap()
+        ctx.assert(text == "73", "The deactivated field should not take the typed 3.")
+        took: bool = ctx.press_screen_key(263, false, false, true)
+        ctx.assert(took, "Left should reach screen_key once the deactivated field gave up the keyboard.")
+        step = 6
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    files: File = File.open(r"files")
+    text: string = files.read_text("screen_typing/left.txt").unwrap()
+    ctx.assert(text == "73", "screen_key should read the field's own 73 after it lost the keyboard.")
+    ctx.close_screen()
+    ctx.assert(not ctx.screen_open(), "The test's own close should leave no screen open.")
+}

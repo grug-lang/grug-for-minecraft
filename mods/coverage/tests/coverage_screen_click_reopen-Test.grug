@@ -1,0 +1,147 @@
+# A screen_click answer that closes or reopens the screen ends the open time the press began in, so
+# the host must not route the press of that open time into the new one's widgets (#1885). The
+# overlay's R key arms a one-shot reopen: screen_click closes the screen, opens it again and writes
+# "reopened" to the mod's own file. S arms a close-only answer instead: the screen closes and no new
+# open time takes its place.
+# The button marker is what proves the widget loop stopped: screen_widget_changed writes the button's
+# text to `screen_reopen/click.txt`, so the armed press must leave the file empty. The press after it
+# lands on the same point with no arm and writes the marker, which proves that point really is over
+# the button, so the empty file is the guard's doing and not a press aimed at nothing. The close-only
+# arm covers the other half of the check, a screen that is no longer open.
+# A loader without a screen host answers an err to Screen.open, so the test returns early there, and
+# it ends early on the dedicated server, whose joined client owns the screen.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        files: File = File.open(r"files")
+        # The writable directory outlives a run, so both markers start empty and a later run of the
+        # suite cannot read what this test wrote before.
+        files.write_text("screen_reopen/state.txt", "")
+        files.write_text("screen_reopen/click.txt", "")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # R arms the one-shot reopen from screen_click.
+        ctx.press_world_key(82, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before it is pressed.")
+            ctx.not_done()
+            return
+        }
+        # The button is at (10, 10) and 70 wide by 20 high. The armed press reopens the screen from
+        # screen_click.
+        ctx.click_screen(40, 20, 0)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        state: string = files.read_text("screen_reopen/state.txt").unwrap()
+        if state != "reopened" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The armed press should close and reopen the screen.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(files.read_text("screen_reopen/click.txt").unwrap() == "", "The press that reopened the screen must not reach the button of the new open time.")
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The reopened screen should draw a frame of its own.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(ctx.overlay_first_frame_cleared(), "The reopened screen's first frame should begin with the drawn mark clear.")
+        # The same point again, with no arm: this press must reach the button, which proves the point
+        # is over one.
+        ctx.click_screen(40, 20, 0)
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_reopen/click.txt").unwrap() == "" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A press on the button should reach it once no reopen is armed.")
+            ctx.not_done()
+            return
+        }
+        # The marker starts empty again, so the close-only press below is proved by leaving it empty.
+        files.write_text("screen_reopen/click.txt", "")
+        # S arms the close-only answer: the next press closes the screen instead of reaching the
+        # button.
+        ctx.press_world_key(83, false)
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        ctx.click_screen(40, 20, 0)
+        step = 6
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    files: File = File.open(r"files")
+    ctx.assert(files.read_text("screen_reopen/state.txt").unwrap() == "closed", "The armed press should close the screen.")
+    ctx.assert(not ctx.screen_open(), "The close-only answer should leave no screen open.")
+    ctx.assert(files.read_text("screen_reopen/click.txt").unwrap() == "", "The press that closed the screen must not reach the button of a new open time.")
+    ctx.close_screen()
+}

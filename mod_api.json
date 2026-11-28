@@ -1521,6 +1521,12 @@
 						"name": "bool"
 					}
 				},
+				"text_field_typing_supported": {
+					"description": "Test only: whether a key a test presses types its character into the field of a mod-owned screen that has focus. Every loader's screen host does. The logic smoketest runs a mod screen's exports without the game's own focus and key plumbing, so no field there ever takes a character: a typing test asks this and returns early there instead of failing for a focus the smoketest does not model.",
+					"return_type": {
+						"name": "bool"
+					}
+				},
 				"world_overlay_supported": {
 					"description": "Whether this loader asks an overlay's world_key, render_hud and render_world exports at all, which a test asks before it presses a key and waits for a draw: a loader that does not returns early there instead of waiting for a frame that is never drawn. It is a property of the loader, answered from the start of a run.",
 					"return_type": {

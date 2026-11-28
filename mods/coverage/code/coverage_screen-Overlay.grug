@@ -6,6 +6,20 @@
 # passed: the two rules of answering twice, a use after the call returned, and the answer it has to
 # give. What the stale mode keeps is used by `screen_render`, which runs later in the same frame
 # after `screen_list_row` has returned. See #1760.
+# World keys arm what the screen tests drive, because a screen export cannot be reached from a test
+# directly. K, T, R, S and Q arm a one-shot reopen or close from `screen_list_row`, `screen_render`,
+# `screen_click` twice and `screen_scroll`; the test that arms one opens the screen itself, so the
+# change happens inside that frame or that event, and the host has to stop the rest of the work once
+# its open time has ended (#1885). O arms a text field state: the next Escape rewrites the field's
+# text and the next one after that deactivates it, so a key pressed in the same tick has to be
+# applied to the text the mod wrote and a deactivated field has to give the keyboard up before the
+# game's own copy reaches it (#1884).
+# The observations the screen tests read are written to this mod's own files, because a test
+# cannot ask a screen export for its state directly. `screen_widget_changed` writes the text
+# field's own text to `screen_typing/edit.txt` and the button's to `screen_reopen/click.txt`, the
+# field chain writes what the field still holds to `screen_typing/left.txt`, a reopen writes
+# "reopened" to `screen_reopen/state.txt`, and a frame writes the first row the list drew to
+# `screen_reopen/rows.txt`.
 screen: Screen = Screen.new()
 
 # The handles of the five widgets, kept from `screen_init` so a later init can declare the same
@@ -27,6 +41,32 @@ row_mode: number = 0
 # every frame clears the responses it rooted.
 kept_row: Option[ListRowResponse] = Option.new()
 
+# What the screen's own Escape does to the text field: 0 nothing, 1 rewrites the field's text and
+# moves to 2, 2 deactivates the field and moves to 3, and 3 writes what the field still holds to
+# `screen_typing/left.txt` when Left is pressed. A test arms 1 with O before it opens the screen, so
+# the change lands in the same tick as the key that follows it (#1884).
+field_mode: number = 0
+
+# Whether the next call of one screen export closes and reopens the screen, or, for the close-only
+# arm, closes it and opens nothing. Each is one-shot and armed before the test opens the screen, so
+# only the first call of the armed open time changes it (#1885).
+reopen_once: bool = false
+click_reopen_once: bool = false
+click_close_once: bool = false
+render_reopen_once: bool = false
+scroll_reopen_once: bool = false
+
+# How many rows the list has. P sets ten, which is more than its viewport shows, so a wheel over it
+# moves the first row a test reads. Every other test leaves the default, which fits the viewport.
+list_rows: number = 3
+
+# The smallest row index `screen_list_row` was asked for since the last frame, and the value last
+# written to `screen_reopen/rows.txt`. A wheel over the list starts it one row further down, and a
+# test reads the file to see which row the list begins at. The file is only written when the value
+# changes, because a write is an fsync (#1885).
+row_min: number = -1
+rows_written: number = -1
+
 # The width `screen_render` measured for its title with the game's font, and what the empty text
 # measured, which is 0. A test presses Z on the open screen to arm the close, and Escape then closes
 # it only when both answers are what the font must give, so a text_width that answered nothing
@@ -38,9 +78,10 @@ close_on_escape: bool = false
 
 # The mode keys are world keys because a screen export cannot be reached from a test directly. H
 # opens the screen, which is only legal while no screen is open, so a test closes between openings.
-# G is also Build Guide's toggle_enable default, so the unanswered test's press proves that a test
-# press reaches only the running test's mod: another mod's state left changed by it would show up in
-# a later test's world or capture (#1873).
+# K, T, R, S and Q arm the reopen and close arms and O the field chain the same way: a test presses
+# the key, then H. G is also Build Guide's toggle_enable default, so the unanswered test's press
+# proves that a test press reaches only the running test's mod: another mod's state left changed by
+# it would show up in a later test's world or capture (#1873).
 export world_key(ctx: OverlayWorldKeyContext) {
     key: number = ctx.key()
     if key == 67 {
@@ -57,6 +98,26 @@ export world_key(ctx: OverlayWorldKeyContext) {
         row_mode = 5
     } else if key == 72 {
         screen.open()
+    } else if key == 75 {
+        reopen_once = true
+    } else if key == 81 {
+        scroll_reopen_once = true
+    } else if key == 82 {
+        click_reopen_once = true
+    } else if key == 83 {
+        click_close_once = true
+    } else if key == 84 {
+        render_reopen_once = true
+    } else if key == 79 {
+        field_mode = 1
+    } else if key == 80 {
+        # P flips the list between its default and more rows than the viewport shows, so a wheel
+        # over it moves the first row the scroll test reads. A test flips it back before it ends.
+        if list_rows == 3 {
+            list_rows = 10
+        } else {
+            list_rows = 3
+        }
     }
 }
 
@@ -72,13 +133,25 @@ export screen_init(ctx: ScreenInitContext) {
     # The list sits a fixed height down the screen, because the widget hit tests the game does are
     # in GUI-scaled pixels and the rows have to be inside the smallest window a run uses.
     list.set(screen.add_list("rows", width - 150, 130, 140, 80, 10))
-    list.unwrap().set_rows(3)
+    list.unwrap().set_rows(list_rows)
 }
 
 # Draws a title and, in stale mode, uses the row response the same frame's `screen_list_row` kept.
 # The use is after that call returned, so it is the err the class's first rule names, and it is
 # reported while this export's own call is still running, with no test call around it.
+# The render test arms a one-shot reopen with T: this export closes the screen and opens it again,
+# so the host has to stop this frame once its open time has ended (#1885). The frame's own rows are
+# written to the mod's file when the first one the list drew changed, which is what the scroll test
+# reads.
 export screen_render(ctx: OverlayRenderContext) {
+    if render_reopen_once {
+        render_reopen_once = false
+        screen.close()
+        screen.open()
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/state.txt", "reopened")
+        return
+    }
     # Measured before the title is drawn, which is where a screen centres it. The answers are kept
     # so the Escape below can refuse to close a screen whose font measurement is not the game's.
     title_width = ctx.text_width("coverage screen")
@@ -88,6 +161,34 @@ export screen_render(ctx: OverlayRenderContext) {
         index: number = kept_row.unwrap().index()
         ctx.draw_text(String.from_number(index), 160, ctx.screen_height() - 20, Color.rgb(255, 255, 255))
     }
+    if row_min >= 0 and row_min != rows_written {
+        rows_written = row_min
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/rows.txt", String.from_number(row_min))
+    }
+    row_min = -1
+}
+
+# A click on the screen. The click test arms a one-shot reopen with R or a close-only arm with S: a
+# reopened screen's new open time is the one the game shows next, and a closed screen has none, so
+# the host has to stop before its widget loop routes the press of the old open time into widgets the
+# new one laid out (#1885). A click the test did not arm is left alone, so the widget under the
+# point still hears it.
+export screen_click(ctx: OverlayClickContext) {
+    if click_reopen_once {
+        click_reopen_once = false
+        screen.close()
+        screen.open()
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/state.txt", "reopened")
+        return
+    }
+    if click_close_once {
+        click_close_once = false
+        screen.close()
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/state.txt", "closed")
+    }
 }
 
 # Escape reaches this export even while the screen's text field has focus, because the game closes
@@ -95,8 +196,30 @@ export screen_render(ctx: OverlayRenderContext) {
 # it. The export takes Escape and leaves the screen open, which is how the test observes that it was
 # asked rather than the game's own close. A screen that pressed Z first arms its close, and Escape
 # then closes it through Screen.close, which is the close a mod's own screen_key runs.
+# O arms the field chain the text field test drives: Escape rewrites the focused field's text and
+# the next Escape deactivates it, and in the third state Left writes what the field still holds to
+# the mod's own file, so a test can tell that the deactivated field lost the keyboard (#1884).
 export screen_key(ctx: OverlayKeyContext) {
     key: number = ctx.key()
+    if key == 256 and field_mode == 1 {
+        ctx.take()
+        field.unwrap().set_text("7")
+        field_mode = 2
+        return
+    }
+    if key == 256 and field_mode == 2 {
+        ctx.take()
+        field.unwrap().set_active(false)
+        field_mode = 3
+        return
+    }
+    if key == 263 and field_mode == 3 {
+        ctx.take()
+        files: File = File.open(r"files")
+        files.write_text("screen_typing/left.txt", field.unwrap().text())
+        field_mode = 0
+        return
+    }
     if key == 90 {
         ctx.take()
         close_on_escape = true
@@ -111,10 +234,61 @@ export screen_key(ctx: OverlayKeyContext) {
     }
 }
 
+# A wheel turned over the screen. The scroll test arms a one-shot reopen with Q: the list fallback
+# runs after this call returned, so a host without the guard scrolls the list of the new open time
+# with the wheel of the old one, and the first row the reopened screen draws is no longer 0
+# (#1885). A movement the test did not arm is left alone, so the list under the point still takes
+# it.
+export screen_scroll(ctx: OverlayScrollContext) {
+    if scroll_reopen_once {
+        scroll_reopen_once = false
+        screen.close()
+        screen.open()
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/state.txt", "reopened")
+    }
+}
+
+# Writes the text field's own text whenever the player changes it, so the field test can tell a
+# character that landed on the text the mod rewrote from one the game applied to its stale copy.
+# No other widget is observed here (#1884).
+export screen_widget_changed(ctx: ScreenWidgetContext) {
+    widget: Widget = ctx.widget()
+    if field.has() and equals(widget, field.unwrap()) {
+        files: File = File.open(r"files")
+        files.write_text("screen_typing/edit.txt", widget.text())
+        return
+    }
+    # The button's own text, so the click test can tell a press the reopened screen's widgets heard
+    # from one the old open time's widget loop swallowed (#1885).
+    if button.has() and equals(widget, button.unwrap()) {
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/click.txt", widget.text())
+    }
+}
+
 # Answers each visible row in the mode the test set. The first answer is the row's text; a second
 # answer is an err and does not replace it, which is why the row the list draws stays the first
 # text whatever mode asked it.
 export screen_list_row(ctx: ListRowResponse) {
+    # The first row the frame drew, which is the row the list starts at: a wheel over it moves this
+    # number, and `screen_render` writes the smallest the frame saw to the mod's file (#1885).
+    index: number = ctx.index()
+    if row_min < 0 or index < row_min {
+        row_min = index
+    }
+    # A one-shot reopen the test armed with K: the answer is given first, then the screen ends its
+    # open time and opens a new one, and the marker says the new open time began. The host has to
+    # stop this frame once its open time has ended (#1885).
+    if reopen_once {
+        reopen_once = false
+        ctx.set_text("first")
+        screen.close()
+        screen.open()
+        files: File = File.open(r"files")
+        files.write_text("screen_reopen/state.txt", "reopened")
+        return
+    }
     if row_mode == 1 {
         ctx.set_text("first")
         ctx.set_text("second")
