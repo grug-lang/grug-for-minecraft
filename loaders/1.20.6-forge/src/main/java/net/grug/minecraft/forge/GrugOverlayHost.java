@@ -582,13 +582,16 @@ public final class GrugOverlayHost {
         double feetY = minecraft.player.getY();
         double feetZ = minecraft.player.getZ();
         String testMod = GrugTestState.currentTestMod;
-        // Vanilla turns the depth mask off before the weather and back on only after the world
-        // border, which it draws right after this stage, and the pass leaves that state as it found
-        // it: the triangle draw switches the mask off, so putting it back on would make the world
-        // border write depth where vanilla does not (#1887). This version tracks the mask for
-        // RenderSystem.depthMask but offers no getter, so it is read from the state the game has
-        // actually set.
+        // The pass leaves the stage's depth mask as it found it, which the game relies on: the
+        // non-Fabulous path turns the mask off before the weather and back on only after the world
+        // border, and the Fabulous path's weather target leaves it on. This version's
+        // RenderSystem.depthMask has no getter, so the mask is read from the state the game set.
         boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        // The reference draws with depth writes off whatever the game left: its shape pass turns a
+        // mask that is on back off for the draw (AbstractLegacyRenderHandler.renderShapeSet). Doing
+        // the same matters in Fabulous, where the stage's mask is on and RenderType.lines() would
+        // write depth, which brings back the nearer arm at a junction of two crosses.
+        RenderSystem.depthMask(false);
         for (GrugOverlayScripts.Script overlay : overlays()) {
             List<GrugWorldOverlay.Line> lines =
                     GrugWorldOverlay.world(
