@@ -295,15 +295,16 @@ tasks.register('generateGrugVersion') {
     }
 }
 
-// GrugHandAccess names ItemRenderer's two equip-progress fields, and GrugTextFieldAccess names
-// GuiTextField's enabled colour, disabled colour and enabled flag, by the srg names the launched
-// game carries. A string holds no reference for reobfuscation to follow, so a wrong literal would
-// only fail in a game launched from the reobfuscated jar, after a merge: the hand on the first
-// frame that draws it, a field on the first screen that sets one. This pins the literals to the
-// snapshot the loader is built against, so a snapshot change that moves them fails the loader job
-// instead of the installed one.
+// GrugHandAccess names ItemRenderer's two equip-progress fields, GrugTextFieldAccess names
+// GuiTextField's enabled colour, disabled colour and enabled flag, GrugGuiAccess names GuiContainer's
+// four positions, and Grug125ClientAdapter names RenderGlobal's pending chunk list, by the srg names
+// the launched game carries. A string holds no reference for reobfuscation to follow, so a wrong
+// literal would only fail in a game launched from the reobfuscated jar, after a merge: the hand on
+// the first frame that draws it, a field on the first screen that sets one. This pins the literals
+// to the snapshot the loader is built against, so a snapshot change that moves them fails the loader
+// job instead of the installed one.
 tasks.register('verifyGameFieldNames') {
-    description = 'Checks the srg names GrugHandAccess and GrugTextFieldAccess read against the pinned snapshot.'
+    description = 'Checks the srg names GrugHandAccess, GrugTextFieldAccess, GrugGuiAccess and Grug125ClientAdapter read against the pinned snapshot.'
     dependsOn 'reobfSrg'
     inputs.file reobfSrgFile
     doLast {
@@ -313,6 +314,11 @@ tasks.register('verifyGameFieldNames') {
             'net/minecraft/src/GuiTextField/enabledColor'        : 'q',
             'net/minecraft/src/GuiTextField/disabledColor'       : 'r',
             'net/minecraft/src/GuiTextField/isEnabled'           : 'm',
+            'net/minecraft/src/GuiContainer/guiLeft'             : 'e',
+            'net/minecraft/src/GuiContainer/guiTop'              : 'f',
+            'net/minecraft/src/GuiContainer/xSize'               : 'b',
+            'net/minecraft/src/GuiContainer/ySize'               : 'c',
+            'net/minecraft/src/RenderGlobal/worldRenderersToUpdate': 'k',
         ]
         def mapped = [:]
         reobfSrgFile.eachLine { line ->
