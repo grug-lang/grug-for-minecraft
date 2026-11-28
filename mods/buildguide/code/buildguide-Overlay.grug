@@ -1534,6 +1534,8 @@ local _shape_cube(ctx: OverlayWorldContext, ox: number, oy: number, oz: number, 
 # Shape.addCube: six quads in the reference's own vertex order and winding, as twelve triangles
 # because a world pass draws triangles. A quad's two triangles are its first three corners and its
 # first, third and fourth, which is how the game's own quad builder splits one.
+# Every quad is wound so that its first triangle's normal points out of the cube on the axis its
+# comment names, which is the winding the reference's buffer has and the one its pass culls against.
 # The cube's corners are the minimum corner and the size, in world coordinates.
 
 local _cube(ctx: OverlayWorldContext, x: number, y: number, z: number, s: number, colour: Color) {
@@ -1551,7 +1553,24 @@ local _cube(ctx: OverlayWorldContext, x: number, y: number, z: number, s: number
     _quad(ctx, x, y, z + s, x + s, y, z + s, x + s, y + s, z + s, x, y + s, z + s, colour)
 }
 
+# The reference never turns culling off: AbstractLegacyRenderHandler's setupNotCulling only sets the
+# polygon mode to fill, and the game has the back-face test on at the stage it draws at, so its
+# buffer loses every triangle that faces away from the camera. The world pass here draws triangles
+# with the test off, because draw_triangle answers both faces for every mod, so each quad runs that
+# test itself before it draws: a quad is drawn only while its outward normal, taken from the first
+# triangle in the winding emitted below, points to the camera's side of it. From outside a cube that
+# keeps the three near faces and culls the three far ones, and from inside it every face is culled,
+# which is what the reference shows and what stops a 0.5-alpha cube's far faces from blending twice.
+# A quad with a zero normal (a cube size of 0) is culled and would draw no pixel either way, and a
+# non-finite corner makes the comparison false so the quad is drawn, which the graphics card
+# discards for it. Nothing here divides, so no input can make it throw.
 local _quad(ctx: OverlayWorldContext, x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, x3: number, y3: number, z3: number, x4: number, y4: number, z4: number, colour: Color) {
+    nx: number = (y2 - y1) * (z3 - z1) - (z2 - z1) * (y3 - y1)
+    ny: number = (z2 - z1) * (x3 - x1) - (x2 - x1) * (z3 - z1)
+    nz: number = (x2 - x1) * (y3 - y1) - (y2 - y1) * (x3 - x1)
+    if nx * (ctx.camera_x() - x1) + ny * (ctx.camera_y() - y1) + nz * (ctx.camera_z() - z1) <= 0 {
+        return
+    }
     ctx.draw_triangle(x1, y1, z1, x2, y2, z2, x3, y3, z3, colour)
     ctx.draw_triangle(x1, y1, z1, x3, y3, z3, x4, y4, z4, colour)
 }
