@@ -307,10 +307,11 @@ export render_world(ctx: OverlayWorldContext) {
 }
 
 # The four declared bindings, which the player rebinds in the Controls menu under the reference's
-# own names. The reference leaves the three state keys unbound by default, so this port's defaults
-# are a deviation that about.json records, and its open key is B in both. A binding fires once per
-# press, so a count of presses is a count of applications; applying the same count again in one
-# frame is what a player who pressed twice before a frame would get from the reference too.
+# own names. The reference leaves the three state keys unbound by default, so this port declares
+# them with no default_key too and the Controls screen lists them for the player to bind; the open
+# key is B in both. A binding fires once per press, so a count of presses is a count of
+# applications; applying the same count again in one frame is what a player who pressed twice
+# before a frame would get from the reference too.
 # The open key creates the screen of the tab State.currentScreen names and shows it, as
 # AbstractInputHandler.onKeyInput does.
 
@@ -3062,8 +3063,8 @@ local _index_from(text: string, needle: string, from: number) number {
 # moves every set by the player's movement since the current set's origin.
 # A press that repeats while its key is held is the reference's own `isDown` poll, which repeats
 # every client tick; a binding handler fires once per press, so a held key toggles once here. The
-# reference's three keys are unbound by default and this port's defaults are a deviation that
-# about.json records (#1752).
+# reference's three keys are unbound by default and this port declares them unbound too, so the
+# player binds them in Controls (#1752).
 
 local _apply_pending(x: number, y: number, z: number) {
     if pending_toggle > 0 {
