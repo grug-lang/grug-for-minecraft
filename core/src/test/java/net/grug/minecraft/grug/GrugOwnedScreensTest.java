@@ -1096,6 +1096,55 @@ class GrugOwnedScreensTest {
     }
 
     @Test
+    void aLaterInitOrdersTheFrameAndTheWheelByItsOwnDeclarations() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] widgets = new GrugWidget[2];
+        recorder.onInit =
+                () -> {
+                    widgets[0] = screen.declareList("a", 0, 0, 100, 20, 10).widget;
+                    widgets[1] = screen.declareList("b", 0, 0, 100, 20, 10).widget;
+                    widgets[0].applyRows(10);
+                };
+        init(screen, 320, 240);
+        assertEquals(List.of(widgets[0], widgets[1]), screen.widgets());
+        assertSame(widgets[1], GrugOwnedScreens.listAt(screen, 5, 5));
+
+        // The second init declares the same two names the other way round, so the latest order is
+        // the order the frame draws and the wheel searches.
+        recorder.onInit =
+                () -> {
+                    screen.declareList("b", 0, 0, 100, 20, 10);
+                    screen.declareList("a", 0, 0, 100, 20, 10);
+                };
+        init(screen, 320, 240);
+
+        assertEquals(List.of(widgets[1], widgets[0]), screen.widgets());
+        assertSame(widgets[1], screen.widget("b"), "the widget object is kept");
+        assertSame(widgets[0], screen.widget("a"), "the widget object is kept");
+        assertSame(widgets[0], GrugOwnedScreens.listAt(screen, 5, 5));
+        assertEquals(10, widgets[0].rows(), "the reorder keeps the widget's state");
+    }
+
+    @Test
+    void anUnansweredInitKeepsTheOrderTheLastOneDeclared() {
+        GrugOwnedScreen screen = openScreen();
+        GrugWidget[] widgets = new GrugWidget[2];
+        recorder.onInit =
+                () -> {
+                    widgets[0] = screen.declareList("a", 0, 0, 100, 20, 10).widget;
+                    widgets[1] = screen.declareList("b", 0, 0, 100, 20, 10).widget;
+                };
+        init(screen, 320, 240);
+        assertEquals(List.of(widgets[0], widgets[1]), screen.widgets());
+
+        script.screenInitFnId = Grug.INVALID_GRUG_EXPORT_FN_ID;
+        init(screen, 320, 240);
+
+        assertEquals(List.of(widgets[0], widgets[1]), screen.widgets());
+        assertSame(widgets[1], GrugOwnedScreens.listAt(screen, 5, 5));
+    }
+
+    @Test
     void aFrameOnAScreenThatIsNotOpenAsksNothing() {
         GrugOwnedScreen screen = createScreen();
         recorder.asked.clear();
