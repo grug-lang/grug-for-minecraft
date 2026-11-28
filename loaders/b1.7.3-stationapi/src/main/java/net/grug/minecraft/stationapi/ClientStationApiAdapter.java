@@ -31,6 +31,15 @@ public class ClientStationApiAdapter extends StationApiAdapter {
     }
 
     /**
+     * Adds the line to the chat the client's HUD draws. No refusal arm is needed here: this class
+     * is loaded only in a client process, where the chat HUD always exists.
+     */
+    @Override
+    public void chatSend(String text) {
+        game().inGameHud.addChatMessage(text);
+    }
+
+    /**
      * Mod-owned screens are the screen subclass this loader adds, so a {@code Screen.new()} and
      * {@code Screen.open()} are legal here. The dedicated server answers false, in {@link
      * ServerStationApiAdapter}, and has nothing to show.

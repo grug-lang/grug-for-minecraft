@@ -128,11 +128,6 @@
 					"what": "The Shape and Shape list dropdowns are a list drawn inside their parent screen, where the reference opens a DropdownOverlayScreen of its own over it, with its own chrome, close button and tab states: the V hides itself, the X and the fifteen rows take its place, and the parent's own widgets and texts step aside while the list is up.",
 					"why": "The host's Screen holds one screen at a time, and opening another closes the one that is open (#1760's gap 2), so a screen over its parent has no entry; a list inside the parent needs no new API and keeps the state the parent was opened with.",
 					"tracking_issue": 1752
-				},
-				{
-					"what": "A save or a load of the persistence file that fails is silent, where the reference sends \"Build Guide persistence failed to save: \" or \"Build Guide persistence failed to load: \" and the exception's message to the player: a refused save leaves the state to be retried on the next close and a failed load keeps what the state already applied, but neither failure is told to anyone.",
-					"why": "mod_api.json has no entry that sends a message to the player, so the port has no way to say what the reference's sendChatMessage says. The next close retrying a refused save already matches BaseScreen.onScreenClosed leaving shouldUpdatePersistence set, so the retry is not the gap; the missing client-message entry is, and the deviation goes when that entry lands.",
-					"tracking_issue": 1752
 				}
 			]
 		}

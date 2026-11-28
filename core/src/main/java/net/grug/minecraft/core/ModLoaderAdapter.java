@@ -1556,6 +1556,24 @@ public interface ModLoaderAdapter {
     void playUiSound(String path, double volume, double pitch);
 
     /**
+     * Adds {@code text} to the player's chat as one line of the mod's own, the way the game's own
+     * chat shows a message. Only a client has a chat and a player to read it, so a dedicated server
+     * keeps this default, which reports the call and adds no line. A client whose adapter overrides
+     * it hands the line to the game's chat HUD on the client thread that draws it.
+     *
+     * <p>The line is local to this client: it is not sent to the server, so no other player sees
+     * it, and it is not a game or server message either, so it does not carry the chat's usual
+     * sender prefix.
+     */
+    default void chatSend(String text) {
+        if (refuseWithoutAClient("Chat.send")) return;
+        // A client has a player by its first tick, so this arm is a client that has not joined a
+        // world yet.
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr, "Chat.send: There is no player to show the line to yet.");
+    }
+
+    /**
      * Builds the sealed room the runner puts around the player before every test, and again when a
      * test asks for a different radius through {@code TestTickContext.set_box_radius}. See {@link
      * GrugTestBox} for what the room is and why it exists.

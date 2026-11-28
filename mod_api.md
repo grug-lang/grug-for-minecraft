@@ -139,6 +139,9 @@ export tick(ctx: TestTickContext)
 .decline_use()
 .replace_held_item(item: Item)
 
+## Chat
+Chat.send(text: string)
+
 ## Color
 Color.rgb(r: number, g: number, b: number) Color
 Color.rgba(r: number, g: number, b: number, a: number) Color

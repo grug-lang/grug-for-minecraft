@@ -30,7 +30,8 @@ import java.util.List;
  *
  * <p>It also covers the block selection a dedicated server has no box for: with no client joined to
  * forward it to, the call is the same refusal with the same message as before the forwarding
- * existed (#1441).
+ * existed (#1441), and {@code Chat.send}'s two arms: a dedicated server refuses the line, and a
+ * client that has joined no world reports that no player is there to see it.
  *
  * <p>No game and no loader is needed: the side, the empty world and the report all reach a stand-in
  * adapter installed on {@code GrugCore.adapter}, the same reflection seam the other core tests use,
@@ -87,6 +88,28 @@ class HostFunctionsOnADedicatedServerWithNothingJoinedTest {
         assertFalse(GrugCore.getAdapter().refuseWithoutAClient("TestTickContext.click_screen"));
 
         assertEquals(List.of(), reported);
+    }
+
+    @Test
+    void aDedicatedServerRefusesALineForTheClientChat() throws Exception {
+        installAnEmptyDedicatedServer();
+
+        HostFunctions.Chat_send("a line for the player's chat");
+
+        assertEquals(
+                List.of(
+                        "Chat.send: This needs a client, and grug is running on a dedicated"
+                                + " server."),
+                reported);
+    }
+
+    @Test
+    void aClientThatHasJoinedNoWorldReportsTheChatLine() throws Exception {
+        installAnAdapter(GrugSide.CLIENT);
+
+        HostFunctions.Chat_send("a line for the player's chat");
+
+        assertEquals(List.of("Chat.send: There is no player to show the line to yet."), reported);
     }
 
     @Test

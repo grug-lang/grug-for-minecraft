@@ -1,0 +1,12 @@
+# Covers Chat.send, the way a mod tells the player something. The game's chat HUD cannot be read
+# back, so neither arm asserts the line: a client is checked by the call being answered without a
+# report, and a dedicated server by the report that says it has no client to show the line on. The
+# line a client draws sits at the bottom left, which no capture crops.
+export tick(ctx: TestTickContext) {
+    if me.on_dedicated_server() {
+        ctx.expect_error("Chat.send: This needs a client, and grug is running on a dedicated server.")
+        Chat.send("coverage: a line a dedicated server has no chat for")
+        return
+    }
+    Chat.send("coverage: a line on the client's own chat")
+}

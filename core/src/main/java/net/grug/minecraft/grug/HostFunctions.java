@@ -2128,6 +2128,14 @@ public class HostFunctions {
                 0L);
     }
 
+    /**
+     * Adds a line to the local player's chat. The adapter refuses a dedicated server, and its
+     * client override hands the line to the game's own chat HUD.
+     */
+    public static void Chat_send(String text) {
+        GrugCore.getAdapter().chatSend(text);
+    }
+
     public static long Color_rgb(double r, double g, double b) {
         return GrugEntities.addEntity(GrugEntityType.Color, new Color((int) r, (int) g, (int) b));
     }
