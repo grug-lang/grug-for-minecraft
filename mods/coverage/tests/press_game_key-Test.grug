@@ -1,0 +1,55 @@
+# The game's own default inventory binding is one the game polls itself, not one grug's overlay
+# sees, so press_world_key cannot reach it. ctx.press_game_key delivers one press and its release
+# through the game's own key handling, and the game opens the inventory exactly as it does for a
+# physical press (#1752). The 1.20.6 reference run needs this because its Forge KeyMapping is polled
+# by Forge, while the other four loaders prove the entry as well. A dedicated server has no client
+# to press it on, so the entry reports that, and the test asserts that report on that leg.
+started: bool = false
+pressed: bool = false
+waited: number = 0
+key: number = 69
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.on_dedicated_server() {
+            # The shared adapters keep a real guard for this leg, and asserting it here is what
+            # covers the guard's refusal arm in those loaders.
+            ctx.expect_error("TestTickContext.press_game_key: This needs a client, and grug is running on a dedicated server.")
+            ctx.press_game_key(69)
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # A press is a key the game sees with no screen open and a world under it, so the world settles
+    # before the press, as a press on a key that opens a screen needs (#1287).
+    if not pressed {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the key is pressed.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        # Alpha 1.1.2_01 binds the inventory to I, where every later version binds it to E, so the
+        # key pressed is the one that version's own options bind.
+        if me.loader_name() == "a1.1.2_01-ornithe" {
+            key = 73
+        }
+        ctx.press_game_key(key)
+        pressed = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 200, "The game should open the inventory when its own inventory binding is pressed.")
+    if not ctx.screen_open() {
+        ctx.not_done()
+        return
+    }
+    ctx.close_screen()
+}

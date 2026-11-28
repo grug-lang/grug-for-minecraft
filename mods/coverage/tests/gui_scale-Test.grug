@@ -1,0 +1,74 @@
+# ctx.set_gui_scale makes the client lay its HUD and screens out at another size, and
+# ctx.screen_width reads the open screen's width, so the two together say the scale took effect
+# (#1752). The runner's window is 1280 by 720, where scale 1 gives a 1280-wide screen and scale 2 a
+# 640-wide one. The test puts the scale back to 3, the scale the game's own automatic setting picks
+# for that window, and checks the width it started with came back, so the next test finds the client
+# as this one did. A dedicated server has no client window, so the entry reports that instead of
+# pretending to set a scale, and the test asserts that report on that leg.
+started: bool = false
+opened: bool = false
+measured: bool = false
+scaled_closed: bool = false
+waited: number = 0
+before: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if me.on_dedicated_server() {
+            # The shared adapters keep a real guard for this leg, and asserting it here is what
+            # covers the guard's refusal arm in those loaders.
+            ctx.expect_error("TestTickContext.set_gui_scale: This needs a client, and grug is running on a dedicated server.")
+            ctx.set_gui_scale(2)
+            return
+        }
+        ctx.close_screen()
+        ctx.not_done()
+        return
+    }
+
+    # The scale shows on the open screen, so the inventory opens first; the world has to settle
+    # before the game will open it (#1287).
+    if not opened {
+        waited = waited + 1
+        ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        # Every adapter applies the scale to the screen that is open, and the ones that keep a real
+        # guard also have the arm where no screen is up: a scale set in the world alone only moves
+        # the window and the HUD. One call here reaches it before the inventory opens.
+        if not scaled_closed {
+            ctx.set_gui_scale(3)
+            scaled_closed = true
+            ctx.not_done()
+            return
+        }
+        ctx.open_inventory(ctx.get_player())
+        opened = true
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 100, "The player's inventory screen should open.")
+        ctx.not_done()
+        return
+    }
+
+    if not measured {
+        measured = true
+        before = ctx.screen_width()
+        ctx.assert(before > 0, "The open inventory should have a width.")
+        ctx.set_gui_scale(1)
+        ctx.assert(ctx.screen_width() == 1280, "GUI scale 1 should lay the screen out 1280 wide at 1280 by 720.")
+        ctx.set_gui_scale(2)
+        ctx.assert(ctx.screen_width() == 640, "GUI scale 2 should lay the screen out 640 wide at 1280 by 720.")
+        ctx.set_gui_scale(3)
+        ctx.assert(ctx.screen_width() == before, "Restoring GUI scale 3 should lay the screen out as it was before the test.")
+        ctx.close_screen()
+    }
+}

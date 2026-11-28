@@ -1218,6 +1218,16 @@ public interface ModLoaderAdapter {
     default void forgetQueuedGivesForTest() {}
 
     /**
+     * Test only: drops the key presses a test queued for the game's own key loop that it never
+     * delivered, when the runner resets the state a test starts from (#1926).
+     *
+     * <p>A press queued in the tick a test ends reaches the game in the next test's first tick,
+     * which then sees a key it never pressed. Dropped here, no test inherits another's press. Only
+     * an LWJGL 2 loader queues one, so every other side keeps this no-op.
+     */
+    default void forgetQueuedGameKeysForTest() {}
+
+    /**
      * Puts the player back where {@link #snapPlayerForTest} found them, and puts their view back to
      * the yaw and pitch it had, so a test's change to the player or the camera does not outlive it.
      * A client restores its own local player; a dedicated server restores its copy of the joined
@@ -1346,6 +1356,29 @@ public interface ModLoaderAdapter {
                 Grug.statePtr,
                 "TestTickContext.press_world_key: This loader cannot press a key in the world"
                         + " yet.");
+    }
+
+    /**
+     * Sets the client's GUI scale through the client's own option or scaled-render computation, and
+     * answers nothing. A dedicated server has no window and a loader that cannot set it reports the
+     * call instead of answering as if the scale had changed.
+     */
+    default void setGuiScale(int scale) {
+        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.set_gui_scale: This loader cannot set the GUI scale yet.");
+    }
+
+    /**
+     * Presses and releases a letter or digit key through the client's own key handling, so a
+     * binding the game itself polls sees it. A dedicated server has no client to press it on.
+     */
+    default void pressGameKey(int key) {
+        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.press_game_key: This loader cannot press a game key yet.");
     }
 
     /**

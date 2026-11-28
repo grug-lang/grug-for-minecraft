@@ -353,11 +353,13 @@ class GrugTestRunnerTest {
     }
 
     @Test
-    void theResetBeforeATestDropsTheGivesTheLastTestLeftQueued() {
+    void theResetBeforeATestDropsTheQueuesTheLastTestLeftBehind() {
         // A give a joined client sent as a test ended is applied by the drain before the next
-        // test's first tick, so the reset between the two has to drop it (#1144). The reset is the
-        // runner's own, so this pins the seam it asks and the order it asks in: after the
-        // inventory reset, so the player's inventory is clean before the give queue is dropped.
+        // test's first tick, so the reset between the two has to drop it (#1144). A key the last
+        // test queued for the game's own loop is the same kind of leftover (#1926). The reset is
+        // the runner's own, so this pins the seam it asks and the order it asks in: after the
+        // inventory reset, so the player's inventory is clean before the give queue is dropped,
+        // and the key queue beside it.
         Map<String, Long> files = new LinkedHashMap<>();
         files.put("mymod/code/a-Test.grug", 1L);
         files.put("mymod/code/b-Test.grug", 2L);
@@ -385,6 +387,11 @@ class GrugTestRunnerTest {
                             }
 
                             @Override
+                            public void forgetQueuedGameKeysForTest() {
+                                reset.add("keys");
+                            }
+
+                            @Override
                             public void build(int radius) {
                                 reset.add("room");
                             }
@@ -395,17 +402,19 @@ class GrugTestRunnerTest {
                         1);
 
         runner.tick(null);
-        assertEquals(List.of("inventory", "achievements", "gives", "room"), reset);
+        assertEquals(List.of("inventory", "achievements", "gives", "keys", "room"), reset);
         runner.tick(null);
         assertEquals(
                 List.of(
                         "inventory",
                         "achievements",
                         "gives",
+                        "keys",
                         "room",
                         "inventory",
                         "achievements",
                         "gives",
+                        "keys",
                         "room"),
                 reset,
                 "every test starts with its own reset, not only the first");

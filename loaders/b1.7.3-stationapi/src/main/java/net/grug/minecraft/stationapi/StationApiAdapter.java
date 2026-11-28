@@ -4,6 +4,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
+import net.grug.minecraft.core.GrugGameKeyQueue;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRelight;
@@ -53,6 +54,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.hud.toast.AchievementToast;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.render.chunk.ChunkBuilder;
+import net.minecraft.client.util.ScreenScaler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityRegistry;
 import net.minecraft.entity.ItemEntity;
@@ -2019,6 +2021,37 @@ public class StationApiAdapter implements ModLoaderAdapter {
     public void pressWorldKey(int key, boolean ctrl) {
         if (refuseWithoutAClient("TestTickContext.press_world_key")) return;
         GrugOverlayHost.pressWorldKey(key, ctrl);
+    }
+
+    @Override
+    public void setGuiScale(int scale) {
+        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
+        @SuppressWarnings("deprecation")
+        net.minecraft.client.Minecraft mc =
+                (net.minecraft.client.Minecraft) FabricLoader.getInstance().getGameInstance();
+        // The option's own field, which the video options screen writes and which ScreenScaler
+        // reads for the HUD and every screen. Only GameOptions.save writes the options file.
+        mc.options.guiScale = scale;
+        if (mc.currentScreen == null) return;
+        // A fresh ScreenScaler answers the new GUI size, and the open screen is laid out at it as
+        // its own open does.
+        ScreenScaler scaled = new ScreenScaler(mc.options, mc.displayWidth, mc.displayHeight);
+        mc.currentScreen.init(mc, scaled.getScaledWidth(), scaled.getScaledHeight());
+    }
+
+    @Override
+    public void pressGameKey(int key) {
+        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
+        // LWJGL 2's event queue has no way to add an event, so one is queued for the game's own
+        // key loop, which handles it exactly as a physical press (see GrugGameKeyQueue).
+        GrugGameKeyQueue.queue(GrugOverlayHost.keyIndex(key));
+    }
+
+    @Override
+    public void forgetQueuedGameKeysForTest() {
+        // A press this test queued in the tick it ended would be the next test's first event.
+        // See #1926.
+        GrugGameKeyQueue.forget();
     }
 
     @Override

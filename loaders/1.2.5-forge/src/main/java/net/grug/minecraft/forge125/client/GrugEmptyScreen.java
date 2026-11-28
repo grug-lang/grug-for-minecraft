@@ -19,6 +19,19 @@ import net.minecraft.src.GuiScreen;
  */
 public class GrugEmptyScreen extends GuiScreen {
 
+    /**
+     * Whether the game handles the player's own mouse and key bindings behind this screen.
+     *
+     * <p>It stands in for no screen, so it takes the input the game handles when none is open: the
+     * version's tick only polls its bindings, which is how the inventory binding opens its screen,
+     * when no screen is open or the open one allows user input. With the default the game would
+     * skip that section for as long as a test runs, and no key could ever open a screen from the
+     * world (#1752). A real screen a test opens answers for itself.
+     */
+    public GrugEmptyScreen() {
+        this.allowUserInput = true;
+    }
+
     @Override
     public boolean doesGuiPauseGame() {
         // The world must keep ticking: the tests that placed blocks and machines rely on the game
