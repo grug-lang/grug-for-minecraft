@@ -34,6 +34,18 @@ public final class GrugGameKeyQueue {
 
     private GrugGameKeyQueue() {}
 
+    /**
+     * Drops every key still to deliver and the press the game is being served, so a press a test
+     * queued as it ended cannot reach the next test. See #1926.
+     */
+    public static void forget() {
+        pending.clear();
+        pressDelivered = false;
+        serving = false;
+        servedKey = 0;
+        servedPress = false;
+    }
+
     /** Queues one press of {@code gameKey}, in this loader's own key numbering. */
     public static void queue(int gameKey) {
         pending.addLast(Integer.valueOf(gameKey));

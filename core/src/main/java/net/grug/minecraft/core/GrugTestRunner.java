@@ -145,6 +145,12 @@ public class GrugTestRunner {
          */
         default void forgetQueuedGivesForTest() {}
 
+        /**
+         * Drops the game key presses a test queued but never delivered, before the next test
+         * starts, so a press which outlived its test is never seen by this one. See #1926.
+         */
+        default void forgetQueuedGameKeysForTest() {}
+
         void build(int radius);
 
         /** Sweeps the dropped items out of the test area, in the tick a test ends. See #323. */
@@ -492,6 +498,11 @@ public class GrugTestRunner {
                     @Override
                     public void forgetQueuedGivesForTest() {
                         GrugCore.getAdapter().forgetQueuedGivesForTest();
+                    }
+
+                    @Override
+                    public void forgetQueuedGameKeysForTest() {
+                        GrugCore.getAdapter().forgetQueuedGameKeysForTest();
                     }
 
                     @Override
@@ -1783,6 +1794,9 @@ public class GrugTestRunner {
         // land in the fresh inventory and the test that starts here reads its own starting state.
         // See #1144.
         boxBuilder.forgetQueuedGivesForTest();
+        // A press the previous test queued but the game never delivered would land in this test's
+        // first tick, which then sees a key it never pressed. See #1926.
+        boxBuilder.forgetQueuedGameKeysForTest();
 
         // Before the first tick, so the budget it sets is the one the whole test runs under.
         long initFnId = ops.getExportFnId("Test", "init");

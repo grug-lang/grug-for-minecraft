@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.grug.minecraft.core.GrugCore;
+import net.grug.minecraft.core.GrugSide;
 import net.grug.minecraft.core.ModLoaderAdapter;
 
 import org.junit.jupiter.api.AfterEach;
@@ -104,6 +105,62 @@ class GrugGuiScaleAndGameKeyTest {
         assertEquals(5, reports.size());
         assertTrue(reports.get(0).contains("from 1 to 3"), reports.get(0));
         assertTrue(scales.isEmpty(), "a scale the game does not offer never reaches the loader");
+    }
+
+    @Test
+    void anAdapterThatKeepsTheDefaultsReportsInsteadOfPretending() throws Exception {
+        // Every client adapter overrides both, so only a loader that keeps the default reaches
+        // these lines: the call has to be reported rather than answered as if it had changed
+        // something. A side with no client is the other arm, checked below.
+        Field field = GrugCore.class.getDeclaredField("adapter");
+        field.setAccessible(true);
+        field.set(
+                null,
+                Proxy.newProxyInstance(
+                        getClass().getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("getSide")) return GrugSide.CLIENT;
+                            if (method.getName().equals("logError")) return null;
+                            if (method.isDefault()) {
+                                return InvocationHandler.invokeDefault(proxy, method, args);
+                            }
+                            throw new AssertionError("does not ask " + method.getName());
+                        }));
+
+        GrugCore.getAdapter().setGuiScale(2);
+        GrugCore.getAdapter().pressGameKey(69);
+
+        List<String> reports = drain();
+        assertEquals(2, reports.size());
+        assertTrue(reports.get(0).contains("cannot set the GUI scale yet"), reports.get(0));
+        assertTrue(reports.get(1).contains("cannot press a game key yet"), reports.get(1));
+
+        // The other arm, a side with no client at all: the guard reports the refusal and the
+        // report below it is not reached.
+        field.set(
+                null,
+                Proxy.newProxyInstance(
+                        getClass().getClassLoader(),
+                        new Class<?>[] {ModLoaderAdapter.class},
+                        (proxy, method, args) -> {
+                            if (method.getName().equals("getSide")) {
+                                return GrugSide.DEDICATED_SERVER;
+                            }
+                            if (method.getName().equals("logError")) return null;
+                            if (method.isDefault()) {
+                                return InvocationHandler.invokeDefault(proxy, method, args);
+                            }
+                            throw new AssertionError("does not ask " + method.getName());
+                        }));
+
+        GrugCore.getAdapter().setGuiScale(2);
+        GrugCore.getAdapter().pressGameKey(69);
+
+        reports = drain();
+        assertEquals(2, reports.size());
+        assertTrue(reports.get(0).contains("This needs a client"), reports.get(0));
+        assertTrue(reports.get(1).contains("This needs a client"), reports.get(1));
     }
 
     @Test

@@ -3,11 +3,12 @@
 # (#1752). The runner's window is 1280 by 720, where scale 1 gives a 1280-wide screen and scale 2 a
 # 640-wide one. The test puts the scale back to 3, the scale the game's own automatic setting picks
 # for that window, and checks the width it started with came back, so the next test finds the client
-# as this one did. A dedicated server has no client window, and the entry reports that there instead
-# of pretending to set a scale, so the test leaves that leg alone.
+# as this one did. A dedicated server has no client window, so the entry reports that instead of
+# pretending to set a scale, and the test asserts that report on that leg.
 started: bool = false
 opened: bool = false
 measured: bool = false
+scaled_closed: bool = false
 waited: number = 0
 before: number = 0
 
@@ -15,6 +16,10 @@ export tick(ctx: TestTickContext) {
     if not started {
         started = true
         if me.on_dedicated_server() {
+            # The shared adapters keep a real guard for this leg, and asserting it here is what
+            # covers the guard's refusal arm in those loaders.
+            ctx.expect_error("TestTickContext.set_gui_scale: This needs a client, and grug is running on a dedicated server.")
+            ctx.set_gui_scale(2)
             return
         }
         ctx.close_screen()
@@ -28,6 +33,15 @@ export tick(ctx: TestTickContext) {
         waited = waited + 1
         ctx.assert(waited < 1000, "The world should settle before the inventory opens.")
         if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        # Every adapter applies the scale to the screen that is open, and the ones that keep a real
+        # guard also have the arm where no screen is up: a scale set in the world alone only moves
+        # the window and the HUD. One call here reaches it before the inventory opens.
+        if not scaled_closed {
+            ctx.set_gui_scale(3)
+            scaled_closed = true
             ctx.not_done()
             return
         }

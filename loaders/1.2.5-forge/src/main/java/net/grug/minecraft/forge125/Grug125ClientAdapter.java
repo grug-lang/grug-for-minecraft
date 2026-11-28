@@ -687,10 +687,9 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         GrugOverlayHost.pressWorldKey(key, ctrl);
     }
 
+    /** This class is loaded only in a client process, where a window always exists. */
     @Override
-    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void setGuiScale(int scale) {
-        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
         Minecraft minecraft = ModLoader.getMinecraftInstance();
         // The option's own field, which its video options screen writes and which every screen and
         // the HUD read through ScaledResolution. Only GameSettings.save writes the options file,
@@ -706,10 +705,9 @@ public class Grug125ClientAdapter extends Grug125Adapter {
         screen.setWorldAndResolution(minecraft, scaled.getScaledWidth(), scaled.getScaledHeight());
     }
 
+    /** This class is loaded only in a client process, where a keyboard always exists. */
     @Override
-    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void pressGameKey(int key) {
-        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
         // The three calls this version's own input loop makes for one key event: the binding
         // records that it is held, the tick counts the press, and the release lets it go. The
         // game's own runTick then does what the binding says, as it does for a physical press.

@@ -1042,10 +1042,12 @@ public class ClientForgeAdapter extends ForgeAdapter {
         onClientThread(() -> GrugOverlayHost.pressWorldKey(key, ctrl));
     }
 
+    /**
+     * No refusal arm is needed here: this class is loaded only in a client process, where a window
+     * always exists.
+     */
     @Override
-    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void setGuiScale(int scale) {
-        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
         // The option's own callback is Minecraft.resizeDisplay, which recalculates the GUI scale
         // and
         // lays the open screen out again, exactly what the options screen's slider does. The option
@@ -1053,10 +1055,12 @@ public class ClientForgeAdapter extends ForgeAdapter {
         onClientThread(() -> Minecraft.getInstance().options.guiScale().set(scale));
     }
 
+    /**
+     * No refusal arm is needed here: this class is loaded only in a client process, where a
+     * keyboard always exists.
+     */
     @Override
-    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void pressGameKey(int key) {
-        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
         // The keyboard's own event handler, which is what a GLFW key callback runs: it sets the
         // KeyMapping, queues its click and fires ForgeHooksClient.onKeyInput, so a mod's key
         // mapping sees the press exactly as it sees a physical one. The release straight after
@@ -1070,7 +1074,6 @@ public class ClientForgeAdapter extends ForgeAdapter {
                 });
     }
 
-    @GrugGenerated("the client always has a window and a keyboard while a game is running")
     private static void keyboardPress(Minecraft minecraft, int key, int action) {
         minecraft.keyboardHandler.keyPress(minecraft.getWindow().getWindow(), key, 0, action, 0);
     }

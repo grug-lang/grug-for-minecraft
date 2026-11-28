@@ -1992,7 +1992,6 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void setGuiScale(int scale) {
         if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
         // This version has no GUI scale option: every Window works the factor out from the
@@ -2009,12 +2008,18 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     }
 
     @Override
-    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
     public void pressGameKey(int key) {
         if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
         // LWJGL 2's event queue has no way to add an event, so one is queued for the game's own
         // key loop, which handles it exactly as a physical press (see GrugGameKeyQueue).
         GrugGameKeyQueue.queue(GrugOverlayHost.keyIndex(key));
+    }
+
+    @Override
+    public void forgetQueuedGameKeysForTest() {
+        // A press this test queued in the tick it ended would be the next test's first event.
+        // See #1926.
+        GrugGameKeyQueue.forget();
     }
 
     @Override
