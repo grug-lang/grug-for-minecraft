@@ -1,0 +1,154 @@
+# A hot reload that drops a screen's overlay script ends every screen of that script's stack, even
+# when one of them is covered by another: the reference has nothing to compare here, but a screen
+# whose script no longer exists cannot be drawn or clicked, so leaving it open would leave the game
+# showing a screen nothing answers for (#1752). The dropped script's screen_closed is asked once, on
+# the screen that was on top, and the overlay writes the count and that screen to
+# `screen_stack/closed.txt` before it is destroyed.
+# The file is swapped for a text that exports nothing, which compiles, rather than an invalid one:
+# a file that fails to compile keeps its previous overlay drawing, so only a valid edit can drop the
+# script. The original text is restored and the screen opened again, so the next test finds the
+# overlay working.
+# A loader without a screen host answers an err to Screen.open, so the test returns early there, and
+# it ends early on the dedicated server, whose joined client owns the screen.
+started: bool = false
+step: number = 0
+waited: number = 0
+path: string = "coverage/code/coverage_screen-Overlay.grug"
+baseline: number = -1
+
+export init(ctx: TestInitContext) {
+    # The edits and the reload counts, plus settling and two openings, pass the default 200 ticks.
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # Z clears the stack markers and the counters, so the files this test reads are its own.
+        ctx.press_world_key(90, false)
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "screen" or not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The first screen should draw a frame before the second opens.")
+            ctx.not_done()
+            return
+        }
+        # B arms the open_over its next click asks for.
+        took: bool = ctx.press_screen_key(66, false, false, true)
+        ctx.assert(took, "B should reach screen_key, which arms the open_over.")
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        ctx.click_screen(200, 60, 0)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "other" or not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The screen opened over the first should draw a frame of its own.")
+            ctx.not_done()
+            return
+        }
+        # The watcher's own poll decides when the edit arrives, so wait for the count rather than
+        # bounding the wait in ticks: a slow filesystem says nothing about the reload.
+        baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "swapped")
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        if ctx.hot_reload_count(path) <= baseline {
+            ctx.not_done()
+            return
+        }
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        # The swapped text exports nothing, so the screens the old script made are gone once the
+        # client has the new script. A screen left open would answer screen_open here.
+        ctx.assert(not ctx.screen_open(), "Dropping the overlay script should end every screen of its stack.")
+        files: File = File.open(r"files")
+        ctx.assert(files.read_text("screen_stack/closed.txt").unwrap() == "1:other", "Dropping the overlay script should ask screen_closed once, on the screen that was on top.")
+        baseline = ctx.hot_reload_count(path)
+        ctx.set_mod_file_state(path, "normal")
+        step = 6
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        if ctx.hot_reload_count(path) <= baseline {
+            ctx.not_done()
+            return
+        }
+        # The restored text is back, so the overlay's open key works again and the test leaves the
+        # mod in the state the next test expects.
+        ctx.press_world_key(72, false)
+        step = 7
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if not ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "The restored overlay should open its screen again.")
+        ctx.not_done()
+        return
+    }
+    ctx.close_screen()
+    ctx.assert(not ctx.screen_open(), "The test's own close should leave no screen open.")
+}

@@ -4,13 +4,10 @@ import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.ModLoaderAdapter;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * The screens the overlay scripts created, which one of them is open, and the export calls that
@@ -78,7 +75,14 @@ public final class GrugOwnedScreens {
     /** The screens every overlay script created, in creation order. */
     private static final List<GrugOwnedScreen> screens = new ArrayList<>();
 
-    /** The screen that is open, or null when none is. */
+    /**
+     * The screens the player has open, bottom first. Only the last one draws, takes input and
+     * answers a list row; a screen above it covers it without ending its open time, so its widget
+     * values stay and its {@code screen_init} runs again when it comes back.
+     */
+    private static final List<GrugOwnedScreen> stack = new ArrayList<>();
+
+    /** The top of {@link #stack}, which is the screen that is open, or null when none is. */
     private static volatile GrugOwnedScreen openScreen = null;
 
     /** The {@code screen_init} call that is running, or null outside one. */
@@ -177,29 +181,55 @@ public final class GrugOwnedScreens {
     }
 
     /**
-     * Drops the screens of an overlay script that is going away, closing the open one first so a
-     * mod hears {@code screen_closed} while its script still runs.
+     * Drops every screen of an overlay script that is going away, whichever depth of the stack it
+     * is at, and asks {@code screen_closed} once for the one that was on top, while its script
+     * still runs.
      *
-     * <p>The open screen's host is taken away here too, because nothing else will: unlike {@link
-     * #close}, this path has no call that hides it, so a hot reload of a mod whose screen was open
-     * would run {@code screen_closed}, drop the widgets and leave an empty game screen up until
-     * Escape. A loader that cannot show a screen has nothing displayed to hide.
+     * <p>The top screen's host is taken away here when no screen is left, because nothing else
+     * will: unlike {@link #close}, this path has no call that hides it, so a hot reload of a mod
+     * whose screen was open would run {@code screen_closed}, drop the widgets and leave an empty
+     * game screen up until Escape. When a screen of another script was covered, it comes back
+     * instead. A loader that cannot show a screen has nothing displayed to hide.
      */
     static void scriptDropped(GrugOverlayScripts.Script script) {
+        GrugOwnedScreen top = openScreen;
+        boolean topDropped = top != null && top.script() == script;
+        List<GrugOwnedScreen> dropped = new ArrayList<>();
         for (Iterator<GrugOwnedScreen> iterator = screens.iterator(); iterator.hasNext(); ) {
             GrugOwnedScreen screen = iterator.next();
             if (screen.script() != script) continue;
-            if (openScreen == screen) {
-                endOpenTime(screen);
-                ModLoaderAdapter adapter = GrugCore.getAdapter();
-                // The hide only takes away the host this model is showing, so it is safe even when
-                // screen_closed opened another screen: that screen's host is not this one.
-                if (adapter != null && adapter.ownedScreensSupported()) {
-                    adapter.hideOwnedScreen(screen);
-                }
-            }
+            dropped.add(screen);
             GrugEntities.removeEntity(screen.entityId(), script.owner);
             iterator.remove();
+        }
+        if (dropped.isEmpty()) return;
+        stack.removeAll(dropped);
+        openScreen = stack.isEmpty() ? null : stack.get(stack.size() - 1);
+        GrugOwnedScreen below = openScreen;
+        for (GrugOwnedScreen screen : dropped) {
+            if (screen == top) {
+                // The top screen's open time is the one the player could see, so it is the one the
+                // reference's onScreenClosed belongs to. A covered screen of the same script ends
+                // silently, as it does when the screen above it closes.
+                endOpenTime(screen);
+            } else {
+                screen.setOpen(false);
+                screen.dropWidgets();
+            }
+        }
+        if (!topDropped) return;
+        ModLoaderAdapter adapter = GrugCore.getAdapter();
+        if (adapter == null || !adapter.ownedScreensSupported()) return;
+        if (openScreen == null) {
+            // The hide only takes away the host this model is showing, so it is safe even when
+            // screen_closed opened another screen: that screen's host is not this one.
+            adapter.hideOwnedScreen(top);
+            return;
+        }
+        // screen_closed may have opened a screen again, which already showed its own host; only the
+        // screen that was covered before this drop needs bringing back.
+        if (openScreen == below) {
+            showTop(adapter, below);
         }
     }
 
@@ -214,33 +244,44 @@ public final class GrugOwnedScreens {
             return "Screen.open: Opening a screen while no world is loaded is an err, because a"
                     + " mod screen is drawn over the world and there is nothing to draw it over.";
         }
-        // A screen_closed may open another screen, so the loop closes whatever is open until
-        // nothing is, which is also what reopening the screen that is already open does: its
-        // screen_closed runs before this one's screen_init. A handler that reopens the screen it
-        // was just told was closed would keep this loop here forever, so each screen is closed at
-        // most once in this pass: the screen asked for here wins, and one its own handler reopened
-        // is ended without a second screen_closed, which would reopen it again.
-        Set<GrugOwnedScreen> closed = Collections.newSetFromMap(new IdentityHashMap<>());
-        while (openScreen != null) {
-            GrugOwnedScreen closing = openScreen;
-            if (closed.contains(closing)) {
-                // Its own screen_closed opened it again after this pass had ended its open time,
-                // so asking it a second time would reopen it once more. The screen being opened
-                // here still wins, and this one ends without another screen_closed.
-                openScreen = null;
-                closing.setOpen(false);
-                closing.dropWidgets();
-                adapter.hideOwnedScreen(closing);
-                continue;
-            }
-            closed.add(closing);
-            closeOpen(adapter);
+        // open replaces the whole stack, as the reference's showScreen replaces the one screen it
+        // shows. Nothing hears screen_closed from here, because the reference's showScreen never
+        // calls onScreenClosed; a covered screen's widget values go with its open time.
+        for (GrugOwnedScreen covering : stack) {
+            covering.setOpen(false);
+            covering.dropWidgets();
         }
-        screen.setOpen(true);
-        openScreen = screen;
+        stack.clear();
+        openScreen = null;
+        push(screen);
         // A row defect belongs to the open time whose frame asked the row: a test that reads
         // list_row_error after opening a screen would otherwise see the previous screen's defect,
         // which may belong to another mod's export (#1760).
+        GrugListRowResponse.clearLastDefect();
+        adapter.showOwnedScreen(screen);
+        return null;
+    }
+
+    /** Why {@code screen} cannot be opened over the open one, or null when it was. */
+    static String openOver(ModLoaderAdapter adapter, GrugOwnedScreen screen) {
+        if (adapter == null || !adapter.ownedScreensSupported()) {
+            return "Screen.open_over: This loader has no mod-owned screens, so a mod cannot open"
+                    + " one.";
+        }
+        if (adapter.clientLevel() == null) {
+            return "Screen.open_over: Opening a screen while no world is loaded is an err, because"
+                    + " a mod screen is drawn over the world and there is nothing to draw it over.";
+        }
+        if (stack.contains(screen)) {
+            return "Screen.open_over: This screen is already in the player's screen stack, so"
+                    + " opening it over would put it there twice.";
+        }
+        if (openScreen != null) {
+            // The screen below keeps its widgets and their values, and stops drawing and taking
+            // input because it is no longer the top of the stack.
+            openScreen.setOpen(false);
+        }
+        push(screen);
         GrugListRowResponse.clearLastDefect();
         adapter.showOwnedScreen(screen);
         return null;
@@ -252,31 +293,88 @@ public final class GrugOwnedScreens {
             return "Screen.close: This screen is not the one that is open, so closing it would"
                     + " either do nothing or close the screen that is open instead.";
         }
-        closeOpen(adapter);
+        pop();
+        // The closed screen's open time is over, so its handles stop resolving. It hears nothing:
+        // the reference's showScreen never calls onScreenClosed, and neither does its close button.
+        screen.dropWidgets();
+        GrugOwnedScreen below = openScreen;
+        if (below == null) {
+            adapter.hideOwnedScreen(screen);
+            return null;
+        }
+        showTop(adapter, below);
         return null;
     }
 
-    private static void closeOpen(ModLoaderAdapter adapter) {
-        GrugOwnedScreen screen = openScreen;
-        endOpenTime(screen);
-        // screen_closed may have opened a screen again, this one included, and the loader is now
-        // showing that one: hiding it here would take away a screen that is still open. The
-        // loader's hide only takes away the host whose model is this screen, so a screen_closed
-        // that opened another screen leaves the old host already gone and this call a no-op.
-        if (openScreen != screen) {
-            adapter.hideOwnedScreen(screen);
-        }
+    /**
+     * The game's own close of the whole stack, asked by a loader when Escape is pressed. The
+     * reference's Escape reaches {@code onScreenClosed} once, on the screen that was on top, and
+     * this is that moment; a {@code screen_closed} that opens a screen again keeps that screen.
+     */
+    public static void closeAll(ModLoaderAdapter adapter) {
+        if (adapter == null || !adapter.ownedScreensSupported()) return;
+        GrugEntities.runLocked(
+                () -> {
+                    GrugOwnedScreen top = openScreen;
+                    if (top == null) return;
+                    endStack();
+                    // A screen_closed that opened or closed a screen already changed what the
+                    // loader shows, so only an empty stack needs the old host taken away.
+                    if (openScreen == null) {
+                        adapter.hideOwnedScreen(top);
+                    }
+                });
     }
 
     /**
-     * Ends a screen's open time: it is no longer the open screen, its widgets are gone, and its
-     * script hears {@code screen_closed} exactly once.
+     * Ends every screen in the stack, asking {@code screen_closed} once on the screen that was on
+     * top. This is the game's own close of the stack (Escape, the game removing the screen, the
+     * world going away), never a mod's {@code close} or {@code open}, and every caller has already
+     * checked that a screen is open.
+     */
+    private static void endStack() {
+        GrugOwnedScreen top = openScreen;
+        for (int index = stack.size() - 1; index >= 0; index--) {
+            GrugOwnedScreen screen = stack.get(index);
+            screen.setOpen(false);
+            screen.dropWidgets();
+        }
+        stack.clear();
+        openScreen = null;
+        askClosed(top.script());
+    }
+
+    /**
+     * Ends one screen's open time: it is no longer open, its widgets are gone, and its script hears
+     * {@code screen_closed} exactly once. The caller owns what the stack and the loader show.
      */
     private static void endOpenTime(GrugOwnedScreen screen) {
-        openScreen = null;
         screen.setOpen(false);
         screen.dropWidgets();
         askClosed(screen.script());
+    }
+
+    private static void push(GrugOwnedScreen screen) {
+        stack.add(screen);
+        screen.setOpen(true);
+        openScreen = screen;
+    }
+
+    private static void pop() {
+        GrugOwnedScreen screen = stack.remove(stack.size() - 1);
+        screen.setOpen(false);
+        openScreen = stack.isEmpty() ? null : stack.get(stack.size() - 1);
+    }
+
+    /**
+     * Brings a screen that was covered back: its open time starts again and the loader shows a
+     * fresh host for it, whose own init asks {@code screen_init} once more at the size the window
+     * has now. Asking it here instead would ask a mod's {@code screen_init} twice, because every
+     * loader's host already does it.
+     */
+    private static void showTop(ModLoaderAdapter adapter, GrugOwnedScreen screen) {
+        screen.setOpen(true);
+        adapter.showOwnedScreen(screen);
     }
 
     /**
@@ -303,7 +401,10 @@ public final class GrugOwnedScreens {
                 () -> {
                     if (screen != openScreen) return;
                     if (screen.generation() != generation) return;
-                    endOpenTime(screen);
+                    // The game took the whole stack away with it: its own screen replaced every
+                    // one of the mod's screens, so the top hears the close the reference's
+                    // onScreenClosed would.
+                    endStack();
                 });
     }
 
@@ -361,7 +462,11 @@ public final class GrugOwnedScreens {
         GrugEntities.runLocked(
                 () -> {
                     if (openScreen == null) return;
-                    endOpenTime(openScreen);
+                    // The world going away asks screen_closed even though the reference cannot
+                    // reach a screen that outlives its world: the port needs the mod to reset the
+                    // tab it thinks is open, and a save is not observable here because a mod saves
+                    // only when Escape set its flag.
+                    endStack();
                 });
     }
 
@@ -728,6 +833,7 @@ public final class GrugOwnedScreens {
      */
     static void resetForTest() {
         screens.clear();
+        stack.clear();
         synchronized (gameRemovals) {
             gameRemovals.clear();
         }

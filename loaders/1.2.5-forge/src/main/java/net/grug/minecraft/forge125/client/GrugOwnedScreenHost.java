@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge125.client;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.forge125.GrugTextFieldAccess;
 import net.grug.minecraft.grug.GrugListMath;
@@ -421,12 +422,15 @@ public final class GrugOwnedScreenHost extends GuiScreen {
             reportFieldText(focused);
             return true;
         }
-        if (GrugOverlayHost.pressScreenKey(this, character, key, ctrl, shift, repeat)) {
+        if (key == Keyboard.KEY_ESCAPE) {
+            // Escape is the game's close of the whole screen stack wherever the keyboard focus
+            // is, so the mod sees it through screen_key first and the stack ends after the export
+            // returns. A screen_closed that opens a screen again keeps that screen.
+            GrugOverlayHost.pressScreenKey(this, character, key, ctrl, shift, repeat);
+            GrugOwnedScreens.closeAll(GrugCore.getAdapter());
             return true;
         }
-        if (key == Keyboard.KEY_ESCAPE) {
-            closeScreen();
-        }
+        GrugOverlayHost.pressScreenKey(this, character, key, ctrl, shift, repeat);
         return true;
     }
 
@@ -471,13 +475,6 @@ public final class GrugOwnedScreenHost extends GuiScreen {
                 GrugOwnedScreens.textEdited(screen, widget, text);
             }
             return;
-        }
-    }
-
-    /** Closes this screen the way {@code close_screen} does on this loader. */
-    private void closeScreen() {
-        if (mc.currentScreen == this) {
-            showWorld(mc);
         }
     }
 

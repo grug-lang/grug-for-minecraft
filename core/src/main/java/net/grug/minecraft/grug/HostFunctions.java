@@ -5102,6 +5102,15 @@ public class HostFunctions {
         }
     }
 
+    public static void Screen_open_over(long screenId) {
+        GrugOwnedScreen screen = screenOrReport("Screen.open_over", screenId);
+        if (screen == null) return;
+        String problem = GrugOwnedScreens.openOver(GrugCore.getAdapter(), screen);
+        if (problem != null) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, problem);
+        }
+    }
+
     public static void Screen_close(long screenId) {
         GrugOwnedScreen screen = screenOrReport("Screen.close", screenId);
         if (screen == null) return;

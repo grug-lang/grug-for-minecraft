@@ -1,9 +1,11 @@
 # Escape reaches a mod screen's screen_key even while one of the screen's text fields has focus: the
-# game closes the screen with Escape, so a screen whose own close saves its state would otherwise
-# lose the close to the field. The overlay takes Escape without closing, so the screen staying open
-# is what proves the export was asked; the game's own close would have closed it. A loader without a
-# screen host answers an err to Screen.open, so the test returns early there, and it ends early on the
-# dedicated server, whose joined client owns the screen.
+# game closes the whole stack with Escape, so a focused field must not swallow the key a screen
+# whose close hears about it needs. The overlay writes the screen it believed was on top to its own
+# file when screen_key sees Escape, so that file proves the export was asked; the game's own close,
+# which a field swallowing the key would fall back to, would not have written it. The same press
+# then ends the whole stack, so no screen is left open and screen_closed ran once.
+# A loader without a screen host answers an err to Screen.open, so the test returns early there, and
+# it ends early on the dedicated server, whose joined client owns the screen.
 started: bool = false
 step: number = 0
 waited: number = 0
@@ -14,6 +16,10 @@ export tick(ctx: TestTickContext) {
         if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
             return
         }
+        files: File = File.open(r"files")
+        # The writable directory outlives a run, so the marker starts empty and a later run of the
+        # suite cannot read what this test wrote before.
+        files.write_text("screen_typing/key.txt", "")
         ctx.not_done()
         return
     }
@@ -59,12 +65,13 @@ export tick(ctx: TestTickContext) {
     if step == 2 {
         took: bool = ctx.press_screen_key(256, false, false, true)
         ctx.assert(took, "Escape should reach screen_key while a text field has focus.")
-        ctx.assert(ctx.screen_open(), "The screen that took Escape should still be open.")
+        files: File = File.open(r"files")
+        ctx.assert(files.read_text("screen_typing/key.txt").unwrap() == "screen", "screen_key should write the screen it was asked on, so the export really saw Escape.")
+        ctx.assert(not ctx.screen_open(), "Escape should end the whole screen stack, whatever the focus.")
         step = 3
         ctx.not_done()
         return
     }
 
-    ctx.close_screen()
-    ctx.assert(not ctx.screen_open(), "The test's own close should leave no screen open.")
+    ctx.assert(not ctx.screen_open(), "The test should leave no screen open.")
 }

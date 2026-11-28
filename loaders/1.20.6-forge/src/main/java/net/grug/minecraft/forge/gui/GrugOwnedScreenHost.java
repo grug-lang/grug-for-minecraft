@@ -1,5 +1,6 @@
 package net.grug.minecraft.forge.gui;
 
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.forge.GrugOverlayHost;
 import net.grug.minecraft.grug.GrugListMath;
 import net.grug.minecraft.grug.GrugOverlay;
@@ -335,9 +336,9 @@ public final class GrugOwnedScreenHost extends Screen {
         // copies the flag (#1884).
         syncMirrors();
         // A focused text field gets the key, and the mod is not asked at all while it has it,
-        // except for Escape: the game closes the screen with it, so a mod that runs its screen's
-        // own close from screen_key would otherwise never hear of the close and keep whatever
-        // that close clears (#1871's review).
+        // except for Escape: Escape is the game's close of the whole screen stack wherever the
+        // keyboard focus is, so the mod sees it first through screen_key and the stack ends after
+        // the export returns.
         if (this.getFocused() instanceof EditBox && keyCode != GrugOverlay.KEY_ESCAPE) {
             // The game's own field refuses a key only while its active flag is still the frame's
             // copy, so the model's own answer decides here (#1884).
@@ -352,10 +353,18 @@ public final class GrugOwnedScreenHost extends Screen {
             heldKey = keyCode;
             boolean ctrl = (modifiers & GrugOverlayHost.controlModifier()) != 0;
             boolean shift = (modifiers & GrugOverlayHost.shiftModifier()) != 0;
-            if (GrugOwnedScreens.keyScreen(screen, key, 0.0, ctrl, shift, repeat)) {
+            boolean taken = GrugOwnedScreens.keyScreen(screen, key, 0.0, ctrl, shift, repeat);
+            if (taken) {
                 GrugOverlay.noteTestPressTaken();
+            }
+            if (key == GrugOverlay.KEY_ESCAPE) {
+                // The mod saw Escape first; now the whole stack ends through core, so
+                // screen_closed runs once on the top screen. A screen_closed that opens a screen
+                // again keeps that screen.
+                GrugOwnedScreens.closeAll(GrugCore.getAdapter());
                 return true;
             }
+            if (taken) return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }

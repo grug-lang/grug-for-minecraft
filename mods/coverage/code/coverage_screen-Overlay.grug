@@ -10,10 +10,24 @@
 # directly. K, T, R, S and Q arm a one-shot reopen or close from `screen_list_row`, `screen_render`,
 # `screen_click` twice and `screen_scroll`; the test that arms one opens the screen itself, so the
 # change happens inside that frame or that event, and the host has to stop the rest of the work once
-# its open time has ended (#1885). O arms a text field state: the next Escape rewrites the field's
-# text and the next one after that deactivates it, so a key pressed in the same tick has to be
+# its open time has ended (#1885). O arms a text field state: the next click on the screen rewrites
+# the field's text and the one after deactivates it, so a key pressed in the same tick has to be
 # applied to the text the mod wrote and a deactivated field has to give the keyboard up before the
 # game's own copy reaches it (#1884).
+# The same exports serve both of the script's screens, because the API gives an export no screen of
+# its own and asks it on whichever screen is on top. `stack_top` is therefore what the mod records
+# before every open and close it asks for, and the exports lay out and answer for that screen. The
+# second screen `other` is only ever shown over the first, with `open_over`, so the stack tests can
+# show that the screen below keeps its widgets, stops drawing and taking input, and is asked
+# `screen_init` again when it comes back. `screen_closed` writes how many closes the mod has heard
+# and on which screen, so a test can tell the game's own end of the stack from a mod's own close.
+# A stack key is delivered to `screen_key`, not to `world_key`, because a screen is open when it is
+# pressed: B opens `other` over the top, N closes the top, M opens the first screen over the stack
+# and J opens `other` over the stack it is already in, which is the refusal a test expects.
+# The stack tests read this mod's own files: `screen_stack/init.txt` holds the init count, the screen
+# the mod laid out and the tick state it declared, `screen_stack/closed.txt` the close count and the
+# screen the mod believed was on top, `screen_stack/frame.txt` the screen whose frame drew last, and
+# `screen_stack/widget.txt` the button a press reached.
 # The observations the screen tests read are written to this mod's own files, because a test
 # cannot ask a screen export for its state directly. `screen_widget_changed` writes the text
 # field's own text to `screen_typing/edit.txt` and the button's to `screen_reopen/click.txt`, the
@@ -21,6 +35,18 @@
 # "reopened" to `screen_reopen/state.txt`, and a frame writes the first row the list drew to
 # `screen_reopen/rows.txt`.
 screen: Screen = Screen.new()
+
+# The second screen the stack tests show over the first, and the handles of the two widgets it
+# declares. A test closes `screen` and reopens it per test, so `screen` alone proves nothing about
+# `open_over`; this one is only ever shown above it.
+other: Screen = Screen.new()
+other_button: Option[Widget] = Option.new()
+
+# Which of the two screens the host is initialising or drawing: one export serves both, so the mod
+# sets this before every open and close it asks for, and `screen_init` and `screen_widget_changed`
+# read it to know whose widgets to declare and whose name to record. The default is the first
+# screen, which the H key opens on its own.
+stack_top: string = "screen"
 
 # The handles of the five widgets, kept from `screen_init` so a later init can declare the same
 # widgets again and so `screen_widget_changed` could tell them apart.
@@ -68,13 +94,40 @@ row_min: number = -1
 rows_written: number = -1
 
 # The width `screen_render` measured for its title with the game's font, and what the empty text
-# measured, which is 0. A test presses Z on the open screen to arm the close, and Escape then closes
-# it only when both answers are what the font must give, so a text_width that answered nothing
-# leaves the screen open and the test fails. Arming is per open time: `screen_init` clears it, so a
-# test that runs after this one never inherits a screen that closes itself.
+# measured, which is 0. A frame writes the pair to `screen_text/widths.txt` when they change, so the
+# text width test can read what the game's font answered: an empty text has to measure nothing and
+# the title has to measure something.
 title_width: number = -1
 empty_width: number = -1
-close_on_escape: bool = false
+widths_written: string = ""
+
+# The checkbox's tick, kept here so `screen_init` declares the box with the state the player left it
+# in. The widget keeps its own value too, but a later init sets it from this variable, which is how a
+# screen keeps its values across an `open_over` and the close that brings it back.
+tick_checked: bool = false
+
+# How many times `screen_init` and `screen_closed` have run, and the screen the mod laid out or
+# believed was on top. A stack test reads them from `screen_stack/init.txt` and
+# `screen_stack/closed.txt`: an init the host asked again after a close, and a screen_closed the
+# game's own end of the stack asked exactly once, are what those files prove.
+init_count: number = 0
+close_count: number = 0
+
+# The screen whose `screen_render` ran last, written to `screen_stack/frame.txt` when it changes, so
+# a test can wait for the frame of the screen it just opened. The export cannot tell which of its
+# script's screens the host asked, so this is `stack_top`, the screen the mod last opened.
+frame_written: string = ""
+
+# How many frames the first screen has drawn since the last reset. A covered screen draws nothing,
+# so the count it had when `other` was opened over it and the count just before it comes back are
+# the same, which is what the open_over test reads from `screen_stack/covered.txt` and
+# `screen_stack/counts.txt`.
+screen_renders: number = 0
+
+# Which stack operation the next `screen_key` asks the host for: 1 opens `other` over the top, 2
+# closes `other` and 3 opens the first screen over the stack. Each is one-shot, so a test presses the
+# key and then reads what the host did.
+stack_op: number = 0
 
 # The mode keys are world keys because a screen export cannot be reached from a test directly. H
 # opens the screen, which is only legal while no screen is open, so a test closes between openings.
@@ -97,7 +150,27 @@ export world_key(ctx: OverlayWorldKeyContext) {
     } else if key == 88 {
         row_mode = 5
     } else if key == 72 {
+        stack_top = "screen"
         screen.open()
+    } else if key == 90 {
+        # Z resets what the stack tests read, because this mod's own entity outlives a test: the
+        # counters it keeps would otherwise carry the previous test's closes and inits into a
+        # file this one reads. The markers start empty for the same reason, so a test that proves
+        # a close heard nothing cannot read an earlier test's close.
+        stack_top = "screen"
+        init_count = 0
+        close_count = 0
+        frame_written = ""
+        tick_checked = false
+        screen_renders = 0
+        stack_op = 0
+        _stack_write("screen_stack/init.txt", "")
+        _stack_write("screen_stack/closed.txt", "")
+        _stack_write("screen_stack/frame.txt", "")
+        _stack_write("screen_stack/widget.txt", "")
+        _stack_write("screen_stack/tick.txt", "")
+        _stack_write("screen_stack/counts.txt", "")
+        _stack_write("screen_stack/covered.txt", "")
     } else if key == 75 {
         reopen_once = true
     } else if key == 81 {
@@ -122,22 +195,33 @@ export world_key(ctx: OverlayWorldKeyContext) {
 }
 
 export screen_init(ctx: ScreenInitContext) {
-    # Every open time starts unarmed, so only the test that presses Z on this screen gets a close
-    # from its own key.
-    close_on_escape = false
+    init_count = init_count + 1
     # The rows a frame draws are compared within one open time, so the first frame of this one
     # writes the row it starts at even when an earlier open time already wrote the same number.
     row_min = -1
     rows_written = -1
     width: number = ctx.screen_width()
+    if stack_top == "other" {
+        # The other screen's widgets sit below the first screen's, so a press on one of the first
+        # screen's own widgets takes nothing while the other screen covers it, and a test can tell
+        # whose button a press reached (#1752).
+        other_button.set(other.add_button("other_press", "Other", 10, 150, 70, 20))
+        _stack_write("screen_stack/init.txt", String.concat(String.from_number(init_count), ":other"))
+        return
+    }
     button.set(screen.add_button("press", "Press", 10, 10, 70, 20))
-    checkbox.set(screen.add_checkbox("tick", "Tick", false, 10, 40, 70, 20))
+    # The tick comes from this mod's own state, which is how a screen keeps a value the player left
+    # while another screen covers it: the host asks for the widgets again and the mod declares the
+    # value it kept.
+    checkbox.set(screen.add_checkbox("tick", "Tick", tick_checked, 10, 40, 70, 20))
     slider.set(screen.add_slider("slide", "Slide", 0, 10, 5, 10, 70, 100, 20))
     field.set(screen.add_text_field("type", "text", 10, 100, 160, 20))
     # The list sits a fixed height down the screen, because the widget hit tests the game does are
     # in GUI-scaled pixels and the rows have to be inside the smallest window a run uses.
     list.set(screen.add_list("rows", width - 150, 130, 140, 80, 10))
     list.unwrap().set_rows(list_rows)
+    _stack_write("screen_stack/init.txt", String.concat(String.from_number(init_count), ":screen"))
+    _stack_write("screen_stack/tick.txt", _bool_text(tick_checked))
 }
 
 # Draws a title and, in stale mode, uses the row response the same frame's `screen_list_row` kept.
@@ -148,6 +232,18 @@ export screen_init(ctx: ScreenInitContext) {
 # written to the mod's file when the first one the list drew changed, which is what the scroll test
 # reads.
 export screen_render(ctx: OverlayRenderContext) {
+    # The screen whose frame this is, written when it changes, so a stack test can wait for the frame
+    # of the screen it just opened. An export cannot tell which of its script's screens asked it, so
+    # the name is the one the mod last opened, which is also what its other exports lay out.
+    if stack_top != frame_written {
+        frame_written = stack_top
+        _stack_write("screen_stack/frame.txt", stack_top)
+    }
+    if stack_top == "other" {
+        ctx.draw_text("other screen", 10, 10, Color.rgb(255, 255, 255))
+        return
+    }
+    screen_renders = screen_renders + 1
     if render_reopen_once {
         render_reopen_once = false
         screen.close()
@@ -156,10 +252,15 @@ export screen_render(ctx: OverlayRenderContext) {
         files.write_text("screen_reopen/state.txt", "reopened")
         return
     }
-    # Measured before the title is drawn, which is where a screen centres it. The answers are kept
-    # so the Escape below can refuse to close a screen whose font measurement is not the game's.
+    # Measured before the title is drawn, which is where a screen centres it, and written out when
+    # they change so the text width test can read what the game's font answered.
     title_width = ctx.text_width("coverage screen")
     empty_width = ctx.text_width("")
+    widths: string = String.concat(String.from_number(title_width), String.concat(":", String.from_number(empty_width)))
+    if widths != widths_written {
+        widths_written = widths
+        _stack_write("screen_text/widths.txt", widths)
+    }
     ctx.draw_text("coverage screen", 10, ctx.screen_height() - 20, Color.rgb(255, 255, 255))
     if row_mode == 3 and kept_row.has() {
         index: number = kept_row.unwrap().index()
@@ -179,6 +280,38 @@ export screen_render(ctx: OverlayRenderContext) {
 # new one laid out (#1885). A click the test did not arm is left alone, so the widget under the
 # point still hears it.
 export screen_click(ctx: OverlayClickContext) {
+    if stack_op == 1 {
+        stack_op = 0
+        # The frames the covered screen had drawn when it was covered, so a later close can prove
+        # it drew none while something was over it.
+        _stack_write("screen_stack/covered.txt", String.from_number(screen_renders))
+        stack_top = "other"
+        other.open_over()
+        return
+    }
+    if stack_op == 2 {
+        stack_op = 0
+        # Read before the close: a covered screen that kept drawing would have a higher count here
+        # than `screen_stack/covered.txt` holds.
+        _stack_write("screen_stack/counts.txt", String.from_number(screen_renders))
+        # The close brings the screen below back, and its fresh host asks `screen_init` while this
+        # call is still running, so the mod names the screen that will be on top before it closes.
+        # The top is `other` after an open_over and `screen` after an open that replaced the stack.
+        if stack_top == "other" {
+            stack_top = "screen"
+            other.close()
+            return
+        }
+        stack_top = "screen"
+        screen.close()
+        return
+    }
+    if stack_op == 3 {
+        stack_op = 0
+        stack_top = "screen"
+        screen.open()
+        return
+    }
     if click_reopen_once {
         click_reopen_once = false
         screen.close()
@@ -192,49 +325,59 @@ export screen_click(ctx: OverlayClickContext) {
         screen.close()
         files: File = File.open(r"files")
         files.write_text("screen_reopen/state.txt", "closed")
+        return
+    }
+    if stack_top == "other" {
+        return
+    }
+    # O arms the field chain: the next click on the first screen rewrites the focused field's text
+    # and the one after deactivates it. Doing it from a click rather than a key keeps the key that
+    # follows it in the same tick, which is what the host's own sync has to apply it to (#1884).
+    if field_mode == 1 {
+        field_mode = 2
+        field.unwrap().set_text("7")
+        return
+    }
+    if field_mode == 2 {
+        field_mode = 3
+        field.unwrap().set_active(false)
     }
 }
 
 # Escape reaches this export even while the screen's text field has focus, because the game closes
-# the screen with Escape and a mod whose screen close saves its state would otherwise never hear of
-# it. The export takes Escape and leaves the screen open, which is how the test observes that it was
-# asked rather than the game's own close. A screen that pressed Z first arms its close, and Escape
-# then closes it through Screen.close, which is the close a mod's own screen_key runs.
-# O arms the field chain the text field test drives: Escape rewrites the focused field's text and
-# the next Escape deactivates it, and in the third state Left writes what the field still holds to
-# the mod's own file, so a test can tell that the deactivated field lost the keyboard (#1884).
+# the whole stack with Escape and a mod whose screen close saves its state would otherwise never
+# hear of it. The host ends the stack after this call returns, so the export only takes the key and
+# writes the marker the focused field test reads; it never closes the screen itself.
+# The three stack keys arm a one-shot operation the next click asks for: B opens `other` over the
+# top, N closes `other` and M opens the first screen over the stack (#1752).
+# Left, in the field chain's third state, writes what the deactivated field still holds to the
+# mod's own file, so a test can tell that the field lost the keyboard (#1884).
 export screen_key(ctx: OverlayKeyContext) {
     key: number = ctx.key()
-    if key == 256 and field_mode == 1 {
+    if key == 66 {
         ctx.take()
-        field.unwrap().set_text("7")
-        field_mode = 2
+        stack_op = 1
         return
     }
-    if key == 256 and field_mode == 2 {
+    if key == 78 {
         ctx.take()
-        field.unwrap().set_active(false)
-        field_mode = 3
+        stack_op = 2
+        return
+    }
+    if key == 77 {
+        ctx.take()
+        stack_op = 3
         return
     }
     if key == 263 and field_mode == 3 {
         ctx.take()
-        files: File = File.open(r"files")
-        files.write_text("screen_typing/left.txt", field.unwrap().text())
+        _stack_write("screen_typing/left.txt", field.unwrap().text())
         field_mode = 0
-        return
-    }
-    if key == 90 {
-        ctx.take()
-        close_on_escape = true
         return
     }
     if key == 256 {
         ctx.take()
-        if close_on_escape and title_width > 0 and empty_width == 0 {
-            close_on_escape = false
-            screen.close()
-        }
+        _stack_write("screen_typing/key.txt", stack_top)
     }
 }
 
@@ -255,19 +398,34 @@ export screen_scroll(ctx: OverlayScrollContext) {
 
 # Writes the text field's own text whenever the player changes it, so the field test can tell a
 # character that landed on the text the mod rewrote from one the game applied to its stale copy.
+# The checkbox's tick is kept here, so the next `screen_init` declares it again: that is how a
+# screen keeps a value the player left while another screen covers it. A press on either screen's
+# button writes which screen's button it was, so the stack tests can tell the top screen took it.
 # No other widget is observed here (#1884).
 export screen_widget_changed(ctx: ScreenWidgetContext) {
     widget: Widget = ctx.widget()
+    if stack_top == "other" {
+        if other_button.has() and equals(widget, other_button.unwrap()) {
+            _stack_write("screen_stack/widget.txt", "other")
+        }
+        return
+    }
     if field.has() and equals(widget, field.unwrap()) {
-        files: File = File.open(r"files")
-        files.write_text("screen_typing/edit.txt", widget.text())
+        _stack_write("screen_typing/edit.txt", widget.text())
+        return
+    }
+    if checkbox.has() and equals(widget, checkbox.unwrap()) {
+        tick_checked = widget.checked()
+        _stack_write("screen_stack/tick.txt", _bool_text(tick_checked))
         return
     }
     # The button's own text, so the click test can tell a press the reopened screen's widgets heard
-    # from one the old open time's widget loop swallowed (#1885).
+    # from one the old open time's widget loop swallowed (#1885), and the stack tests can tell the
+    # first screen's button from the second's.
     if button.has() and equals(widget, button.unwrap()) {
         files: File = File.open(r"files")
         files.write_text("screen_reopen/click.txt", widget.text())
+        _stack_write("screen_stack/widget.txt", "screen")
     }
 }
 
@@ -314,4 +472,32 @@ export screen_list_row(ctx: ListRowResponse) {
     if row_mode == 3 {
         kept_row.set(ctx)
     }
+}
+
+# The game's own end of the screen stack, which is Escape, the game taking the screen away, the
+# world going away or the script being dropped. It is asked once, on the screen that was on top, and
+# never by a mod's own `close()` or `open()`; the count and the screen the mod believed was on top
+# are what a test reads to tell those apart (#1752).
+export screen_closed() {
+    close_count = close_count + 1
+    _stack_write("screen_stack/closed.txt", String.concat(String.from_number(close_count), String.concat(":", stack_top)))
+    # The game ended the stack, so no screen is left for the mod's exports to be asked on: the next
+    # screen this script opens is the first one again. A test that ends with `other` on top would
+    # otherwise leave its name for the next test's screens.
+    stack_top = "screen"
+}
+
+# Writes one of the stack markers. A write is an fsync, so only an export that already writes a
+# handful of times per open uses this; a frame that writes one per tick would be a cost the game
+# pays every tick.
+local _stack_write(path: string, text: string) {
+    files: File = File.open(r"files")
+    files.write_text(path, text)
+}
+
+local _bool_text(value: bool) string {
+    if value {
+        return "true"
+    }
+    return "false"
 }

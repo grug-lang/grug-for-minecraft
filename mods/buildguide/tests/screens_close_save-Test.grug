@@ -1,0 +1,299 @@
+# The save happens where the reference's onScreenClosed does, which is only Escape: the chrome's X
+# builds a new screen with showScreen(null) and never runs onScreenClosed, so a change made since the
+# last save is lost with it, while Escape saves it. The test makes a change, closes with the X and
+# reads this world's state file back unchanged, then makes the same change again and presses Escape,
+# which writes it. Persistence is turned on for both closes and put back as the run found it, so a
+# later test sees the config it would have seen (#1752).
+step: number = 0
+waited: number = 0
+was_persistent: bool = false
+baseline: string = ""
+
+export tick(ctx: TestTickContext) {
+    if step == 0 {
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        step = 1
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should open Build Guide's screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The mod should have written its config file by the first screen frame.")
+        was_persistent = String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0
+        # The Configuration tab is the fourth chrome button. The window is cut off at the CI
+        # client's scale, so its visible part is clicked.
+        width: number = ctx.screen_width()
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if was_persistent {
+            step = 3
+            ctx.not_done()
+            return
+        }
+        # The persistence checkbox is ConfigurationScreen's third box, at (255, 160).
+        ctx.click_screen(262, 168, 0)
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The check on the persistence value should leave the config readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = true") >= 0, "Both closes have to run with persistence on, so this test's saves are the ones the file holds.")
+        # The first Escape is the save the later ones are compared with.
+        ctx.press_screen_key(256, false, false, true)
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen and save the state.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        baseline = _saved_state(ctx)
+        ctx.assert(_set_count(baseline) >= 1, "The first save should hold the set a fresh state gets.")
+        step = 5
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Shape list tab is the third chrome button, at x 255 to 375 and y 30 to 50.
+        ctx.click_screen(265, 40, 0)
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # Add is at (5, 90), 160 wide and 20 high: it appends a set, which is a change the save would
+        # write if it ran.
+        ctx.click_screen(85, 100, 0)
+        step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        # The chrome's X is at (width - 25, 5), 20 by 20, and ends the screen without asking
+        # screen_closed.
+        width: number = ctx.screen_width()
+        ctx.click_screen(width - 15, 15, 0)
+        step = 8
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The chrome's X should close the screen.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.assert(_saved_state(ctx) == baseline, "The X ends the screen without onScreenClosed, so the change it dropped must not be saved.")
+        step = 9
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 9 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen after the X.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(265, 40, 0)
+        step = 10
+        ctx.not_done()
+        return
+    }
+
+    if step == 10 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw a frame after the reopen.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(85, 100, 0)
+        step = 11
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        # Escape is the screen's own close, which reaches screen_closed and saves the whole state.
+        ctx.press_screen_key(256, false, false, true)
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the second Add.")
+            ctx.not_done()
+            return
+        }
+        saved: string = _saved_state(ctx)
+        ctx.assert(saved != baseline, "Escape runs onScreenClosed, so the changes it closes over are saved.")
+        ctx.assert(_set_count(saved) == _set_count(baseline) + 2, "Both Adds should be in the saved state, the one the X dropped and the one Escape saved.")
+        if was_persistent {
+            ctx.close_screen()
+            return
+        }
+        # The run found persistence off, so the box is clicked once more to put it back.
+        step = 13
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the config restore.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Configuration tab and its persistence checkbox, which was ticked to true above.
+        width: number = ctx.screen_width()
+        tab_x: number = 416
+        if width - 10 < tab_x {
+            tab_x = width - 10
+        }
+        ctx.click_screen(tab_x, 40, 0)
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Configuration tab should draw a frame for the restore.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(262, 168, 0)
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "The restore should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "The restore should put the persistence value the run found back.")
+        ctx.close_screen()
+    }
+}
+
+# The state text the last Escape saved. A guard leaves it where a test's close writes it: a file
+# under buildguide/ that holds the enabled line and at least one set, whichever world and dimension
+# the run is in. A test that closes this way reads it back the way screens_shape-Test does.
+local _saved_state(ctx: TestTickContext) string {
+    files: File = File.open(r"files")
+    count: number = files.entry_count("buildguide")
+    i: number = 0
+    while i < count {
+        name: string = files.entry_name("buildguide", i)
+        text: Option[string] = files.read_text(String.concat("buildguide/", name))
+        if text.has() {
+            state: string = text.unwrap()
+            if String.index_of(state, "shapeSet=") >= 0 {
+                return state
+            }
+        }
+        i = i + 1
+    }
+    ctx.assert(false, "The close should have saved a state with a set.")
+    return ""
+}
+
+# How many shapeSet= lines the state holds, which is its number of sets.
+local _set_count(state: string) number {
+    count: number = 0
+    rest: string = state
+    at: number = String.index_of(rest, "shapeSet=")
+    while at >= 0 {
+        count = count + 1
+        rest = String.substring(rest, at + 9, String.length(rest))
+        at = String.index_of(rest, "shapeSet=")
+    }
+    return count
+}

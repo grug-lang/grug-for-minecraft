@@ -1,7 +1,7 @@
-# The Shape and Shape list dropdowns of #1752's screens: the V shows the list of the fifteen shape
-# names, a row is the parent's callback, and the X puts the parent's widgets back. The host's Screen
-# cannot hold a second screen, so the list is drawn inside its parent and the parent's own widgets
-# and texts leave while it is up; that is what this test drives.
+# The Shape and Shape list dropdowns of #1752's screens: the V opens the list as a screen of its own
+# over the tab's screen, a row is that child screen's callback, and the child's own X puts the parent
+# back. The child repeats the chrome and owns the fifteen-row list, so the parent's widgets stay where
+# they are until the pick or the X closes the child; that is what this test drives.
 # The Shape list's dropdown writes the new-set shape, iShapeNew, which Add then uses, and the Shape
 # tab's dropdown writes the current set's index and gives a shape it has not built yet its defaults.
 # Every proof is read back from the saved state, because a row and its selection are the host's and
@@ -297,12 +297,17 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 19 {
-        # Choosing a row closed the dropdown inside the same screen, so the Shape tab is still open:
-        # the fallback never replaces the screen the way a second screen would.
+        # Choosing a row closed the dropdown's child screen in the same tick, so the Shape tab is
+        # back and its own V is at (145, 70) again.
         ctx.assert(ctx.screen_open(), "A row should close the list and leave its parent screen open.")
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
         # The row just clicked is the list's selected row now, and a click on the row that is
         # already selected is still a click the mod hears: the reference's row callback runs on
-        # every click, so it closes the dropdown again and leaves the shape it picked.
+        # every click, so it closes the dropdown again and leaves the shape it picked. The child
+        # screen is opened again first, because only the top screen takes the click.
         ctx.click_screen(155, 80, 0)
         step = 20
         ctx.not_done()
@@ -326,45 +331,74 @@ export tick(ctx: TestTickContext) {
     }
 
     if step == 21 {
-        # The second click on a closed list was the list's row, so the screen has to still be the
-        # same one: a hidden list that took the click would have closed the dropdown only, and a
-        # click on empty space closes nothing at all.
+        # The second click on the selected row closed the child again, so the Shape tab, not some
+        # hidden list, is the screen that is open.
         ctx.assert(ctx.screen_open(), "Clicking the selected row should close the list and leave the screen open.")
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        # The child's own X shares the V's rectangle at (145, 70), 20 by 20, and puts the parent
+        # back without changing the shape the list left selected.
+        ctx.click_screen(155, 80, 0)
         step = 22
         ctx.not_done()
         return
     }
 
     if step == 22 {
-        # Escape is the screen's own close, and the host asks screen_key for it even while a field
-        # has the focus, so one press reaches the mod's close and it saves. The close lands on the
-        # next tick, like the first one in this test, so the wait is its own step.
-        ctx.press_screen_key(256, false, false, true)
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab's dropdown should draw for its own X.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The dropdown's own X at (145, 70) closes only the child, so the Shape tab is still open.
+        ctx.click_screen(155, 80, 0)
         step = 23
         ctx.not_done()
         return
     }
 
     if step == 23 {
-        if ctx.screen_open() {
+        if not ctx.overlay_drawn() {
             waited = waited + 1
-            ctx.assert(waited < 200, "Escape should close the Shape screen after the second row click.")
+            ctx.assert(waited < 200, "The Shape tab should draw after the dropdown's own X.")
             ctx.not_done()
             return
         }
-        state: string = _saved_state(ctx)
-        ctx.assert(_index_field(state) == 1, "The second click on the selected row should keep the current set's shape, and its closed list should let the parent's Add run.")
-        ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "Add should append the set at the shape the list left selected.")
-        if was_persistent {
-            return
-        }
+        waited = 0
+        ctx.assert(ctx.screen_open(), "The dropdown's own X should leave the Shape tab open.")
+        # Escape is the screen's own close, and the host asks screen_key for it even while a field
+        # has the focus, so one press reaches the mod's close and it saves. The close lands on the
+        # next tick, like the first one in this test, so the wait is its own step.
+        ctx.press_screen_key(256, false, false, true)
         step = 24
-        ctx.press_world_key(66, false)
         ctx.not_done()
         return
     }
 
     if step == 24 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the Shape screen after the dropdown's own X.")
+            ctx.not_done()
+            return
+        }
+        state: string = _saved_state(ctx)
+        ctx.assert(_index_field(state) == 1, "The selected row and the dropdown's own X should keep the current set's shape, and its closed child should let the parent's Add run.")
+        ctx.assert(_shape_values(state, "ShapeCircle") == "X,3.0,1,false", "Add should append the set at the shape the list left selected.")
+        if was_persistent {
+            return
+        }
+        step = 25
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 25 {
         # The run found persistence off, so the Configuration tab's box is ticked back off.
         if not ctx.screen_open() {
             waited = waited + 1
@@ -383,12 +417,12 @@ export tick(ctx: TestTickContext) {
             tab_x = width - 10
         }
         ctx.click_screen(tab_x, 40, 0)
-        step = 25
+        step = 26
         ctx.not_done()
         return
     }
 
-    if step == 25 {
+    if step == 26 {
         if not ctx.overlay_drawn() {
             waited = waited + 1
             ctx.assert(waited < 200, "The Configuration tab should draw for the restore.")
@@ -397,23 +431,23 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.click_screen(262, 168, 0)
-        step = 26
-        ctx.not_done()
-        return
-    }
-
-    if step == 26 {
-        files: File = File.open(r"files")
-        config: Option[string] = files.read_text("config/buildguide.cfg")
-        ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
-        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
-        ctx.press_screen_key(256, false, false, true)
         step = 27
         ctx.not_done()
         return
     }
 
     if step == 27 {
+        files: File = File.open(r"files")
+        config: Option[string] = files.read_text("config/buildguide.cfg")
+        ctx.assert(config.has(), "Unticking persistence should leave the config file readable.")
+        ctx.assert(String.index_of(config.unwrap(), "persistenceEnabled = false") >= 0, "Unticking persistence should put the run's value back.")
+        ctx.press_screen_key(256, false, false, true)
+        step = 28
+        ctx.not_done()
+        return
+    }
+
+    if step == 28 {
         if ctx.screen_open() {
             waited = waited + 1
             ctx.assert(waited < 200, "Escape should close the Configuration screen.")

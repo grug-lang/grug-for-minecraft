@@ -3529,6 +3529,10 @@ static union grug_value TTC_set_mod_file_state(ARGS) {
     m->state = keep(xstrdup(state));
     m->disturbed = !normal;
     m->changes++;
+    // A swapped or deleted Overlay file drops its script, and GrugOwnedScreens.scriptDropped ends
+    // every screen the script made and asks screen_closed once on the one that was on top. The
+    // smoketest runs no reload, so this drop is the only part of one a screen test can see.
+    if (!normal && (!strcmp(state, "swapped") || deleted)) mod_screen_close_open();
     return none();
 }
 REGISTER("TestTickContext", "set_mod_file_state", TTC_set_mod_file_state);
@@ -4799,6 +4803,10 @@ struct owned_screen {
 // belongs to one script, so its exports are that script's own screen_* functions.
 static struct owned_screen** owned_screens;
 static size_t nowned_screens, capowned_screens;
+// The screens the player has open, bottom first, as GrugOwnedScreens.stack keeps them. Only the
+// last one draws, takes input and answers a list row; open_over pushes and close pops.
+static struct owned_screen** screen_stack;
+static size_t nscreen_stack, capscreen_stack;
 static struct owned_screen* open_owned_screen;
 // What is running right now: the screen whose screen_init or screen_widget_changed call is open,
 // with the context that call was passed. A context saved for later is refused against these.
@@ -4886,6 +4894,7 @@ static void clear_screens(void) {
         free(s);
     }
     nowned_screens = 0;
+    nscreen_stack = 0;
     open_owned_screen = NULL;
     init_screen_running = NULL;
     init_ctx_running = 0;
@@ -5001,9 +5010,36 @@ static void end_open_time(struct owned_screen* s) {
     note_screen_closed();
     call_screen_export(s, screen_closed_fn, NULL, 0);
 }
-static void mod_screen_close_open(void) {
-    if (!open_owned_screen) return;
-    end_open_time(open_owned_screen);
+// The game's own close of the whole stack (Escape, the game removing the screen, the world going
+// away): every screen is ended and dropped, and screen_closed runs once on the screen that was on
+// top. A screen_closed that opens a screen again keeps that screen.
+static void end_stack(void) {
+    struct owned_screen* top = open_owned_screen;
+    if (!top) return;
+    for (size_t i = nscreen_stack; i > 0; i--) {
+        struct owned_screen* s = screen_stack[i - 1];
+        s->open = false;
+        if (s != top) drop_widgets(s);
+    }
+    nscreen_stack = 0;
+    open_owned_screen = NULL;
+    end_open_time(top);
+}
+static void mod_screen_close_open(void) { end_stack(); }
+static void screen_stack_push(struct owned_screen* s) {
+    if (nscreen_stack == capscreen_stack) {
+        capscreen_stack = capscreen_stack ? capscreen_stack * 2 : 8;
+        screen_stack = xrealloc(screen_stack, capscreen_stack * sizeof *screen_stack);
+    }
+    screen_stack[nscreen_stack++] = s;
+    if (!s->open) s->generation += 1;
+    s->open = true;
+    open_owned_screen = s;
+}
+static bool screen_stack_has(struct owned_screen* s) {
+    for (size_t i = 0; i < nscreen_stack; i++)
+        if (screen_stack[i] == s) return true;
+    return false;
 }
 static bool mod_screen_open(void) { return open_owned_screen != NULL && open_owned_screen->open; }
 static double mod_screen_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 window width
@@ -5042,8 +5078,16 @@ static union grug_value Screen_open(ARGS) {
     UNUSED;
     struct owned_screen* s = screen_of(a[0]._id, "Screen.open");
     if (!s) return none();
-    // The toy world is always loaded, so the game's no-world refusal is not modelled.
-    while (open_owned_screen) mod_screen_close_open();
+    // open replaces the whole stack, as the reference's showScreen replaces the one screen it
+    // shows: every screen that was open is ended without screen_closed, and the screen being
+    // opened wins. The toy world is always loaded, so the game's no-world refusal is not modelled.
+    for (size_t i = 0; i < nscreen_stack; i++) {
+        struct owned_screen* old = screen_stack[i];
+        old->open = false;
+        drop_widgets(old);
+    }
+    nscreen_stack = 0;
+    open_owned_screen = NULL;
     // A mod screen is the client's current screen, so the container screen underneath it is gone.
     // Whether the game hands the carried stack back when one screen replaces another is the
     // loader's own behaviour and not something the smoketest models, so a container screen open
@@ -5058,13 +5102,32 @@ static union grug_value Screen_open(ARGS) {
     // screen's row defect is forgotten (GrugOwnedScreens.open clears it). The world key that opened
     // it has done its work, so no world key is held from here.
     note_screen_opened();
-    if (!s->open) s->generation += 1;
-    s->open = true;
-    open_owned_screen = s;
+    last_row_error[0] = 0;
+    screen_stack_push(s);
     run_screen_init(s);
     return none();
 }
 REGISTER("Screen", "open", Screen_open);
+
+static union grug_value Screen_open_over(ARGS) {
+    UNUSED;
+    struct owned_screen* s = screen_of(a[0]._id, "Screen.open_over");
+    if (!s) return none();
+    // The toy world is always loaded, so the game's no-world refusal is not modelled.
+    if (screen_stack_has(s))
+        return fail("Screen.open_over: This screen is already in the player's screen stack, so opening it over would put it there twice.");
+    if (screen_is_open) stubbed = true;
+    screen_is_open = false;
+    screen_gui = 0;
+    screen_be = 0;
+    carried_has = false;
+    note_screen_opened();
+    last_row_error[0] = 0;
+    screen_stack_push(s);
+    run_screen_init(s);
+    return none();
+}
+REGISTER("Screen", "open_over", Screen_open_over);
 
 static union grug_value Screen_close(ARGS) {
     UNUSED;
@@ -5072,7 +5135,19 @@ static union grug_value Screen_close(ARGS) {
     if (!s) return none();
     if (open_owned_screen != s)
         return fail("Screen.close: This screen is not the one that is open, so closing it would either do nothing or close the screen that is open instead.");
-    mod_screen_close_open();
+    // A close swaps screens silently: the closed screen hears no screen_closed, and the screen
+    // below it is initialised again when its fresh host comes up.
+    nscreen_stack -= 1;
+    s->open = false;
+    drop_widgets(s);
+    if (nscreen_stack == 0) {
+        open_owned_screen = NULL;
+        return none();
+    }
+    open_owned_screen = screen_stack[nscreen_stack - 1];
+    open_owned_screen->open = true;
+    note_screen_opened();
+    run_screen_init(open_owned_screen);
     return none();
 }
 REGISTER("Screen", "close", Screen_close);
@@ -5564,12 +5639,15 @@ static bool mod_screen_key(double key, double character, bool ctrl, bool shift, 
         uint64_t c = new_obj(K_OVERLAY_KEY);
         union grug_value arg = id(c);
         call_screen_export(s, screen_key_fn, &arg, 1);
-        if (overlay_pass_taken) return true;
     }
-    // A key the mod did not take reaches the screen, where Escape closes it. A text field with
-    // focus would take the key instead; focus belongs to the game's field and is not modelled.
-    if (key == 256 && open_owned_screen) mod_screen_close_open();
-    return false;
+    // The mod saw Escape first, and then the whole stack ends through the host, so screen_closed runs
+    // once on the top screen whatever the export answered. A text field with focus would take the
+    // key instead; focus belongs to the game's field and is not modelled.
+    if (key == 256 && open_owned_screen) {
+        mod_screen_close_open();
+        return true;
+    }
+    return overlay_pass_taken;
 }
 static bool mod_screen_scroll(double x, double y, double delta) {
     struct owned_screen* s = open_owned_screen;

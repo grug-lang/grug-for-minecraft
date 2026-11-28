@@ -1,0 +1,110 @@
+# Escape ends the whole stack with one screen_closed, asked on the screen that was on top. The
+# reference's onScreenClosed belongs to vanilla's own close, which runs once on the screen the player
+# saw, so a stack of two screens hears it once and hears it on the top one. The overlay records the
+# count and the screen it believed was on top in `screen_stack/closed.txt` (#1752).
+# A loader without a screen host answers an err to Screen.open, so the test returns early there, and
+# it ends early on the dedicated server, whose joined client owns the screen.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # Z clears the stack markers and the counters, so the files this test reads are its own.
+        ctx.press_world_key(90, false)
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "screen" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The first screen should draw a frame before the second opens.")
+            ctx.not_done()
+            return
+        }
+        # B arms the open_over its next click asks for.
+        took: bool = ctx.press_screen_key(66, false, false, true)
+        ctx.assert(took, "B should reach screen_key, which arms the open_over.")
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        ctx.click_screen(200, 60, 0)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "other" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The screen opened over the first should draw a frame of its own.")
+            ctx.not_done()
+            return
+        }
+        took: bool = ctx.press_screen_key(256, false, false, true)
+        ctx.assert(took, "Escape should reach the top screen's screen_key.")
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        ctx.assert(not ctx.screen_open(), "Escape should end every screen in the stack.")
+        files: File = File.open(r"files")
+        closed: string = files.read_text("screen_stack/closed.txt").unwrap()
+        ctx.assert(closed == "1:other", "Escape should ask screen_closed once, on the screen that was on top.")
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    # The stack is gone, and the mod's own marker files stay as they were, which proves nothing asked
+    # screen_closed a second time on a later frame.
+    files: File = File.open(r"files")
+    ctx.assert(files.read_text("screen_stack/closed.txt").unwrap() == "1:other", "screen_closed should be asked exactly once for the whole stack.")
+}
