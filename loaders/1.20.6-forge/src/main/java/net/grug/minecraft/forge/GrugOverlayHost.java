@@ -48,6 +48,8 @@ import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
+import org.lwjgl.opengl.GL11;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -562,13 +564,16 @@ public final class GrugOverlayHost {
     }
 
     /**
-     * Draws every overlay's world export as lines and translucent triangles after the particles,
-     * depth-tested against the level. The level's model-view matrix is already on the render system
+     * Draws every overlay's world export as lines and translucent triangles after the weather,
+     * depth-tested against the level. That is the stage the reference draws its own shapes at: the
+     * clouds and the rain or snow are drawn before it and both stages sit after the terrain,
+     * translucent chunks and particles, so this one puts the guide over the clouds and the weather
+     * as the reference does (#1887). The level's model-view matrix is already on the render system
      * when this stage fires, so both go in through an identity pose, camera-relative.
      */
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return;
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER) return;
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null) return;
         Camera camera = event.getCamera();
@@ -577,6 +582,13 @@ public final class GrugOverlayHost {
         double feetY = minecraft.player.getY();
         double feetZ = minecraft.player.getZ();
         String testMod = GrugTestState.currentTestMod;
+        // Vanilla turns the depth mask off before the weather and back on only after the world
+        // border, which it draws right after this stage, and the pass leaves that state as it found
+        // it: the triangle draw switches the mask off, so putting it back on would make the world
+        // border write depth where vanilla does not (#1887). This version tracks the mask for
+        // RenderSystem.depthMask but offers no getter, so it is read from the state the game has
+        // actually set.
+        boolean depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
         for (GrugOverlayScripts.Script overlay : overlays()) {
             List<GrugWorldOverlay.Line> lines =
                     GrugWorldOverlay.world(
@@ -632,6 +644,7 @@ public final class GrugOverlayHost {
             }
             drawTriangles(pose, triangles, position);
         }
+        RenderSystem.depthMask(depthMask);
     }
 
     /**
@@ -639,7 +652,8 @@ public final class GrugOverlayHost {
      * blending on, culling off and depth writes off, so terrain in front still hides a triangle
      * while two translucent shells do not hide each other and the inside of a closed shape is
      * drawn. The version's debug quad render type writes depth, which would hide the far shell, so
-     * the state is set by hand and restored after the draw.
+     * the depth mask is turned off by hand, and the pass turns it back to the game's own value
+     * afterwards.
      */
     private static void drawTriangles(
             PoseStack.Pose pose, List<GrugWorldOverlay.Triangle> triangles, Vec3 position) {
@@ -668,7 +682,6 @@ public final class GrugOverlayHost {
         RenderSystem.disableCull();
         RenderSystem.depthMask(false);
         BufferUploader.drawWithShader(builder.end());
-        RenderSystem.depthMask(true);
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
     }
