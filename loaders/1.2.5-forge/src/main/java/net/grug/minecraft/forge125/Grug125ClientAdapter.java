@@ -36,9 +36,11 @@ import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.KeyBinding;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.RenderGlobal;
+import net.minecraft.src.ScaledResolution;
 import net.minecraft.src.Timer;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
@@ -683,6 +685,38 @@ public class Grug125ClientAdapter extends Grug125Adapter {
     @Override
     public void pressWorldKey(int key, boolean ctrl) {
         GrugOverlayHost.pressWorldKey(key, ctrl);
+    }
+
+    @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void setGuiScale(int scale) {
+        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        // The option's own field, which its video options screen writes and which every screen and
+        // the HUD read through ScaledResolution. Only GameSettings.save writes the options file,
+        // and this does not call it, so the file and the option the player sees are untouched.
+        minecraft.gameSettings.guiScale = scale;
+        GuiScreen screen = minecraft.currentScreen;
+        if (screen == null) return;
+        // Minecraft.resize lays the open screen out again after the window changes; this is the
+        // same two calls, with the new scale in the resolution they are computed from.
+        ScaledResolution scaled =
+                new ScaledResolution(
+                        minecraft.gameSettings, minecraft.displayWidth, minecraft.displayHeight);
+        screen.setWorldAndResolution(minecraft, scaled.getScaledWidth(), scaled.getScaledHeight());
+    }
+
+    @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void pressGameKey(int key) {
+        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
+        // The three calls this version's own input loop makes for one key event: the binding
+        // records that it is held, the tick counts the press, and the release lets it go. The
+        // game's own runTick then does what the binding says, as it does for a physical press.
+        int code = GrugOverlayHost.keyIndex(key);
+        KeyBinding.setKeyBindState(code, true);
+        KeyBinding.onTick(code);
+        KeyBinding.setKeyBindState(code, false);
     }
 
     @Override

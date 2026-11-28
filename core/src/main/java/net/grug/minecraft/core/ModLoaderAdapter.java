@@ -1349,6 +1349,31 @@ public interface ModLoaderAdapter {
     }
 
     /**
+     * Sets the client's GUI scale through the client's own option or scaled-render computation, and
+     * answers nothing. A dedicated server has no window and a loader that cannot set it reports the
+     * call instead of answering as if the scale had changed.
+     */
+    @GrugGenerated("default only: every current adapter sets the client's GUI scale")
+    default void setGuiScale(int scale) {
+        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.set_gui_scale: This loader cannot set the GUI scale yet.");
+    }
+
+    /**
+     * Presses and releases a letter or digit key through the client's own key handling, so a
+     * binding the game itself polls sees it. A dedicated server has no client to press it on.
+     */
+    @GrugGenerated("default only: every current adapter presses a game key")
+    default void pressGameKey(int key) {
+        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
+        Grug.hostFunctionErrorHappened(
+                Grug.statePtr,
+                "TestTickContext.press_game_key: This loader cannot press a game key yet.");
+    }
+
+    /**
      * Opens the player's own inventory screen, for a test that drives an overlay which only appears
      * there. A loader that cannot open it keeps the default, which reports the call rather than
      * pretending a screen is up.

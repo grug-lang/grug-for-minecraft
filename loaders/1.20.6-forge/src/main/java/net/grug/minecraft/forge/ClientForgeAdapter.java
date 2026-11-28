@@ -1,6 +1,7 @@
 package net.grug.minecraft.forge;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 
 import net.grug.minecraft.core.GrugCaptureWait;
@@ -1039,6 +1040,39 @@ public class ClientForgeAdapter extends ForgeAdapter {
         // The runner calls from the server thread, and the overlay host's lazily created entity
         // list belongs to the client thread, which renders and polls keys.
         onClientThread(() -> GrugOverlayHost.pressWorldKey(key, ctrl));
+    }
+
+    @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void setGuiScale(int scale) {
+        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
+        // The option's own callback is Minecraft.resizeDisplay, which recalculates the GUI scale
+        // and
+        // lays the open screen out again, exactly what the options screen's slider does. The option
+        // is only written by Options.save, which this does not call, so the file is untouched.
+        onClientThread(() -> Minecraft.getInstance().options.guiScale().set(scale));
+    }
+
+    @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void pressGameKey(int key) {
+        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
+        // The keyboard's own event handler, which is what a GLFW key callback runs: it sets the
+        // KeyMapping, queues its click and fires ForgeHooksClient.onKeyInput, so a mod's key
+        // mapping sees the press exactly as it sees a physical one. The release straight after
+        // lets go, so nothing stays held. Both go in one client-thread task, so no tick can fall
+        // between them and leave the key held.
+        onClientThread(
+                () -> {
+                    Minecraft minecraft = Minecraft.getInstance();
+                    keyboardPress(minecraft, key, InputConstants.PRESS);
+                    keyboardPress(minecraft, key, InputConstants.RELEASE);
+                });
+    }
+
+    @GrugGenerated("the client always has a window and a keyboard while a game is running")
+    private static void keyboardPress(Minecraft minecraft, int key, int action) {
+        minecraft.keyboardHandler.keyPress(minecraft.getWindow().getWindow(), key, 0, action, 0);
     }
 
     @Override

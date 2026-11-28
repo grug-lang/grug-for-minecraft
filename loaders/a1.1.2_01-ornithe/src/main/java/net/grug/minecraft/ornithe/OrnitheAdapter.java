@@ -4,6 +4,7 @@ import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.grug.minecraft.core.GrugBlockSync;
 import net.grug.minecraft.core.GrugForcedNormalization;
+import net.grug.minecraft.core.GrugGameKeyQueue;
 import net.grug.minecraft.core.GrugLightSync;
 import net.grug.minecraft.core.GrugOperatorStatus;
 import net.grug.minecraft.core.GrugRenderSettle;
@@ -37,6 +38,7 @@ import net.grug.minecraft.ornithe.block.GrugBlockEntityNbtAccess;
 import net.grug.minecraft.ornithe.block.GrugBoxRenderer;
 import net.grug.minecraft.ornithe.block.entity.GrugBlockEntity;
 import net.grug.minecraft.ornithe.client.GrugClientPlayer;
+import net.grug.minecraft.ornithe.client.GrugGuiScale;
 import net.grug.minecraft.ornithe.client.GrugOverlayHost;
 import net.grug.minecraft.ornithe.client.GrugScreen;
 import net.grug.minecraft.ornithe.client.GrugScreenGeometry;
@@ -48,6 +50,7 @@ import net.grug.minecraft.ornithe.mixin.WorldRendererAccess;
 import net.minecraft.block.Block;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.render.Window;
 import net.minecraft.client.render.world.RenderChunk;
 import net.minecraft.client.render.world.WorldRenderer;
 import net.minecraft.crafting.CraftingManager;
@@ -1986,6 +1989,32 @@ public class OrnitheAdapter implements ModLoaderAdapter {
     public void pressWorldKey(int key, boolean ctrl) {
         if (refuseWithoutAClient("TestTickContext.press_world_key")) return;
         GrugOverlayHost.pressWorldKey(key, ctrl);
+    }
+
+    @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void setGuiScale(int scale) {
+        if (refuseWithoutAClient("TestTickContext.set_gui_scale")) return;
+        // This version has no GUI scale option: every Window works the factor out from the
+        // framebuffer when it is built, so an override covers the HUD, the world and every screen
+        // from one place (see WindowMixin).
+        GrugGuiScale.setForced(
+                scale, MinecraftInstance.get().width, MinecraftInstance.get().height);
+        Minecraft minecraft = MinecraftInstance.get();
+        if (minecraft.screen == null) return;
+        // A fresh Window answers the new GUI size, and the open screen is laid out at it as its
+        // own open does.
+        Window window = new Window(minecraft.width, minecraft.height);
+        minecraft.screen.init(minecraft, window.getWidth(), window.getHeight());
+    }
+
+    @Override
+    @GrugGenerated("the refusal arm needs a dedicated server, whose coverage no CI run merges")
+    public void pressGameKey(int key) {
+        if (refuseWithoutAClient("TestTickContext.press_game_key")) return;
+        // LWJGL 2's event queue has no way to add an event, so one is queued for the game's own
+        // key loop, which handles it exactly as a physical press (see GrugGameKeyQueue).
+        GrugGameKeyQueue.queue(GrugOverlayHost.keyIndex(key));
     }
 
     @Override

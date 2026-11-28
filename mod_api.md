@@ -448,6 +448,7 @@ String.trim(text: string) string
 .overlay_drawn() bool
 .overlay_first_frame_cleared() bool
 .particle_position(index: number) Vec3
+.press_game_key(key: number)
 .press_screen_key(key: number, ctrl: bool, shift: bool, release: bool) bool
 .press_world_key(key: number, ctrl: bool)
 .press_world_key_id(id: string)
@@ -461,6 +462,7 @@ String.trim(text: string) string
 .set_box_radius(radius: number)
 .set_carried_item(item: Item)
 .set_daylight_cycle(level: Level, on: bool) bool
+.set_gui_scale(scale: number)
 .set_held_item(player: Player, item: Item)
 .set_mod_file_state(relative_path: string, state: string)
 .set_mouse_position(x: number, y: number)
