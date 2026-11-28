@@ -1,0 +1,307 @@
+# The Ellipsoid row of Build Guide's shape dropdown, captured in the world: the reset's fresh set is
+# a Ellipsoid at its registry defaults (X semi-axis 3.0, Y semi-axis 3.0, Z semi-axis 3.0, Dome -
+# and Even mode off), twelve blocks ahead of the player and turned on, so the golden pins the closed
+# shell of all three semi-axes, not a dome. The panel itself is not part of this capture, because a
+# world capture crops the world around the crosshair. The set is built on the Shape list tab, whose
+# Add appends iShapeNew at the player's feet, and the origin is then shifted twelve blocks along Z
+# with the Shape tab's own + button.
+step: number = 0
+waited: number = 0
+shifts: number = 0
+ox: number = 0
+oy: number = 0
+oz: number = 0
+
+export tick(ctx: TestTickContext) {
+    if step == 0 {
+        # W1: a world capture runs at GUI scale 1, where every widget sits at its stated GUI
+        # coordinate and the shape list's fifteen dropdown rows all fit the 720-pixel window. The
+        # runner snapped the player to the block centre, so floor() of the feet is the block the
+        # player stands in, which is the row a fresh set's origin lands on.
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.set_gui_scale(1)
+        ctx.set_box_radius(13)
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The world should settle before the capture builds its set.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        feet: Vec3 = ctx.get_player().position()
+        ox = Math.floor(feet.x())
+        oy = Math.floor(feet.y())
+        oz = Math.floor(feet.z())
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # W2: the port's about.json declares its open on B, so its run presses the world key,
+        # while the reference's opener is a Forge KeyMapping that only the game's own key handling
+        # reaches.
+        _open(ctx)
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        # W3: the screen has to be open and drawn before its tabs can be clicked.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should open Build Guide's screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The screen should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.assert(ctx.screen_width() == 1280, "GUI scale 1 should give a 1280-pixel window.")
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # W4: the reset happens on the Shape list tab, which holds the dropdown, Delete and Add.
+        ctx.click_screen(315, 40, 0)
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        # The dropdown's V is at (145, 70), 20 by 20. The list is the child screen
+        # Screen.open_over draws over this one: it starts at (5, 90), is 160 wide, and its
+        # 20-pixel rows are clicked at 100 + 20*i. The pick writes iShapeNew, so Add appends that
+        # shape at its registry defaults.
+        ctx.click_screen(155, 80, 0)
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        # Dropdown row 5.
+        ctx.click_screen(85, 200, 0)
+        step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        # Delete at (5, 155), 160 wide, removes the current set; sixteen clicks leave no set even
+        # if the run arrived with several, and a click past the last set does nothing.
+        ctx.click_screen(85, 165, 0)
+        shifts = shifts + 1
+        if shifts < 16 {
+            ctx.not_done()
+            return
+        }
+        shifts = 0
+        step = 8
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        # Add at (5, 90), 160 wide and 20 high, appends iShapeNew at the player's feet and selects
+        # it.
+        ctx.click_screen(85, 100, 0)
+        step = 9
+        ctx.not_done()
+        return
+    }
+
+    if step == 9 {
+        # W5: the Shape tab is where the set's origin row and its property panel are.
+        ctx.click_screen(65, 40, 0)
+        step = 10
+        ctx.not_done()
+        return
+    }
+
+    if step == 10 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 11
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        # W6: the origin Z row's + at (145, 175), 20 by 20, shifts the set one block ahead; 12
+        # clicks put the origin at oz + 12, the block the player's yaw 0 faces.
+        ctx.click_screen(155, 185, 0)
+        shifts = shifts + 1
+        if shifts < 12 {
+            ctx.not_done()
+            return
+        }
+        shifts = 0
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        # W8: the enable box at (5, 5), 20 by 20, is off at the start of every test, so one click
+        # turns the guide on for the capture.
+        ctx.click_screen(15, 15, 0)
+        step = 13
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        # The reference fades a completed set from green to white for one second, so the stall
+        # waits that duration out rather than pinning a colour that depends on timing. The port
+        # generates in the drawing frame, so for it the stall only costs time.
+        ctx.stall(1200)
+        step = 15
+        ctx.not_done()
+        return
+    }
+
+    if step == 15 {
+        # The close lands on a later tick than the press.
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen with the capture's set.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 16
+        ctx.not_done()
+        return
+    }
+
+    if step == 16 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The world should settle with the screen closed.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 17
+        ctx.not_done()
+        return
+    }
+
+    if step == 17 {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The world should draw the enabled guide in a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 18
+        ctx.not_done()
+        return
+    }
+
+    if step == 18 {
+        # W9: the 480-pixel square around the crosshair at (640, 360).
+        ctx.screenshot().equals(r"screenshots/shape_ellipsoid", 400, 120, 880, 600)
+        step = 19
+        ctx.not_done()
+        return
+    }
+
+    if step == 19 {
+        # W10: put the run back the way it was found, with the guide off.
+        _open(ctx)
+        step = 20
+        ctx.not_done()
+        return
+    }
+
+    if step == 20 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen to turn the guide off.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The reopened screen should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 21
+        ctx.not_done()
+        return
+    }
+
+    if step == 21 {
+        ctx.click_screen(15, 15, 0)
+        step = 22
+        ctx.not_done()
+        return
+    }
+
+    if step == 22 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 23
+        ctx.not_done()
+        return
+    }
+
+    if step == 23 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the capture.")
+            ctx.not_done()
+            return
+        }
+    }
+}
+
+# Opens the screen: the port's open is on B, so its run presses the world key, while the
+# reference's opener is a Forge KeyMapping that only the game's own key handling reaches.
+
+local _open(ctx: TestTickContext) {
+    if me.is_reference() {
+        ctx.press_game_key(66)
+        return
+    }
+    ctx.press_world_key(66, false)
+}

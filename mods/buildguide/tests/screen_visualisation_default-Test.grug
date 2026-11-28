@@ -1,0 +1,186 @@
+# The Visualization tab at its defaults: the eight colour sliders, their three buttons each, the
+# depth box and the two cube size sliders are captured exactly as the tab opens, so a label, thumb
+# or track at the wrong x, or a slider text that is wrong, fails here. Nothing on the tab is clicked
+# before the capture. The whole window is captured at GUI scale 2 with the shared chrome.
+step: number = 0
+waited: number = 0
+shifts: number = 0
+
+export tick(ctx: TestTickContext) {
+    if step == 0 {
+        # S1: a screen capture runs at GUI scale 2, where the whole panel fits the 640-pixel GUI
+        # area and the window is 1280 by 720 pixels.
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.set_gui_scale(2)
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # S1: the port's about.json declares its open on B, so its run presses the world key,
+        # while the reference's opener is a Forge KeyMapping that only the game's own key handling
+        # reaches.
+        if me.is_reference() {
+            ctx.press_game_key(66)
+        } else {
+            ctx.press_world_key(66, false)
+        }
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        # S1: open, drawn and at the scale the captures were planned at.
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The B binding should open Build Guide's screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The screen should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.assert(ctx.screen_width() == 640, "GUI scale 2 should give a 640-pixel GUI area.")
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # S2: the Shape list tab holds the reset's dropdown, Delete and Add, so the run starts
+        # from one fresh set whatever the run before it left.
+        ctx.click_screen(315, 40, 0)
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 5
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        # The dropdown's V is at (145, 70), 20 by 20. The list is the child screen
+        # Screen.open_over draws over this one: it starts at (5, 90), is 160 wide and its rows are
+        # 20 tall.
+        ctx.click_screen(155, 80, 0)
+        step = 6
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        # Dropdown row 1.
+        ctx.click_screen(85, 120, 0)
+        step = 7
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        # Delete at (5, 155), 160 wide, removes the current set; sixteen clicks leave no set, and
+        # a click past the last set does nothing.
+        ctx.click_screen(85, 165, 0)
+        shifts = shifts + 1
+        if shifts < 16 {
+            ctx.not_done()
+            return
+        }
+        shifts = 0
+        step = 8
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        # Add at (5, 90), 160 wide, appends iShapeNew at the player's feet and selects it.
+        ctx.click_screen(85, 100, 0)
+        step = 9
+        ctx.not_done()
+        return
+    }
+
+    if step == 9 {
+        # S3: the capture's own tab.
+        ctx.click_screen(190, 40, 0)
+        step = 10
+        ctx.not_done()
+        return
+    }
+
+    if step == 10 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The capture's tab should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 11
+        ctx.not_done()
+        return
+    }
+
+    if step == 11 {
+        # S5: the last change has to be drawn before the capture reads the window.
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The capture's screen should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 12
+        ctx.not_done()
+        return
+    }
+
+    if step == 12 {
+        # The whole window, so the golden pins the shared chrome and the blurred background too.
+        ctx.screenshot().equals(r"screenshots/screen_visualisation_default", 0, 0, 1280, 720)
+        step = 13
+        ctx.not_done()
+        return
+    }
+
+    if step == 13 {
+        # S6: Escape closes the screen, so the next test's press reaches the world.
+        ctx.press_screen_key(256, false, false, true)
+        step = 14
+        ctx.not_done()
+        return
+    }
+
+    if step == 14 {
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Escape should close the screen after the capture.")
+            ctx.not_done()
+            return
+        }
+    }
+}
