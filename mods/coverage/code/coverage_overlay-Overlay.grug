@@ -54,6 +54,14 @@ unbound_pressed: bool = false
 # OverlayWorldContext.player_x.
 feet_on: bool = false
 
+# Whether the world pass asks for the geometry's depth test to be off, which world key Z (90) toggles.
+# Z rather than an earlier letter, because coverage_screen_scroll_reopen already presses Q (81) and an
+# overlay is one entity for the whole run, so that press would leave this armed for every later test.
+# The smoketest and the coverage leg stub the draw, so this only proves the entry answers inside a
+# world pass and that the request survives the frame's geometry; the pixel proof is the capture the
+# Build Guide capture suite plans (edge_depth_off).
+depth_off: bool = false
+
 # The serial of the last screen the overlay drew on, and whether the key Ctrl+Z has not yet been answered
 # on it, which lets a test tell a new screen from the same one (OverlayRenderContext.screen_serial,
 # #865).
@@ -322,6 +330,16 @@ export render_world(ctx: OverlayWorldContext) {
         z: number = ctx.camera_z() + 4
         ctx.draw_line(x - 1, y - 1, z, x + 1, y + 1, z, mark)
     }
+    # The depth test the frame's geometry is drawn with (OverlayWorldContext.set_depth_test, called by
+    # Build Guide's render_world from its state's flag). The line makes the frame count as drawn so a
+    # test can wait for it, which is the only thing a coverage test can observe of a stubbed draw.
+    if depth_off {
+        x: number = ctx.camera_x()
+        y: number = ctx.camera_y()
+        z: number = ctx.camera_z() + 4
+        ctx.set_depth_test(false)
+        ctx.draw_line(x - 1, y - 1, z, x + 1, y - 1, z, Color.rgb(255, 255, 0))
+    }
     # A line across the local player's feet while overlay_player-Test has them armed. The three
     # answers are called even when the check fails, which is what the coverage gate counts. The test
     # stands the player three quarters into one block on x and a quarter into one on z, below the
@@ -373,6 +391,12 @@ export world_key(ctx: OverlayWorldKeyContext) {
     # test's frame draws the line.
     if ctx.key() == 78 {
         feet_on = not feet_on
+        return
+    }
+    # Z arms the depth-test request overlay_depth_test-Test reads, and a second press disarms it so
+    # no later test's frame asks for a see-through guide. No other coverage test presses Z.
+    if ctx.key() == 90 {
+        depth_off = not depth_off
         return
     }
     if ctx.key() == 74 {

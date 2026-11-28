@@ -167,6 +167,7 @@ public final class GrugWorldOverlay {
     private static double playerX = 0.0;
     private static double playerY = 0.0;
     private static double playerZ = 0.0;
+    private static boolean depthTest = true;
     private static String mod = null;
     private static String bindingId = null;
 
@@ -291,6 +292,24 @@ public final class GrugWorldOverlay {
         return playerZ;
     }
 
+    /**
+     * The depth test the frame's world geometry asks to be drawn with, on by default. It is the
+     * value in effect when the export returned: a loader reads it after {@link #world} and draws
+     * that pass's lines and triangles with it, restoring the game's own depth-test state
+     * afterwards. It is reset when the next world pass opens, so a script that asks for one value
+     * leaves it for no other script.
+     */
+    public static boolean depthTest() {
+        return depthTest;
+    }
+
+    /**
+     * Records what the open world pass asks its geometry to be drawn with, false for see-through.
+     */
+    public static void requestDepthTest(boolean enabled) {
+        depthTest = enabled;
+    }
+
     /** The mod whose export is running in the open pass, or null outside one. */
     public static String mod() {
         return mod;
@@ -333,6 +352,9 @@ public final class GrugWorldOverlay {
             double feetZ,
             String callerMod) {
         open(Kind.WORLD);
+        // Every world export starts depth-tested: a pass whose script asks for nothing keeps the
+        // game's own value, and one script's request is never the next script's.
+        depthTest = true;
         partialTick = tick;
         cameraX = x;
         cameraY = y;

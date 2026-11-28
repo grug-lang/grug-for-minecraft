@@ -118,6 +118,9 @@ class HostFunctionsWorldOverlayContextTest {
         assertEquals(1.5, HostFunctions.OverlayWorldContext_player_x(context));
         assertEquals(62, HostFunctions.OverlayWorldContext_player_y(context));
         assertEquals(-3, HostFunctions.OverlayWorldContext_player_z(context));
+        assertTrue(GrugWorldOverlay.depthTest(), "A world pass starts depth-tested.");
+        HostFunctions.OverlayWorldContext_set_depth_test(context, false);
+        assertFalse(GrugWorldOverlay.depthTest());
         HostFunctions.OverlayWorldContext_draw_line(context, 0, 1, 2, 3, 4, 5, color);
 
         assertTrue(drain().isEmpty(), "A legal pass reports nothing.");
@@ -158,6 +161,7 @@ class HostFunctionsWorldOverlayContextTest {
         HostFunctions.OverlayWorldContext_player_x(keyContext);
         HostFunctions.OverlayWorldContext_player_y(keyContext);
         HostFunctions.OverlayWorldContext_player_z(keyContext);
+        HostFunctions.OverlayWorldContext_set_depth_test(keyContext, false);
         HostFunctions.OverlayWorldContext_draw_line(keyContext, 0, 0, 0, 1, 1, 1, 0);
         HostFunctions.OverlayWorldContext_draw_triangle(keyContext, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0);
         HostFunctions.OverlayWorldContext_get_level(keyContext);
@@ -170,23 +174,24 @@ class HostFunctionsWorldOverlayContextTest {
         HostFunctions.OverlayWorldBindingContext_get_config(keyContext);
 
         List<String> reports = drain();
-        assertEquals(21, reports.size(), "Every method names its own refusal.");
+        assertEquals(22, reports.size(), "Every method names its own refusal.");
         assertTrue(reports.get(0).contains("OverlayHudContext.screen_width"), reports.get(0));
         assertTrue(reports.get(3).contains("OverlayHudContext.get_level"), reports.get(3));
         assertTrue(reports.get(8).contains("OverlayWorldContext.player_x"), reports.get(8));
         assertTrue(reports.get(9).contains("OverlayWorldContext.player_y"), reports.get(9));
         assertTrue(reports.get(10).contains("OverlayWorldContext.player_z"), reports.get(10));
-        assertTrue(reports.get(11).contains("OverlayWorldContext.draw_line"), reports.get(11));
-        assertTrue(reports.get(12).contains("OverlayWorldContext.draw_triangle"), reports.get(12));
-        assertTrue(reports.get(13).contains("OverlayWorldContext.get_level"), reports.get(13));
-        assertTrue(reports.get(15).contains("OverlayWorldKeyContext.ctrl"), reports.get(15));
-        assertTrue(reports.get(16).contains("OverlayHudContext.top_inset"), reports.get(16));
-        assertTrue(reports.get(17).contains("OverlayWorldContext.get_config"), reports.get(17));
+        assertTrue(reports.get(11).contains("OverlayWorldContext.set_depth_test"), reports.get(11));
+        assertTrue(reports.get(12).contains("OverlayWorldContext.draw_line"), reports.get(12));
+        assertTrue(reports.get(13).contains("OverlayWorldContext.draw_triangle"), reports.get(13));
+        assertTrue(reports.get(14).contains("OverlayWorldContext.get_level"), reports.get(14));
+        assertTrue(reports.get(16).contains("OverlayWorldKeyContext.ctrl"), reports.get(16));
+        assertTrue(reports.get(17).contains("OverlayHudContext.top_inset"), reports.get(17));
+        assertTrue(reports.get(18).contains("OverlayWorldContext.get_config"), reports.get(18));
         assertTrue(
-                reports.get(18).contains("OverlayWorldContext.get_spawn_squares"), reports.get(18));
-        assertTrue(reports.get(19).contains("OverlayWorldBindingContext.id"), reports.get(19));
+                reports.get(19).contains("OverlayWorldContext.get_spawn_squares"), reports.get(19));
+        assertTrue(reports.get(20).contains("OverlayWorldBindingContext.id"), reports.get(20));
         assertTrue(
-                reports.get(20).contains("OverlayWorldBindingContext.get_config"), reports.get(20));
+                reports.get(21).contains("OverlayWorldBindingContext.get_config"), reports.get(21));
         for (String report : reports) {
             assertTrue(report.contains("saved in a member variable"), report);
         }

@@ -3681,6 +3681,17 @@
 					"return_type": {
 						"name": "number"
 					}
+				},
+				"set_depth_test": {
+					"description": "Sets the depth test this frame's world geometry is drawn with. `set_depth_test(false)` draws it through the blocks in front of it, so a guide inside a hill is visible, and `set_depth_test(true)` hides it behind them as a block is hidden; every render_world() call starts with it on, so a frame that calls nothing keeps it. The value in effect when render_world() returns is the one the host draws that call's lines and triangles with, so a frame's geometry is always drawn with exactly one value, and the host then puts the game's own depth-test state back, so nothing outside this overlay's geometry changes. Only legal on the context render_world() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "enabled",
+							"type": {
+								"name": "bool"
+							}
+						}
+					]
 				}
 			}
 		},

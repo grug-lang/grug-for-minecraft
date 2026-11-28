@@ -303,6 +303,10 @@ export render_world(ctx: OverlayWorldContext) {
     if not _set_has_origin(_state_current_set()) {
         return
     }
+    # The reference toggles the depth test around every shape set's buffer from the state's flag, and
+    # the flag is global, so a frame's guide is drawn with exactly one depth-test value: the state's.
+    # The host applies it around this call's lines and triangles and puts the game's own value back.
+    ctx.set_depth_test(_visual_depth())
     _draw_all(ctx)
 }
 
@@ -3797,6 +3801,8 @@ local _visual_cube(key: string, fallback: number) number {
     return _cube_size(_state_current_set(), key, fallback)
 }
 
+# The state's depthTest flag, which is the visualisation screen's checkbox and also the depth test
+# render_world draws the guide with. A state that has never written it keeps the reference's true.
 local _visual_depth() bool {
     return _state_field(state, "depthTest", "true") == "true"
 }

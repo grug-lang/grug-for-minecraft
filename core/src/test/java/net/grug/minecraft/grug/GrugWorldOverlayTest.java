@@ -127,6 +127,23 @@ class GrugWorldOverlayTest {
     }
 
     @Test
+    void aWorldPassAsksForItsDepthTestAndTheNextPassStartsDepthTested() {
+        GrugWorldOverlay.openWorld(0, 0, 0, 0, 0, 0, 0, "coverage");
+        assertTrue(GrugWorldOverlay.depthTest(), "A world pass starts with the depth test on.");
+
+        GrugWorldOverlay.requestDepthTest(false);
+        assertFalse(GrugWorldOverlay.depthTest());
+        GrugWorldOverlay.closeWorld();
+        assertFalse(
+                GrugWorldOverlay.depthTest(),
+                "The loader reads the request after the export returned.");
+
+        GrugWorldOverlay.openWorld(0, 0, 0, 0, 0, 0, 0, "coverage");
+        assertTrue(GrugWorldOverlay.depthTest(), "A request does not leak into the next pass.");
+        GrugWorldOverlay.closeWorld();
+    }
+
+    @Test
     void supportAndTheDrawnMarkStartFalseAndStayTrueOnceNoted() {
         GrugFrameRequest.endTest();
         GrugWorldOverlay.clearDrawn();

@@ -1,0 +1,72 @@
+# Covers OverlayWorldContext.set_depth_test, which Build Guide's render_world calls from its state's
+# depth-test flag. The coverage overlay's world key Z (90) arms a frame that asks for the depth test
+# to be off and draws a line, so a drawn frame is the proof that the entry answered inside a real
+# world pass; a second press disarms it, because an overlay is one entity for the whole run. Nothing
+# here asserts what the request looks like: the smoketest and this test stub the draw, and the pixel
+# proof is the capture the Build Guide capture suite plans (edge_depth_off).
+started: bool = false
+settled_ticks: number = 0
+waited: number = 0
+pressed: bool = false
+drawn_waited: number = 0
+cleared_at: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(600)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.world_overlay_supported() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    waited = waited + 1
+    ctx.assert(waited < 500, "The depth-test test should finish.")
+
+    if not ctx.world_settled() {
+        settled_ticks = 0
+        ctx.not_done()
+        return
+    }
+    if settled_ticks < 5 {
+        settled_ticks = settled_ticks + 1
+        ctx.not_done()
+        return
+    }
+
+    if not pressed {
+        pressed = true
+        ctx.press_world_key(90, false)
+        ctx.not_done()
+        return
+    }
+
+    if cleared_at == 0 {
+        # A press clears the drawn mark, and the client draws fewer frames than it runs ticks at the
+        # game's maximum speed, so the frame is waited for rather than read on the next tick.
+        if not ctx.world_overlay_drawn() {
+            drawn_waited = drawn_waited + 1
+            ctx.assert(drawn_waited < 300, "The depth-test request should draw a frame.")
+            ctx.not_done()
+            return
+        }
+        cleared_at = ctx.current_tick()
+        ctx.press_world_key(90, false)
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() - cleared_at < 12 {
+        # Asking also asks the client for a frame, which a test that never captures does not get
+        # otherwise.
+        ctx.world_overlay_drawn()
+        ctx.not_done()
+        return
+    }
+    ctx.assert(not ctx.world_overlay_drawn(), "The second press should stop the depth-test line.")
+}
