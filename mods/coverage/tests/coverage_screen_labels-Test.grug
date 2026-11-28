@@ -1,0 +1,80 @@
+# String.translate's text reaching a widget a player sees: the coverage screen declares a button whose
+# label is a plain key and a slider whose message is a key filled with an axis letter, and Y asks that
+# screen to write what Widget.text answers for both. The two lines are the host's own text, so a label
+# the host lost, or a key that answered itself, fails here without a screen capture. The screen is the
+# same one this mod's other screen tests use, so it is opened and closed the same way.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 1
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The screen should draw one frame before the labels are read.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        took: bool = ctx.press_screen_key(89, false, false, true)
+        ctx.assert(took, "Y should reach screen_key, which writes the two labels.")
+        step = 2
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        files: File = File.open(r"files")
+        labels: Option[string] = files.read_text("screen_labels.txt")
+        ctx.assert(labels.has(), "The screen should write the labels it declared.")
+        expected: string = String.concat("A known text", String.concat(String.from_character(10), "Delta X"))
+        ctx.assert(labels.unwrap() == expected, String.concat("A translated label should read back through Widget.text: ", labels.unwrap()))
+        step = 3
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        # Escape closes a screen that was armed with Z, so no later test inherits an open screen.
+        ctx.press_screen_key(90, false, false, true)
+        ctx.press_screen_key(256, false, false, true)
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if ctx.screen_open() {
+        waited = waited + 1
+        ctx.assert(waited < 200, "The screen should close before the test ends.")
+    }
+}

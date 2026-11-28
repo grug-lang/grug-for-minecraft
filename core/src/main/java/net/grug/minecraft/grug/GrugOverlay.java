@@ -1056,15 +1056,21 @@ public final class GrugOverlay {
     static boolean callExport(
             long entityHandle, long exportFnId, GrugEntityType contextType, Object context) {
         boolean[] answered = {false};
-        GrugEntities.withFreshOwner(
-                () -> {
-                    long contextHandle = GrugEntities.addEntity(contextType, context);
-                    try {
-                        answered[0] = Grug.callExportFn(entityHandle, exportFnId, contextHandle);
-                    } finally {
-                        GrugEntities.removeEntity(contextHandle);
-                    }
-                });
+        String previousMod = GrugScriptDispatch.begin(GrugOverlayScripts.modOfEntity(entityHandle));
+        try {
+            GrugEntities.withFreshOwner(
+                    () -> {
+                        long contextHandle = GrugEntities.addEntity(contextType, context);
+                        try {
+                            answered[0] =
+                                    Grug.callExportFn(entityHandle, exportFnId, contextHandle);
+                        } finally {
+                            GrugEntities.removeEntity(contextHandle);
+                        }
+                    });
+        } finally {
+            GrugScriptDispatch.end(previousMod);
+        }
         return answered[0];
     }
 }

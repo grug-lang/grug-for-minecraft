@@ -497,14 +497,22 @@ public final class GrugOverlayHost {
      */
     private static final class DeclaredKeyMapping extends KeyMapping {
         private final String label;
+        private final String nameKey;
 
-        DeclaredKeyMapping(String name, String label, int code) {
+        DeclaredKeyMapping(String name, String label, String nameKey, int code) {
             super(name, code, "key.categories.grug");
             this.label = label;
+            this.nameKey = nameKey;
         }
 
         @Override
         public Component getTranslatedKeyMessage() {
+            // The reference's own translation of the name where the declaration names a key that
+            // this loader can resolve, and the literal name beside it so a mod whose language file
+            // lacks the key still shows a name rather than the key itself.
+            if (nameKey != null) {
+                return Component.translatableWithFallback(nameKey, label);
+            }
             return Component.literal(label);
         }
     }
@@ -518,7 +526,10 @@ public final class GrugOverlayHost {
         for (GrugMetadata.DeclaredKey declared : GrugMetadata.declaredKeys()) {
             KeyMapping mapping =
                     new DeclaredKeyMapping(
-                            declared.savedName(), declared.label(), declared.key().code());
+                            declared.savedName(),
+                            declared.label(),
+                            declared.key().nameKey(),
+                            declared.key().code());
             event.register(mapping);
             declaredBindings.add(new DeclaredBinding(declared.mod(), declared.key().id(), mapping));
         }

@@ -1,6 +1,7 @@
 package net.grug.minecraft.grug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -158,6 +159,10 @@ class GrugOverlayScriptsTest {
         assertEquals(Arrays.asList(4L, 5L), recorder.created);
         assertEquals(Arrays.asList(NAME, OTHER), namesOf(before));
         GrugOverlayScripts.Script other = before.get(1);
+        long droppedHandle = before.get(0).entityHandle;
+        // The handle a call is made on names its script's mod.
+        assertEquals("a", GrugOverlayScripts.modOfEntity(droppedHandle));
+        assertEquals("b", GrugOverlayScripts.modOfEntity(other.entityHandle));
         // Every export of both files, the eight overlay passes and the eight screen calls, is
         // looked up on its entity.
         assertEquals(32, recorder.exports.size());
@@ -174,6 +179,12 @@ class GrugOverlayScriptsTest {
         assertEquals(Arrays.asList(NAME, OTHER), namesOf(after));
         assertEquals(102L, after.get(0).entityHandle);
         assertEquals(MOD, after.get(0).mod);
+        // The handle a call is made on names its script's mod, and a dropped script's handle names
+        // none, so a call still holding it answers for no mod rather than for the file made after.
+        assertEquals(MOD, GrugOverlayScripts.modOfEntity(102L));
+        assertNull(
+                GrugOverlayScripts.modOfEntity(droppedHandle),
+                "the dropped script's handle names no mod");
         assertSame(other, after.get(1), "another mod's overlay is not made again");
         assertEquals(
                 48, recorder.exports.size(), "the edited overlay's exports are looked up again");

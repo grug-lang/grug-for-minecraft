@@ -1,5 +1,8 @@
 package net.grug.minecraft.grug;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+
 import net.grug.minecraft.core.GrugClientTestCalls;
 import net.grug.minecraft.core.GrugControlServer;
 import net.grug.minecraft.core.GrugCore;
@@ -21,8 +24,10 @@ import net.grug.minecraft.gui.GrugGuiLayoutCodec;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.function.BiConsumer;
@@ -5941,6 +5946,182 @@ public class HostFunctions {
     /** The two texts joined, the first then the second. */
     public static String String_concat(String first, String second) {
         return first + second;
+    }
+
+    /** The language a mod's language files are read from when the client names none. */
+    static final String DEFAULT_LANGUAGE = "en_us";
+
+    /**
+     * One mod's language texts for one language, with en_us beside them so a key the selected
+     * language lacks falls back to it. Read once per mod and language, because a screen asks for
+     * its labels on every frame and a file read and parse per label would show up in the frame
+     * time.
+     */
+    private static final class Translations {
+        private final Map<String, String> selected;
+        private final Map<String, String> fallback;
+
+        Translations(Map<String, String> selected, Map<String, String> fallback) {
+            this.selected = selected;
+            this.fallback = fallback;
+        }
+
+        /** The text of {@code key}, or null when neither file has it. */
+        String find(String key) {
+            String text = selected == null ? null : selected.get(key);
+            if (text == null && fallback != null) {
+                text = fallback.get(key);
+            }
+            return text;
+        }
+    }
+
+    /**
+     * The parsed language files, by mod and language. Only a complete read is kept: a file that
+     * does not parse is reported on every call that needs it, the way {@code File.read_text} reads
+     * and reports on every call, and a later fix of the file is then seen without a restart.
+     */
+    private static final Map<String, Translations> translations = new HashMap<>();
+
+    /**
+     * The text the calling mod's language file gives for {@code key}, in the language the client
+     * runs, with en_us as the fallback and the key itself when neither has it.
+     *
+     * <p>The mod is the one whose overlay, screen or test script is running: the key names no
+     * resource literal, so there is nothing else for the host to read it from. A call made outside
+     * such a script is refused, because no mod's files can be named then.
+     */
+    public static String String_translate(String key) {
+        return translate("String.translate", key, null);
+    }
+
+    /**
+     * {@link #String_translate} with the text's one {@code %s} replaced by {@code value} once, the
+     * way {@code String.format} fills the reference's placeholders. The value goes in as it is, so
+     * a {@code %} it holds is not read as a format.
+     */
+    public static String String_translate_with(String key, String value) {
+        return translate("String.translate_with", key, value);
+    }
+
+    private static String translate(String method, String key, String value) {
+        String mod = GrugScriptDispatch.runningMod();
+        if (mod == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": no overlay, screen or test script of a mod is running, so there is"
+                            + " no mod whose language file could answer "
+                            + "\""
+                            + key
+                            + "\".");
+            return key;
+        }
+        String text = translationsFor(method, mod).find(key);
+        if (text == null) {
+            text = key;
+        }
+        if (value == null) {
+            return text;
+        }
+        int at = text.indexOf("%s");
+        if (at < 0) {
+            return text;
+        }
+        return text.substring(0, at) + value + text.substring(at + 2);
+    }
+
+    /** The language tables of {@code mod}, reading them the first time this language is asked. */
+    private static Translations translationsFor(String method, String mod) {
+        String language = GrugCore.getAdapter().languageCode();
+        if (language == null || language.isEmpty()) {
+            language = DEFAULT_LANGUAGE;
+        }
+        language = language.toLowerCase(Locale.ROOT);
+        String cacheKey = mod + "\n" + language;
+        synchronized (translations) {
+            Translations cached = translations.get(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        LangFile selected = readLangFile(method, mod, language);
+        LangFile fallback =
+                language.equals(DEFAULT_LANGUAGE)
+                        ? selected
+                        : readLangFile(method, mod, DEFAULT_LANGUAGE);
+        Translations made = new Translations(selected.texts, fallback.texts);
+        // A file that could not be read reports its reason on every call, which matches the read it
+        // stands in for; only a clean pair is kept, so fixing the file is seen without a restart.
+        if (selected.broken || fallback.broken) {
+            return made;
+        }
+        synchronized (translations) {
+            translations.put(cacheKey, made);
+        }
+        return made;
+    }
+
+    /** One language file's texts: an absent file is empty, and an unreadable one is marked. */
+    private static final class LangFile {
+        private static final LangFile MISSING = new LangFile(null, false);
+
+        private final Map<String, String> texts;
+        private final boolean broken;
+
+        LangFile(Map<String, String> texts, boolean broken) {
+            this.texts = texts;
+            this.broken = broken;
+        }
+    }
+
+    /** The texts of one of a mod's language files, or an empty one when it is absent. */
+    private static LangFile readLangFile(String method, String mod, String language) {
+        String path = "lang/" + language + ".json";
+        String text;
+        try {
+            text =
+                    GrugModData.read(
+                            GrugCore.getAdapter().getGrugModsDirectory(),
+                            GrugCore.getAdapter().getGameDirectory(),
+                            mod,
+                            path);
+        } catch (IllegalArgumentException | IOException e) {
+            Grug.hostFunctionErrorHappened(Grug.statePtr, method + ": " + e.getMessage());
+            return new LangFile(null, true);
+        }
+        if (text == null) {
+            return LangFile.MISSING;
+        }
+        try {
+            JsonElement parsed = JsonParser.parseString(text);
+            if (!parsed.isJsonObject()) {
+                Grug.hostFunctionErrorHappened(
+                        Grug.statePtr,
+                        method
+                                + ": the mod's language file \""
+                                + path
+                                + "\" is not a JSON object of texts.");
+                return new LangFile(null, true);
+            }
+            Map<String, String> texts = new HashMap<>();
+            for (Map.Entry<String, JsonElement> entry : parsed.getAsJsonObject().entrySet()) {
+                JsonElement value = entry.getValue();
+                if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+                    texts.put(entry.getKey(), value.getAsString());
+                }
+            }
+            return new LangFile(texts, false);
+        } catch (RuntimeException e) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    method
+                            + ": the mod's language file \""
+                            + path
+                            + "\" is not JSON text: "
+                            + e.getMessage());
+            return new LangFile(null, true);
+        }
     }
 
     /**

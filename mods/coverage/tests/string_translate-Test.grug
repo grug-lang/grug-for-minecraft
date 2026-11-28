@@ -1,0 +1,15 @@
+# String.translate and String.translate_with read the running test's own mod language file. The
+# language a game run selects is en_us, which is also the fallback, so the selected file, the
+# fallback and a key in neither are all one file here; the file the selected language lacks is a
+# Java unit test's, where the language can be one a run does not have.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.translate("translate.known") == "A known text", "A key the mod's file has should answer its text.")
+        ctx.assert(String.translate("translate.missing") == "translate.missing", "A key in no file should answer the key itself.")
+        ctx.assert(String.translate_with("translate.delta", "X") == "Delta X", "The one %s should be filled with the value.")
+        ctx.assert(String.translate_with("translate.twice", "x") == "x then %s", "Only the first %s should be filled.")
+        ctx.assert(String.translate_with("translate.plain", "x") == "No placeholder", "A text with no %s should be unchanged.")
+        ctx.assert(String.translate_with("translate.delta", "50%") == "Delta 50%", "A percent in the value should not be read as a format.")
+        ctx.assert(String.translate_with("translate.missing", "x") == "translate.missing", "A key in no file should answer the key, with no %s to fill.")
+    }
+}

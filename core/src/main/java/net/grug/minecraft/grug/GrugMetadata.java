@@ -46,11 +46,13 @@ public final class GrugMetadata {
     public static final class Key {
         private final String id;
         private final String name;
+        private final String nameKey;
         private final int code;
 
-        Key(String id, String name, int code) {
+        Key(String id, String name, String nameKey, int code) {
             this.id = id;
             this.name = name;
+            this.nameKey = nameKey;
             this.code = code;
         }
 
@@ -62,6 +64,18 @@ public final class GrugMetadata {
         /** The name the mod declares for the binding, which is the reference's key name as text. */
         public String name() {
             return name;
+        }
+
+        /**
+         * The language key the game may show instead of {@link #name()} in its Controls screen,
+         * such as {@code key.buildguide.toggleenable}, or null when the declaration names none.
+         *
+         * <p>A loader whose Controls screen resolves a language key uses it, so the reference's own
+         * translations of the binding's name are the ones shown. {@link #name()} stays the literal
+         * the declaration requires, and is what a loader that cannot resolve a key shows.
+         */
+        public String nameKey() {
+            return nameKey;
         }
 
         /**
@@ -538,7 +552,7 @@ public final class GrugMetadata {
             code = keyCode(text(object, "default_key"));
             if (code < 0) return null;
         }
-        return new Key(id, name, code);
+        return new Key(id, name, text(object, "name_key"), code);
     }
 
     private static Option readOption(JsonElement element) {

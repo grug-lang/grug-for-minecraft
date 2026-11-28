@@ -130,9 +130,12 @@ export screen_init(ctx: ScreenInitContext) {
     row_min = -1
     rows_written = -1
     width: number = ctx.screen_width()
-    button.set(screen.add_button("press", "Press", 10, 10, 70, 20))
+    # The button's and the slider's labels are read back through Widget.text by the screen test that
+    # presses Y, which is how String.translate's text reaches a widget a player sees. The button is
+    # one plain key, the slider one filled with an axis letter.
+    button.set(screen.add_button("press", String.translate("translate.known"), 10, 10, 70, 20))
     checkbox.set(screen.add_checkbox("tick", "Tick", false, 10, 40, 70, 20))
-    slider.set(screen.add_slider("slide", "Slide", 0, 10, 5, 10, 70, 100, 20))
+    slider.set(screen.add_slider("slide", String.translate_with("translate.delta", "X"), 0, 10, 5, 10, 70, 100, 20))
     field.set(screen.add_text_field("type", "text", 10, 100, 160, 20))
     # The list sits a fixed height down the screen, because the widget hit tests the game does are
     # in GUI-scaled pixels and the rows have to be inside the smallest window a run uses.
@@ -235,6 +238,14 @@ export screen_key(ctx: OverlayKeyContext) {
             close_on_escape = false
             screen.close()
         }
+        return
+    }
+    # Y writes what the two translated widgets show, so a test reads String.translate's text back
+    # through Widget.text and through what the screen declares, not only through the host call.
+    if key == 89 {
+        ctx.take()
+        text: string = String.concat(button.unwrap().text(), String.concat(String.from_character(10), slider.unwrap().text()))
+        File.open(r"files").write_text("screen_labels.txt", text)
     }
 }
 

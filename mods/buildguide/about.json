@@ -18,19 +18,23 @@
 	"keys": [
 		{
 			"id": "toggle_enable",
-			"name": "Toggle enabled"
+			"name": "Toggle enabled",
+			"name_key": "key.buildguide.toggleenable"
 		},
 		{
 			"id": "set_origin",
-			"name": "Set origin"
+			"name": "Set origin",
+			"name_key": "key.buildguide.setorigin"
 		},
 		{
 			"id": "set_global_origin",
-			"name": "Set global origin"
+			"name": "Set global origin",
+			"name_key": "key.buildguide.setglobalorigin"
 		},
 		{
 			"id": "open_screen",
 			"name": "Open Build Guide",
+			"name_key": "key.buildguide.openbuildguide",
 			"default_key": "B"
 		}
 	],
@@ -104,11 +108,6 @@
 				}
 			],
 			"deviations": [
-				{
-					"what": "Every string the mod shows is the en_us sentence as fixed text: the three config comments and the titles, labels and button texts of its five screens, where the reference resolves them through Translatable in the client's language. A non-English client therefore reads English here, and its rewritten config is not the reference's bytes.",
-					"why": "mod_api.json has no entry for a translated string, so a translated string needs a general host function that a port of any translated mod would use.",
-					"tracking_issue": 1817
-				},
 				{
 					"what": "A catenary whose Newton solve does not converge draws no cells: the reference either reports an invalid value or never leaves its loop, and the port answers no cells at once in both cases.",
 					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms.",

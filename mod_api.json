@@ -4847,6 +4847,40 @@
 						}
 					]
 				},
+				"translate": {
+					"description": "The text the mod's own language file gives for a translatable key, in the language the player's client runs, so a mod whose reference resolves its screen text through a lang file can show the same text: String.translate(\"screen.example.title\") is the selected language's text for that key. The key is looked up in the mod's files/lang/<language>.json first, then in its files/lang/en_us.json, and a key in neither answers the key itself, as the game's own translation does. The language is the loader's client language code, such as en_us or zh_cn, and a dedicated server or a loader with no language answers en_us. A file is the JSON object a resource pack's lang file holds, whose members are text; a missing file answers no text, and a file that does not parse is reported as an error and still falls back. The call reads the mod whose script is running, so it is refused outside a script call, and a mod can only reach its own files, exactly as File.open(r\"files\") does.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
+				"translate_with": {
+					"description": "The text String.translate answers for the key, with its one `%s` replaced by the value: String.translate_with(\"property.example.delta\", \"X\") is \"Delta X\" for that file's \"Delta %s\". The value is inserted as it is, so a `%` in it is not read as a format, and only the first `%s` is replaced. A text with no `%s` answers unchanged, and the key, the language, the fallback and the refusal outside a script call are exactly String.translate's.",
+					"return_type": {
+						"name": "string"
+					},
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "value",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"trim": {
 					"description": "The text without the characters at its ends that are U+0020 or below, which is what Java's String.trim removes: String.trim(\"  a b  \") is \"a b\", and a tab or a newline at either end goes too. A character above U+0020 at an end stays, so a non-breaking space is not a space to this call, and a text with nothing to remove is the text itself.",
 					"return_type": {

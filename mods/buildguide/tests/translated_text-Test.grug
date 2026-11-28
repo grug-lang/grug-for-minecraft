@@ -1,0 +1,17 @@
+# The text the screens draw is the reference's own language key, resolved through the mod's shipped
+# en_us file. A key the port moved but did not ship, or that it spelled differently from the
+# reference, answers the key itself here, which the assertions catch without a screen capture.
+export tick(ctx: TestTickContext) {
+    if ctx.current_tick() == 0 {
+        ctx.assert(String.translate("screen.buildguide.title") == "Build Guide", "The window title should be the reference's text.")
+        ctx.assert(String.translate("screen.buildguide.numberofblocksshape") == "Number of blocks (shape)", "The shape block count's heading should be the reference's text.")
+        ctx.assert(String.translate("screen.buildguide.visualisation") == "Visualization", "The Visualisation tab's name should be the reference's text.")
+        ctx.assert(String.translate("screen.buildguide.set") == "Set", "The Set buttons should be the reference's text.")
+        ctx.assert(String.translate("config.buildguide.asyncEnabledComment") == "Enable asynchronous (multithreaded) shape generation.", "The first config comment should be the reference's text.")
+        ctx.assert(String.translate("shape.buildguide.none") == "None", "The no-shape name should be the reference's text.")
+        ctx.assert(String.translate("shape.buildguide.polygonalpyramid") == "Polygonal pyramid", "A shape name should be the reference's text.")
+        ctx.assert(String.translate_with("property.buildguide.delta", "X") == "Delta X", "A property filled with its axis letter should read the reference's sentence.")
+        ctx.assert(String.translate_with("property.buildguide.offset", String.translate("property.buildguide.degrees")) == "Degrees offset", "The helix's degrees offset should fill the offset key with the translated degrees key.")
+        ctx.assert(String.translate("X") == "X", "A bare axis letter, which no language file holds, should stay itself, as the reference's Translatable renders it.")
+    }
+}
