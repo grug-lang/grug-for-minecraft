@@ -616,6 +616,21 @@ public final class GrugWorldOverlay {
         bindingDefaultsFor(GrugOverlayScripts.bindingScripts(), mod, (int) code);
     }
 
+    /**
+     * Test only: delivers one press of the binding {@code mod} declares as {@code id}, through the
+     * same {@link #binding} path a real press takes, and only to that mod. A binding whose
+     * declaration has no {@code default_key} is registered with the version's unbound key, which no
+     * real key press can reach, so this is how a test presses such a binding; an id the mod does
+     * not declare is the caller's to refuse before it gets here. It clears the drawn mark first, as
+     * a real press does, so a test waits for a newer frame.
+     */
+    public static void pressBindingForTest(String mod, String id) {
+        clearDrawn();
+        List<GrugOverlayScripts.Script> scripts = GrugOverlayScripts.bindingScripts(mod);
+        binding(scripts, mod, id, true, true);
+        binding(scripts, mod, id, false, true);
+    }
+
     private static boolean callAnswering(long entityHandle, long fnId) {
         if (entityHandle == 0 || fnId == Grug.INVALID_GRUG_EXPORT_FN_ID) return false;
         return GrugOverlay.callExport(

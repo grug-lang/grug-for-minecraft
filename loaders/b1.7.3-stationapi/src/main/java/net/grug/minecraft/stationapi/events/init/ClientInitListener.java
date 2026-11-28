@@ -51,7 +51,13 @@ public class ClientInitListener {
         forceResolutionKey = new KeyBinding("key.grug.force_test_resolution", Keyboard.KEY_M);
         event.keyBindings.add(forceResolutionKey);
         for (GrugMetadata.DeclaredKey declared : declaredKeys) {
-            KeyBinding binding = new KeyBinding(declared.savedName(), declared.key().code());
+            KeyBinding binding =
+                    new KeyBinding(
+                            declared.savedName(),
+                            // A binding with no default_key is registered with the version's
+                            // unbound key, which the Controls screen lists so the player can bind
+                            // it.
+                            declared.key().code() < 0 ? Keyboard.KEY_NONE : declared.key().code());
             event.keyBindings.add(binding);
             GrugClientHooks.declaredBindings()
                     .add(

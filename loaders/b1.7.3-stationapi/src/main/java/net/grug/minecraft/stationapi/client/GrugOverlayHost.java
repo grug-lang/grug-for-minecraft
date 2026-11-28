@@ -671,7 +671,11 @@ public final class GrugOverlayHost {
             }
         }
         for (GrugClientHooks.DeclaredBinding declared : GrugClientHooks.declaredBindings()) {
-            boolean down = Keyboard.isKeyDown(declared.binding.code);
+            // An unbound binding (KEY_NONE) is not held by any real key, so the Controls screen's
+            // unbound row cannot fire the mod before the player binds it.
+            boolean down =
+                    declared.binding.code != Keyboard.KEY_NONE
+                            && Keyboard.isKeyDown(declared.binding.code);
             java.util.List<GrugOverlayScripts.Script> scripts =
                     GrugOverlayScripts.bindingScripts(declared.mod);
             if (scripts.isEmpty()) continue;

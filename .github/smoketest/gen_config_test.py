@@ -69,6 +69,19 @@ class GenConfig(unittest.TestCase):
             self.assertIn('{"m", "on", "boolean", "false"}', text)
             self.assertIn('{"m", "toggle", "L"}', text)
 
+    def test_a_key_with_no_default_is_written_as_an_empty_key(self):
+        # A binding the reference leaves unbound has no default_key; the host registers the
+        # version's unbound key, and the smoketest's press loop matches no key with it.
+        with tempfile.TemporaryDirectory() as d:
+            mod = Path(d, "m")
+            mod.mkdir()
+            (mod / "about.json").write_text(
+                json.dumps(about(keys=[{"id": "toggle", "name": "Toggle"}]))
+            )
+            out = Path(d, "out.inc")
+            gc.main(["gen_config.py", d, str(out)])
+            self.assertIn('{"m", "toggle", ""}', out.read_text())
+
     def test_refuses_a_key_with_no_one_character_default(self):
         with tempfile.TemporaryDirectory() as d:
             mod = Path(d, "m")

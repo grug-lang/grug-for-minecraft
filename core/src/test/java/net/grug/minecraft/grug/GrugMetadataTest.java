@@ -60,7 +60,8 @@ class GrugMetadataTest {
 
     private static final String ABOUT =
             "{\"keys\": [{\"id\": \"toggle\", \"name\": \"Toggle SafeSquares\", \"default_key\":"
-                    + " \"l\"}, 7, {\"id\": \"no-key\"}, {\"name\": \"no-id\", \"default_key\":"
+                    + " \"l\"}, {\"id\": \"unbound\", \"name\": \"Unbound\"}, 7, {\"id\":"
+                    + " \"no-key\"}, {\"name\": \"no-id\", \"default_key\":"
                     + " \"L\"}, {\"id\": \"too-long\", \"name\": \"x\", \"default_key\":"
                     + " \"LL\"}], \"config\": [{\"key\": \"on\", \"type\": \"boolean\","
                     + " \"title\": \"On\", \"description\": \"Whether.\", \"default\": true},"
@@ -92,11 +93,18 @@ class GrugMetadataTest {
     void aDeclarationIsReadIntoBindingsAndOptions() {
         GrugMetadata.Mod mod = GrugMetadata.read(ABOUT);
 
-        assertEquals(1, mod.keys().size(), "Only the one complete binding is kept.");
+        assertEquals(2, mod.keys().size(), "The complete binding and the unbound one are kept.");
         GrugMetadata.Key key = mod.keys().get(0);
         assertEquals("toggle", key.id());
         assertEquals("Toggle SafeSquares", key.name());
         assertEquals('L', key.code());
+        GrugMetadata.Key unbound = mod.keys().get(1);
+        assertEquals("unbound", unbound.id());
+        assertEquals("Unbound", unbound.name());
+        assertEquals(
+                GrugMetadata.UNBOUND_KEY,
+                unbound.code(),
+                "A binding with no default_key is kept with the unbound code, not dropped.");
 
         assertEquals(5, mod.options().size(), "The five well-typed options are kept.");
         GrugMetadata.Option on = mod.option("on");

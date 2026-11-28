@@ -375,6 +375,9 @@ static int64_t java_long(double d);
 static bool overlay_disabled(const char* path);
 static void overlay_render_world(void);
 static void overlay_press_world_key(double code, bool ctrl);
+static void overlay_press_world_binding(const char* bindingId);
+static void overlay_deliver_binding(const char* mod, const char* bindingId);
+static const struct mod_key* find_mod_key(const char* mod, const char* bindingId);
 static void clear_overlays(void);
 
 // =============================================================================================
@@ -520,6 +523,19 @@ static union grug_value TTC_press_world_key(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "press_world_key", TTC_press_world_key);
+// One press of one declared binding by the id its about.json names, which is how a test presses a
+// binding with no default_key: it is registered with the version's unbound key, and no letter or
+// digit press can reach it. An id the mod does not declare is reported and not pressed, as the host
+// reports it.
+static union grug_value TTC_press_world_key_id(ARGS) {
+    UNUSED;
+    const char* id = a[1]._string;
+    if (!cur_test_mod) return fail("TestTickContext.press_world_key_id: The running test is not one of a mod, so it has no binding to press.");
+    if (!find_mod_key(cur_test_mod, id)) return fail("TestTickContext.press_world_key_id: The running test's mod %s declares no binding named %s.", cur_test_mod, id);
+    overlay_press_world_binding(id);
+    return none();
+}
+REGISTER("TestTickContext", "press_world_key_id", TTC_press_world_key_id);
 // The running test's own mod configuration, which is the same one its overlay's world pass reads.
 static union grug_value TTC_get_config(ARGS) {
     UNUSED;
@@ -1801,28 +1817,48 @@ static void overlay_press_world_key(double code, bool ctrl) {
     overlay_key_code = code;
     overlay_ctrl = ctrl;
     if (world_key_fn != UINT64_MAX) ask_world_overlays(world_key_fn, K_WORLD_KEY_CTX, "world_key");
-    for (size_t i = 0; i < noverlays; i++) {
-        const char* mod = overlays[i].mod;
-        if (!cur_test_mod || strcmp(mod, cur_test_mod)) continue;
-        if (overlay_disabled(overlays[i].path)) continue;
-        for (size_t k = 0; k < nmod_keys; k++) {
-            if (strcmp(mod_keys[k].mod, mod) || mod_keys[k].def[0] != (char)code) continue;
-            char err[sizeof last_msg];
-            overlay_binding_id = mod_keys[k].id;
-            world_pass_serial = ++world_pass_count;
-            uint64_t ctx = new_obj(K_BINDING_CTX);
-            objs[ctx - 1].x = world_pass_serial;
-            union grug_value arg = id(ctx);
-            world_pass_mod = mod;
-            bool ran = call_export(overlays[i].entity, world_binding_fn, &arg, 1, err);
-            world_pass_mod = NULL;
-            world_pass_serial = 0;
-            overlay_binding_id = NULL;
-            if (ran && err[0] && !bg_missing[0]) snprintf(bg_missing, sizeof bg_missing, "an overlay's world_binding stopped: %.3900s", err);
-        }
+    for (size_t k = 0; k < nmod_keys; k++) {
+        if (!cur_test_mod || strcmp(mod_keys[k].mod, cur_test_mod)) continue;
+        if (mod_keys[k].def[0] != (char)code) continue;
+        overlay_deliver_binding(mod_keys[k].mod, mod_keys[k].id);
     }
     overlay_key_code = 0;
     overlay_ctrl = false;
+}
+// Asks one binding's world_binding export on every overlay of the mod, with the id the press names.
+// A loader that registers no binding delivers a raw key this way for each binding its declaration
+// gives that key; a press by id names the one binding it presses.
+static void overlay_deliver_binding(const char* mod, const char* bindingId) {
+    for (size_t i = 0; i < noverlays; i++) {
+        const char* overlay_mod = overlays[i].mod;
+        if (strcmp(overlay_mod, mod)) continue;
+        if (overlay_disabled(overlays[i].path)) continue;
+        char err[sizeof last_msg];
+        overlay_binding_id = bindingId;
+        world_pass_serial = ++world_pass_count;
+        uint64_t ctx = new_obj(K_BINDING_CTX);
+        objs[ctx - 1].x = world_pass_serial;
+        union grug_value arg = id(ctx);
+        world_pass_mod = mod;
+        bool ran = call_export(overlays[i].entity, world_binding_fn, &arg, 1, err);
+        world_pass_mod = NULL;
+        world_pass_serial = 0;
+        overlay_binding_id = NULL;
+        if (ran && err[0] && !bg_missing[0]) snprintf(bg_missing, sizeof bg_missing, "an overlay's world_binding stopped: %.3900s", err);
+    }
+}
+// One press of one declared binding by the id its about.json names, which is how a test presses a
+// binding with no default_key: it is registered with the version's unbound key, and no letter or
+// digit press can reach it.
+static void overlay_press_world_binding(const char* bindingId) {
+    world_overlay_drawn_flag = false;
+    overlay_deliver_binding(cur_test_mod, bindingId);
+}
+// The declared binding with this id, or NULL when the mod declares none.
+static const struct mod_key* find_mod_key(const char* mod, const char* bindingId) {
+    for (size_t k = 0; k < nmod_keys; k++)
+        if (!strcmp(mod_keys[k].mod, mod) && !strcmp(mod_keys[k].id, bindingId)) return &mod_keys[k];
+    return NULL;
 }
 
 static void free_list(struct list* l) {

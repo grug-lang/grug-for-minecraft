@@ -335,7 +335,12 @@ public class GrugClientHooks {
                                         declared.label(),
                                         KeybindRegistry.register(
                                                 declared.savedName(),
-                                                declared.key().code(),
+                                                // A binding with no default_key is registered with
+                                                // the version's unbound key, which the Controls
+                                                // screen lists so the player can bind it.
+                                                declared.key().code() < 0
+                                                        ? Keyboard.KEY_NONE
+                                                        : declared.key().code(),
                                                 "Grug")));
                     }
                 });

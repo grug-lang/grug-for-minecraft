@@ -41,6 +41,11 @@ origin_z: number = 0
 # and each press after it flips. See #1255.
 binding_on: bool = false
 
+# Whether the unbound binding declared with no default_key has been pressed by id, which only
+# TestTickContext.press_world_key_id can reach: the host registers it with the version's unbound
+# key and the player can bind it in Controls. See #1868.
+unbound_pressed: bool = false
+
 # Whether the world pass checks the answers about the local player's feet, which overlay_player-Test
 # turns on with world key N (78). The camera sits at the player's eyes, a little above the feet and in
 # the same column, so a line across the feet is drawn only while the three answers describe a player
@@ -309,7 +314,7 @@ export render_world(ctx: OverlayWorldContext) {
     }
     # The mark the declared binding flips, drawn in the colour its config declares, so a test tells
     # a binding press from a world key press by what the next frame shows (#1255).
-    if binding_on {
+    if binding_on or unbound_pressed {
         cfg: Config = ctx.get_config()
         mark: Color = cfg.color("coverage_color")
         x: number = ctx.camera_x()
@@ -387,6 +392,13 @@ export world_key(ctx: OverlayWorldKeyContext) {
 # err; the host's own Java test checks those values.
 export world_binding(ctx: OverlayWorldBindingContext) {
     cfg: Config = ctx.get_config()
+    if ctx.id() == "coverage_unbound" {
+        # The binding about.json declares without a default_key, so no real key press reaches it and
+        # only a test's press_world_key_id does. It flips the mark render_world draws, and a second
+        # press turns it back off, so the overlay is left as the test found it. See #1868.
+        unbound_pressed = not unbound_pressed
+        return
+    }
     if ctx.id() != "coverage_toggle" {
         return
     }

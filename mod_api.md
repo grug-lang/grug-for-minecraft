@@ -448,6 +448,7 @@ String.trim(text: string) string
 .particle_position(index: number) Vec3
 .press_screen_key(key: number, ctrl: bool, shift: bool, release: bool) bool
 .press_world_key(key: number, ctrl: bool)
+.press_world_key_id(id: string)
 .reload_count(relative_path: string) number
 .remove_entities(level: Level, kind: string)
 .round_trip_nbt(block_entity: BlockEntity)

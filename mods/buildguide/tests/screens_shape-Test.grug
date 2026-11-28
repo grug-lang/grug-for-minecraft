@@ -829,9 +829,10 @@ export tick(ctx: TestTickContext) {
         # at all where the old ring test let one through. Each case puts one such value on the set
         # and then waits for a world frame: the set's origin cube is drawn after its shape, so a
         # frame that reaches the end sets the world mark, while a loop that cannot finish stops the
-        # export before it and leaves the mark clear.
+        # export before it and leaves the mark clear. toggle_enable is unbound, as the reference
+        # leaves it, so the test presses it by the id its about.json names.
         step = 95
-        ctx.press_world_key(71, false)
+        ctx.press_world_key_id("toggle_enable")
         ctx.not_done()
         return
     }
@@ -1201,7 +1202,9 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         step = 124
-        ctx.press_world_key(71, false)
+        # toggle_enable is unbound, as the reference leaves it, so the toggle back off is a press
+        # by the id its about.json names.
+        ctx.press_world_key_id("toggle_enable")
         ctx.not_done()
         return
     }

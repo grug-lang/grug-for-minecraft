@@ -719,6 +719,11 @@ public final class GrugOverlayHost {
             java.util.List<GrugOverlayScripts.Script> scripts =
                     GrugOverlayScripts.bindingScripts(declared.mod);
             if (scripts.isEmpty()) continue;
+            // An unbound binding (a declaration with no default_key) is registered with
+            // GLFW_KEY_UNKNOWN so the Controls screen lists it, and must never read as held: the
+            // player has to bind it first. Its mapping's key is checked rather than the declared
+            // one, because a rebind replaces it.
+            if (declared.mapping.isUnbound()) continue;
             GrugWorldOverlay.binding(
                     scripts, declared.mod, declared.id, declared.mapping.isDown(), open);
         }

@@ -132,6 +132,14 @@
                         "items": {
                             "$ref": "#/definitions/deviation"
                         }
+                    },
+                    "platform_differences": {
+                        "description": "Differences from the reference that the platform forbids any grug mod from closing, each with the sandbox rule that forbids it, what the reference does, why a mod cannot reproduce it, and the issue that tracks the platform question. A platform difference is not a gap the port can close, so a port may claim `done` beside this list; unlike a deviation, the list may stay after the port is finished.",
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                            "$ref": "#/definitions/platform_difference"
+                        }
                     }
                 },
                 "allOf": [
@@ -157,6 +165,11 @@
                                     "required": [
                                         "deviations"
                                     ]
+                                },
+                                {
+                                    "required": [
+                                        "platform_differences"
+                                    ]
                                 }
                             ]
                         },
@@ -172,7 +185,7 @@
             }
         },
         "done": {
-            "description": "How finished the mod is. A mod is a port, whose every feature the reference registers is ported and tested, or it is the repository's own, whose every intended feature is there. Three states: the key absent is not finished; \"logic\" is behaviour complete and audited, with no accepted capture asserting what the mod renders; \"all\" is the same plus an accepted golden for every rendered feature on every loader the mod runs on, which a mod that renders nothing through its own code satisfies because it has nothing of its own to capture. The enum refuses every other value. Either value is refused by about_schema.py while the first derived_from entry still lists a deviation, since a deviation is a gap that is still open. Finished is not frozen, so a fix or a small edit keeps the key.",
+            "description": "How finished the mod is. A mod is a port, whose every feature the reference registers is ported and tested, or it is the repository's own, whose every intended feature is there. Three states: the key absent is not finished; \"logic\" is behaviour complete and audited, with no accepted capture asserting what the mod renders; \"all\" is the same plus an accepted golden for every rendered feature on every loader the mod runs on, which a mod that renders nothing through its own code satisfies because it has nothing of its own to capture. The enum refuses every other value. Either value is refused by about_schema.py while the first derived_from entry still lists a deviation, since a deviation is a gap that is still open; it is allowed beside `platform_differences`, because a behaviour the platform forbids any mod to reproduce is not a gap the port can close. Finished is not frozen, so a fix or a small edit keeps the key.",
             "enum": [
                 "logic",
                 "all"
@@ -472,8 +485,7 @@
             "type": "object",
             "required": [
                 "id",
-                "name",
-                "default_key"
+                "name"
             ],
             "additionalProperties": false,
             "properties": {
@@ -488,7 +500,7 @@
                     "minLength": 1
                 },
                 "default_key": {
-                    "description": "The key the binding starts on, as one letter or digit, such as L. A binding on any other key cannot be polled by a loader that has no registration, so it is refused.",
+                    "description": "The key the binding starts on, as one letter or digit, such as L. An absent default_key registers the version's unbound key, which the Controls screen lists so the player can bind it, as a reference that leaves a binding unbound does. A binding on any other key cannot be polled by a loader that has no registration, so a present key that is not one letter or digit is refused.",
                     "type": "string",
                     "pattern": "^[A-Za-z0-9]$"
                 }
@@ -621,6 +633,42 @@
                 },
                 "tracking_issue": {
                     "description": "The number of the issue in this repository that tracks resolving or deciding this deviation, so about.json and the issue point at each other. The issue holds the deviation's state: a deviation is listed while it is a difference from the reference, and deleted once it is fixed.",
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "platform_difference": {
+            "description": "A difference from the reference that the platform forbids any grug mod to close. Unlike a deviation it is not a gap the port can fix, so it does not block `done`; it records the reference behaviour, the sandbox rule that forbids reproducing it, and where the platform question is tracked.",
+            "type": "object",
+            "required": [
+                "rule",
+                "what",
+                "why",
+                "tracking_issue"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "rule": {
+                    "description": "The platform rule that forbids reproducing the reference's behaviour. `mod-errors-are-contained` is the sandbox printing and clearing a mod's error where the reference's exception can end the game's tick; `mod-files-stay-in-the-mod-root` is a mod reading and writing only under its own file root where the reference names another path in the game directory; `mod-code-runs-on-the-frame` is a mod's code running on the game's own thread where the reference hands work to a background thread.",
+                    "enum": [
+                        "mod-errors-are-contained",
+                        "mod-files-stay-in-the-mod-root",
+                        "mod-code-runs-on-the-frame"
+                    ]
+                },
+                "what": {
+                    "description": "What the reference does, in enough detail that a reader can see which behaviour the port cannot reproduce.",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "why": {
+                    "description": "Why no grug mod can reproduce it, naming the platform guarantee that stands in the way.",
+                    "type": "string",
+                    "minLength": 1
+                },
+                "tracking_issue": {
+                    "description": "The number of the issue in this repository that tracks the platform question, so about.json and the issue point at each other.",
                     "type": "integer",
                     "minimum": 1
                 }

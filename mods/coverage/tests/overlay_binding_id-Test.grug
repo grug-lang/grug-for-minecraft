@@ -1,0 +1,69 @@
+# Covers pressing a declared binding by the id its about.json names (#1868): the coverage mod
+# declares coverage_unbound with no default_key, which the host registers with the version's
+# unbound key, so the Controls screen lists it for the player to bind and no real key press can
+# reach it. press_world_key_id is how a test presses it, and the overlay's world_binding flips its
+# own mark when the id arrives, which the next frame draws. A second press by id turns the mark off
+# again, so the state is the one the test found and a test after it draws nothing. An id the mod
+# does not declare is refused and not pressed, and the test ends on that refusal. See
+# overlay_binding-Test.grug for the binding a real key press reaches.
+started: bool = false
+pressed: bool = false
+turned_off: bool = false
+waited: number = 0
+cleared_at: number = 0
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        if not me.world_overlay_supported() {
+            started = true
+            return
+        }
+        if not ctx.world_settled() {
+            ctx.not_done()
+            return
+        }
+        started = true
+        ctx.not_done()
+        return
+    }
+
+    if not pressed {
+        pressed = true
+        # The binding has no default_key, so there is no key to press instead.
+        ctx.press_world_key_id("coverage_unbound")
+        ctx.not_done()
+        return
+    }
+
+    if not turned_off {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A press by id should draw the mark the unbound binding turns on.")
+            ctx.not_done()
+            return
+        }
+        turned_off = true
+        waited = 0
+        # The second press by id turns the same mark off, which a mark another test left on could
+        # not, so reading it off proves the id reached this mod's handler.
+        ctx.press_world_key_id("coverage_unbound")
+        cleared_at = ctx.current_tick()
+        ctx.not_done()
+        return
+    }
+
+    if ctx.current_tick() - cleared_at < 12 {
+        # Asking also asks the client for a frame, which a test that never captures does not get
+        # otherwise.
+        ctx.world_overlay_drawn()
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not ctx.world_overlay_drawn(), "The second press by id turns the mark off.")
+
+    # An id the mod does not declare is reported and not pressed. expect_error matches the next
+    # error the test raises, so the refused press is the last call of this test.
+    ctx.expect_error("declares no binding named no_such_binding")
+    ctx.press_world_key_id("no_such_binding")
+}
