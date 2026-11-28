@@ -8,7 +8,9 @@ both: the options' file, defaults and ranges, and the binding's registration wit
 smoketest has no game and no config file, so it reads what each mod declares here, as text a C
 literal holds, and serves a declared default where the real host would read the file. A field the
 smoketest needs but a declaration cannot supply is an error, so a declaration the real host would
-reject is not silently missing from the table.
+reject is not silently missing from the table. A binding may declare no default_key, which the host
+registers as the version's unbound key; its row keeps the empty text, which no letter or digit
+press matches.
 """
 
 import json
@@ -53,9 +55,17 @@ def rows(mods: Path):
             options.append((mod, option["key"], option["type"], default_text(option, where)))
         for key in data.get("keys", []):
             default = key.get("default_key")
+            if default is None:
+                # A binding with no default_key is registered with the version's unbound key, so
+                # the smoketest's key table records it as a binding no key press can match. The
+                # empty text is that mark: the press loop compares its first character with a
+                # pressed letter or digit, and an empty one matches neither.
+                keys.append((mod, key["id"], ""))
+                continue
             if not isinstance(default, str) or len(default) != 1:
                 raise SystemExit(
-                    "%s: the key %s has no one-character default_key" % (where, key.get("id"))
+                    "%s: the key %s has a default_key that is not one character"
+                    % (where, key.get("id"))
                 )
             keys.append((mod, key["id"], default.upper()))
     return sorted(options), sorted(keys)

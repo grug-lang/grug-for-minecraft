@@ -4949,6 +4949,38 @@ public class HostFunctions {
         GrugCore.getAdapter().pressWorldKey((int) key, ctrl);
     }
 
+    /**
+     * Test only: delivers one press of one binding the running test's mod declares in its {@code
+     * about.json}, by the id that declaration names, through the same {@code world_binding} path a
+     * real press takes while no screen is open. It is how a test presses a binding whose
+     * declaration has no {@code default_key}: that binding is registered with the version's unbound
+     * key, which no real key press can reach. An id the mod does not declare is reported and not
+     * pressed, and no other mod is asked. Only legal on the context tick() was passed, while that
+     * call is running: a context saved for later is refused.
+     */
+    public static void TestTickContext_press_world_key_id(long contextId, String id) {
+        if (!requireTickContext("TestTickContext.press_world_key_id", contextId)) return;
+        String mod = GrugTestState.currentTestMod;
+        if (mod == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.press_world_key_id: The running test is not one of a mod, so"
+                            + " it has no binding to press.");
+            return;
+        }
+        if (GrugMetadata.forCallerMod(mod).key(id) == null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.press_world_key_id: The running test's mod "
+                            + mod
+                            + " declares no binding named "
+                            + id
+                            + ".");
+            return;
+        }
+        GrugWorldOverlay.pressBindingForTest(mod, id);
+    }
+
     public static double OverlayScrollContext_screen_width(long contextId) {
         if (!requireOverlayScrollContext("OverlayScrollContext.screen_width", contextId))
             return 0.0;

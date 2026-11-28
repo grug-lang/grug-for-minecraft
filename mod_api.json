@@ -5546,6 +5546,17 @@
 						}
 					]
 				},
+				"press_world_key_id": {
+					"description": "Presses one binding the running test's mod declares in its about.json, by the id that declaration names, through the path a real press takes while no screen is open: the mod's world_binding export is asked with that id. It is how a test presses a binding the declaration leaves without a default_key, which is registered with the version's unbound key and which no real key press can reach. An id the mod does not declare is reported and not pressed, and no other mod is asked. It clears what world_overlay_drawn answers, so a test waits for a frame drawn after the press. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "id",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"reload_count": {
 					"description": "How many times a loader has finished reloading after a change to relative_path was reported, so a test that checks what the reload rendered waits for the loader instead of a guessed number of ticks. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"parameters": [

@@ -20,7 +20,7 @@ JAVA_VERSIONS = ("8", "17", "21")
 
 # The fields that belong to the build a port recreates. The first derived_from entry is that build
 # and the only one that may carry them; later entries are its own sources.
-RECREATION_FIELDS = ("artifacts", "runtime", "install", "deviations")
+RECREATION_FIELDS = ("artifacts", "runtime", "install", "deviations", "platform_differences")
 
 # The values of about.json's done key, in the order about_schema.json's enum lists them. Any value
 # outside this tuple is the schema's to refuse, so done_errors stays silent about it.
@@ -139,9 +139,12 @@ def done_errors(about: dict) -> list:
     ``about_schema.json``'s enum already refuses every value but the two in ``DONE_VALUES``, so
     anything else returns here without a message rather than repeating that refusal, and never
     reaches the deviation check. A mod cannot claim either value while a deviation lists a gap,
-    because that deviation is itself the statement that the mod is not finished. Only the first
-    derived_from entry is read: a later entry that carries ``deviations`` (or any other recreation
-    field) is already ``recreation_errors``' error, and one mistake reads better as one message.
+    because that deviation is itself the statement that the mod is not finished. A platform
+    difference is not a gap the port can close: the platform forbids reproducing the reference's
+    behaviour, so it is allowed beside ``done`` and the list may stay after the port is finished.
+    Only the first derived_from entry is read: a later entry that carries ``deviations`` (or any
+    other recreation field) is already ``recreation_errors``' error, and one mistake reads better
+    as one message.
     """
     done = about.get("done")
     if not isinstance(done, str) or done not in DONE_VALUES:

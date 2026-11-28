@@ -170,6 +170,56 @@ class RecreationSchemaTest(SchemaCase):
         entry["deviations"] = [{"what": "x", "why": "y", "tracking_issue": 0}]
         self.assertInvalid(self.mod_with(entry), "less than the minimum of 1")
 
+    def platform_difference(self) -> dict:
+        return {
+            "rule": "mod-errors-are-contained",
+            "what": "x",
+            "why": "y",
+            "tracking_issue": 1,
+        }
+
+    def test_a_recreation_with_a_platform_difference_is_valid(self):
+        entry = base_entry()
+        entry["platform_differences"] = [self.platform_difference()]
+        self.assertValid(self.mod_with(entry))
+
+    def test_a_platform_difference_rule_is_one_of_the_vocabulary(self):
+        entry = base_entry()
+        difference = self.platform_difference()
+        difference["rule"] = "mod-can-do-anything"
+        entry["platform_differences"] = [difference]
+        self.assertInvalid(self.mod_with(entry), "is not one of")
+
+    def test_a_platform_difference_needs_every_member(self):
+        for member in ("rule", "what", "why", "tracking_issue"):
+            with self.subTest(member=member):
+                entry = base_entry()
+                difference = self.platform_difference()
+                del difference[member]
+                entry["platform_differences"] = [difference]
+                self.assertInvalid(self.mod_with(entry), f"'{member}' is a required property")
+
+    def test_an_empty_platform_difference_list_is_rejected(self):
+        entry = base_entry()
+        entry["platform_differences"] = []
+        self.assertInvalid(self.mod_with(entry), "should be non-empty")
+
+    def test_only_the_first_entry_may_carry_platform_differences(self):
+        mod = base_mod()
+        mod["derived_from"].append(
+            {
+                "name": "Original",
+                "repository": {"url": "https://example.com/original"},
+                "licenses": [{"name": "MIT", "url": "https://example.com/original-license"}],
+                "platform_differences": [self.platform_difference()],
+            }
+        )
+        self.assertEqual(
+            ["/derived_from/1/platform_differences"],
+            [path for path, _ in about_schema.recreation_errors(mod["derived_from"])],
+        )
+        self.assertInvalid(mod, "only the first derived_from entry")
+
     def test_duplicate_artifact_names_are_rejected(self):
         entry = base_entry()
         entry["artifacts"].append(
@@ -408,6 +458,11 @@ class DeclarationsTest(SchemaCase):
             "'name' is a required property",
         )
 
+    def test_a_binding_may_have_no_default_key(self):
+        # A reference that leaves a binding unbound has no key to declare; the game's unbound key
+        # is registered instead, so the Controls screen lists it for the player to bind.
+        self.assertValid(self.mod_with_binding({"id": "toggle", "name": "Toggle"}))
+
     def test_duplicate_binding_ids_are_rejected(self):
         mod = base_mod()
         mod["keys"] = [
@@ -593,6 +648,41 @@ class DoneSchemaTest(SchemaCase):
         for value in about_schema.DONE_VALUES:
             with self.subTest(value=value):
                 mod = base_mod()
+                mod["derived_from"][0]["deviations"] = self.deviation()
+                mod["done"] = value
+                self.assertInvalid(mod, f"done is {value} while derived_from/0/deviations")
+
+    def test_a_platform_difference_allows_a_done_claim(self):
+        # A behaviour the platform forbids any mod to reproduce is not a gap the port can close, so
+        # it is allowed beside done and the list may stay after the port is finished.
+        for value in about_schema.DONE_VALUES:
+            with self.subTest(value=value):
+                mod = base_mod()
+                mod["derived_from"][0]["platform_differences"] = [
+                    {
+                        "rule": "mod-errors-are-contained",
+                        "what": "x",
+                        "why": "y",
+                        "tracking_issue": 1,
+                    }
+                ]
+                mod["done"] = value
+                self.assertValid(mod)
+
+    def test_a_platform_difference_and_a_deviation_still_refuse_done(self):
+        # The deviation is still a gap the port can close, so the platform difference beside it does
+        # not make the claim true.
+        for value in about_schema.DONE_VALUES:
+            with self.subTest(value=value):
+                mod = base_mod()
+                mod["derived_from"][0]["platform_differences"] = [
+                    {
+                        "rule": "mod-errors-are-contained",
+                        "what": "x",
+                        "why": "y",
+                        "tracking_issue": 1,
+                    }
+                ]
                 mod["derived_from"][0]["deviations"] = self.deviation()
                 mod["done"] = value
                 self.assertInvalid(mod, f"done is {value} while derived_from/0/deviations")

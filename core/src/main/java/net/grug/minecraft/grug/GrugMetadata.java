@@ -35,6 +35,13 @@ import java.util.Set;
  * restart.
  */
 public final class GrugMetadata {
+    /**
+     * The code a binding whose {@code about.json} declares no {@code default_key} carries: the
+     * game's unbound key, which the Controls screen lists so the player can bind it. A loader
+     * registers this as its own version's unbound key and never treats it as held.
+     */
+    public static final int UNBOUND_KEY = -1;
+
     /** One declared key binding: the game's own key with a name the player can rebind. */
     public static final class Key {
         private final String id;
@@ -59,7 +66,9 @@ public final class GrugMetadata {
 
         /**
          * The default key's upper case character code, which is what a loader that cannot register
-         * a binding polls instead, or -1 when the declaration's key is not a letter or a digit.
+         * a binding polls instead, or {@link GrugMetadata#UNBOUND_KEY} when the declaration has no
+         * {@code default_key}. A loader registers the unbound code as its own version's unbound
+         * key, which the Controls screen lists and the player can bind.
          */
         public int code() {
             return code;
@@ -248,6 +257,14 @@ public final class GrugMetadata {
 
         public List<Key> keys() {
             return keys;
+        }
+
+        /** The binding {@code id} the declaration names, or null when it names none. */
+        public Key key(String id) {
+            for (Key key : keys) {
+                if (key.id().equals(id)) return key;
+            }
+            return null;
         }
 
         /** The options by key, in the order the about.json declares them. */
@@ -512,8 +529,15 @@ public final class GrugMetadata {
         JsonObject object = element.getAsJsonObject();
         String id = text(object, "id");
         String name = text(object, "name");
-        int code = keyCode(text(object, "default_key"));
-        if (id == null || name == null || code < 0) return null;
+        if (id == null || name == null) return null;
+        // An absent default_key is a binding the reference leaves unbound: the host keeps it with
+        // the unbound code so the Controls screen lists it and the player can bind it. A present
+        // key that is not one letter or digit is still a malformed declaration and is dropped.
+        int code = UNBOUND_KEY;
+        if (object.has("default_key")) {
+            code = keyCode(text(object, "default_key"));
+            if (code < 0) return null;
+        }
         return new Key(id, name, code);
     }
 
@@ -635,9 +659,9 @@ public final class GrugMetadata {
 
     /**
      * The upper case character code of a one-character key name, which is the shape a declaration's
-     * {@code default_key} has, or -1 when the name is anything else. Letters and digits are the
-     * keys a world key and a binding are delivered for, so they are the names a declaration may
-     * use.
+     * {@code default_key} has, or {@link #UNBOUND_KEY} when the name is anything else. Letters and
+     * digits are the keys a world key and a binding are delivered for, so they are the names a
+     * declaration may use.
      */
     public static int keyCode(String name) {
         if (name == null || name.length() != 1) return -1;

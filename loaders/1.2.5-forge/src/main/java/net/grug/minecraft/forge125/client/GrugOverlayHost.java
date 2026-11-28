@@ -775,7 +775,14 @@ public final class GrugOverlayHost {
                             declared.mod(),
                             declared.key().id(),
                             declared.label(),
-                            new KeyBinding(declared.savedName(), declared.key().code())));
+                            new KeyBinding(
+                                    declared.savedName(),
+                                    // A binding with no default_key is registered with the
+                                    // version's unbound key, which the Controls screen lists so
+                                    // the player can bind it.
+                                    declared.key().code() < 0
+                                            ? Keyboard.KEY_NONE
+                                            : declared.key().code())));
         }
     }
 
@@ -1005,8 +1012,11 @@ public final class GrugOverlayHost {
             }
         }
         for (DeclaredBinding declared : declaredBindings) {
-            // Consumed even when no overlay answers, so a press is never left to fire later.
-            boolean down = declared.binding.isPressed();
+            // Consumed even when no overlay answers, so a press is never left to fire later. An
+            // unbound binding (KEY_NONE) is not held by any real key, so it is never asked for a
+            // press and the Controls screen's unbound row cannot fire the mod.
+            boolean down =
+                    declared.binding.keyCode != Keyboard.KEY_NONE && declared.binding.isPressed();
             java.util.List<GrugOverlayScripts.Script> scripts =
                     GrugOverlayScripts.bindingScripts(declared.mod);
             if (scripts.isEmpty()) continue;

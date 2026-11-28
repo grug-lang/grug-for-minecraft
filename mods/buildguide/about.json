@@ -18,18 +18,15 @@
 	"keys": [
 		{
 			"id": "toggle_enable",
-			"name": "Toggle Build Guide",
-			"default_key": "G"
+			"name": "Toggle enabled"
 		},
 		{
 			"id": "set_origin",
-			"name": "Set Shape Origin",
-			"default_key": "O"
+			"name": "Set origin"
 		},
 		{
 			"id": "set_global_origin",
-			"name": "Set All Shape Origins",
-			"default_key": "P"
+			"name": "Set global origin"
 		},
 		{
 			"id": "open_screen",
@@ -86,17 +83,27 @@
 					"BuildGuide-1.20.6-0.4.9.jar"
 				]
 			},
+			"platform_differences": [
+				{
+					"rule": "mod-files-stay-in-the-mod-root",
+					"what": "The reference writes its per-world state at <gameDir>/buildguide/<world>@<dimension>.dat and its config at <gameDir>/config/buildguide.cfg, reads both from there on the next start, and writes the config at client start from BuildGuide.registerClient. A guide file copied by hand between two game installations is therefore found by both, and on a case-sensitive filesystem two worlds whose names differ only in case keep two files.",
+					"why": "A grug mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte, and the port keeps them at buildguide/<world>@<dimension>.dat and config/buildguide.cfg under the root File.open(r\"files\") answers, so copying a guide by hand between that directory and <gameDir>/buildguide/ still works. The host also refuses a path that names an existing entry only by a different case, so two worlds whose names differ only in case cannot both keep a guide here. Giving a mod a named path in the game directory is a platform feature with its own design, tracked as #1890, and it is not part of this port.",
+					"tracking_issue": 1890
+				},
+				{
+					"rule": "mod-errors-are-contained",
+					"what": "A state file whose number does not parse lets the reference's NumberFormatException escape State.getState() out of State.loadPersistence, and the client fails the tick. Nothing the load already applied is undone, so the partial load is the state the reference keeps until the world is left.",
+					"why": "A grug mod's error is printed and cleared and the game keeps running, so the port cannot let a bad file end the client tick. There is no exception to raise, and turning a stopped load into a fresh state is the overlay's to decide, so the port reports the file once, stops the load where it is and keeps what it already applied, exactly as the reference applies it before it throws. #1816 tracks the file format's behaviour, so a failed load leaves the guide off for that world until the next save writes a valid file.",
+					"tracking_issue": 1752
+				},
+				{
+					"rule": "mod-errors-are-contained",
+					"what": "A state whose load stopped before the reference's clamps, as #1816 records, can hold an iShapeSet or an iShapeNew past the end. The reference's getShapeSet and its first toggle press then throw an index error on such a value, which fails the client tick.",
+					"why": "A grug mod's error is printed and cleared and the game keeps running, so the port cannot end the tick on such a value and there is no exception to raise. The port clamps both into range when it reads the current set and when it starts the next set, with the same Math.max and Math.min the reference runs after a whole load, so a file the reference reads in full loads identically here and a stopped load still draws something rather than ending the tick.",
+					"tracking_issue": 1752
+				}
+			],
 			"deviations": [
-				{
-					"what": "The state and config files live under the root File.open(r\"files\") answers, at buildguide/<world>@<dimension>.dat and config/buildguide.cfg, where the reference writes <gameDir>/buildguide/<world>@<dimension>.dat and <gameDir>/config/buildguide.cfg. The host refuses a path that names an existing entry only by a different case, so two worlds whose names differ only in case cannot both keep a guide here: with persistence on, the second world's read is refused and the overlay reports that every frame and draws nothing, where the reference on a case-sensitive filesystem kept two files; with persistence off, the second world starts fresh each visit. The config file is written at the first world frame, where the reference writes it at client start from BuildGuide.registerClient, so a player who never enters a world has no config file here.",
-					"why": "A mod may write only inside the directory #1757 gives it, so a guide the reference already saved at the game directory's path is not imported and a guide this port saves is not read by the reference. The file formats themselves are the reference's, byte for byte. An overlay script has no client-start hook to run earlier, and the config only matters once a world is drawing.",
-					"tracking_issue": 1757
-				},
-				{
-					"what": "A state file whose number does not parse stops the load where it is and keeps what it already applied, where the reference lets the NumberFormatException escape getState() and the client fails the tick. Nothing clamps after a stopped load, so a truncated file can hold an iShapeSet past its shape sets.",
-					"why": "grug has no exception to raise, and turning a stopped load into a fresh state is the overlay's to decide. The partial load is exactly what the reference applies before it throws.",
-					"tracking_issue": 1816
-				},
 				{
 					"what": "Every string the mod shows is the en_us sentence as fixed text: the three config comments and the titles, labels and button texts of its five screens, where the reference resolves them through Translatable in the client's language. A non-English client therefore reads English here, and its rewritten config is not the reference's bytes.",
 					"why": "mod_api.json has no entry for a translated string, so a translated string needs a general host function that a port of any translated mod would use.",
@@ -120,16 +127,6 @@
 				{
 					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once, so the shape list's generation spinner never shows and its row text is the completed white, never the green a completion starts at, and the Shape tab's heading under Shape is that same white without the spinner the reference appends to it.",
 					"why": "grug has no thread to hand generation to, so a shape's update cannot run beside the frame. The asyncEnabled config option is read and written byte for byte but changes nothing yet.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "The reference binds toggleEnable, setOrigin and setGlobalOrigin to GLFW_KEY_UNKNOWN, so they are unbound until the player sets them in Controls, and binds openBuildGuide to B. The port declares G, O and P as the defaults of toggle_enable, set_origin and set_global_origin, and declares open_screen with B, the id named after what it does where the reference's is openBuildGuide.",
-					"why": "A key has to have a one-character default in about.json, since the game's Controls screen cannot show an unbound mod binding, and the three ids are named after what they do rather than after the reference's key names.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "A state whose load stopped before the reference's clamps, as #1816 records, can hold an iShapeSet or an iShapeNew past the end. The port clamps both into range when it reads the current set and when it starts the next set, where the reference's getShapeSet and its first toggle press would throw an index error on such a value.",
-					"why": "grug has no exception to raise, and a stopped load has to leave the overlay drawing something rather than ending the client's tick. The clamp is the same Math.max and Math.min the reference runs after a whole load, so a file it reads in full loads identically.",
 					"tracking_issue": 1752
 				},
 				{
