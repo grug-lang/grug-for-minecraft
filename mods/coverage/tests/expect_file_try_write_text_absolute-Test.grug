@@ -1,0 +1,8 @@
+# try_write_text answers a write the filesystem refuses, but a path the host refuses is the host's rule
+# and not the filesystem's answer, so it stays an error rather than a false (#1752).
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+
+    ctx.expect_error("is absolute, and a path is always relative")
+    value: bool = files.try_write_text("/etc/passwd", "x")
+}

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
+import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -2796,6 +2797,79 @@ public class HostFunctions {
         return GrugEntities.addEntity(GrugEntityType.Option, new GrugOption(null));
     }
 
+    /**
+     * A random stream seeded from the clock and a counter every new stream moves, exactly as the
+     * reference mods' {@code new Random()} does, so two streams made in one tick still differ.
+     */
+    public static long Random_new() {
+        return GrugEntities.addEntity(GrugEntityType.Random, new GrugRandom(new Random()));
+    }
+
+    /**
+     * A random stream that repeats Java's own sequence for {@code seed}, so a test can pin the
+     * values a mod draws.
+     *
+     * <p>A seed that is not a whole number a Java {@code long} holds is reported and the call
+     * answers a stream from no seed, which the report fails the call before a draw reaches the mod;
+     * a fractional or an out-of-range seed is not rounded or truncated into one Java would accept,
+     * because the sequence of the rounded seed is a different one and no caller could tell.
+     */
+    public static long Random_new_seeded(double seed) {
+        if (seed != Math.floor(seed)
+                || seed < -9223372036854775808.0
+                || seed >= 9223372036854775808.0) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Random.new_seeded: The seed has to be a whole number from "
+                            + Long.MIN_VALUE
+                            + " to "
+                            + Long.MAX_VALUE
+                            + ", and was "
+                            + seed
+                            + ".");
+            return Random_new();
+        }
+        return GrugEntities.addEntity(
+                GrugEntityType.Random, new GrugRandom(new Random((long) seed)));
+    }
+
+    public static double Random_next_double(long randomId) {
+        return withEntity(
+                "Random.next_double",
+                "random",
+                randomId,
+                random -> ((GrugRandom) random).nextDouble(),
+                0.0);
+    }
+
+    public static double Random_next_float(long randomId) {
+        return withEntity(
+                "Random.next_float",
+                "random",
+                randomId,
+                random -> ((GrugRandom) random).nextFloat(),
+                0.0);
+    }
+
+    public static double Random_next_int(long randomId, double bound) {
+        if (bound < 1 || bound > Integer.MAX_VALUE || bound != Math.floor(bound)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "Random.next_int: The bound has to be a whole number from 1 to "
+                            + Integer.MAX_VALUE
+                            + ", and was "
+                            + bound
+                            + ".");
+            return 0;
+        }
+        return withEntity(
+                "Random.next_int",
+                "random",
+                randomId,
+                random -> (double) ((GrugRandom) random).nextInt((int) bound),
+                0.0);
+    }
+
     public static long Screenshot_tolerance(long screenshotId, double percent) {
         String problem = GrugTestState.checkTolerance(percent);
         if (problem != null) {
@@ -3299,7 +3373,50 @@ public class HostFunctions {
         withEntity("File.write_text", "file", fileId, file -> writeText(file, path, text));
     }
 
+    /**
+     * The same write as {@link #File_write_text}, answering whether it landed rather than reporting
+     * one the filesystem refused, for a mod that has values to keep either way.
+     *
+     * <p>The host's own refusals are still reported, because a path the host does not allow and a
+     * write past the cap are rules a mod has to fix rather than conditions it carries on through;
+     * only a write the filesystem itself failed answers false. See {@link GrugModData#write}.
+     */
+    public static boolean File_try_write_text(long fileId, String path, String text) {
+        return withEntity(
+                "File.try_write_text",
+                "file",
+                fileId,
+                file -> tryWriteText(file, path, text),
+                false);
+    }
+
     private static void writeText(Object fileObj, String path, String text) {
+        Exception failure = writeFailure(fileObj, path, text);
+        if (failure != null) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "File.write_text: " + failure.getMessage());
+        }
+    }
+
+    private static boolean tryWriteText(Object fileObj, String path, String text) {
+        Exception failure = writeFailure(fileObj, path, text);
+        if (failure == null) {
+            return true;
+        }
+        if (failure instanceof IllegalArgumentException) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr, "File.try_write_text: " + failure.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Writes the text exactly as both write entries do, answering the failure it hit or null when
+     * it landed: an {@link IllegalArgumentException} when the host's rules refused the write (the
+     * path, a case clash, the cap) and an {@link IOException} when the filesystem failed one it
+     * allowed.
+     */
+    private static Exception writeFailure(Object fileObj, String path, String text) {
         try {
             GrugModData.write(
                     GrugCore.getAdapter().getGrugModsDirectory(),
@@ -3307,8 +3424,9 @@ public class HostFunctions {
                     ((GrugModFile) fileObj).modName(),
                     path,
                     text);
+            return null;
         } catch (IllegalArgumentException | IOException e) {
-            Grug.hostFunctionErrorHappened(Grug.statePtr, "File.write_text: " + e.getMessage());
+            return e;
         }
     }
 

@@ -1,0 +1,8 @@
+# A negative seed past a Java long's smallest is reported too, so the refused range is the whole
+# range Java's Random accepts (#1752).
+export tick(ctx: TestTickContext) {
+    small: number = String.to_number("-1e300").unwrap()
+
+    ctx.expect_error("The seed has to be a whole number from")
+    stream: Random = Random.new_seeded(small)
+}

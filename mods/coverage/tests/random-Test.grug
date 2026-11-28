@@ -1,0 +1,82 @@
+# A random stream a mod owns is Java's own java.util.Random (#1752): two streams from one seed repeat
+# the same sequence, two streams from no seed answer different ones, and every draw stays inside the
+# range Java promises. A refused bound and a refused seed are tests of their own, because a host
+# function error ends the call that reported it.
+export tick(ctx: TestTickContext) {
+    _check_seeded(ctx)
+    _check_unseeded(ctx)
+    _check_ranges(ctx)
+    _check_double(ctx)
+}
+
+# Two streams from the same seed answer the same draws, and interleaving a float draw and a whole
+# number draw moves both streams the same way, as one java.util.Random's state does.
+local _check_seeded(ctx: TestTickContext) {
+    a: Random = Random.new_seeded(12345.0)
+    b: Random = Random.new_seeded(12345.0)
+    first: number = 0
+    moved: bool = false
+    i: number = 0
+    while i < 200 {
+        value: number = a.next_float()
+        ctx.assert(value == b.next_float(), "Two streams from one seed should answer the same next_float.")
+        ctx.assert(a.next_int(1000) == b.next_int(1000), "Two streams from one seed should answer the same next_int.")
+        if i == 0 {
+            first = value
+        } else if value != first {
+            moved = true
+        }
+        i = i + 1
+    }
+    ctx.assert(moved, "200 draws of a seeded stream should not all equal the first.")
+}
+
+# Two streams from no seed answer different sequences; one that agreed for 200 draws would be the same
+# stream, and the reference's own new Random() differs for the same reason.
+local _check_unseeded(ctx: TestTickContext) {
+    a: Random = Random.new()
+    b: Random = Random.new()
+    moved: bool = false
+    i: number = 0
+    while i < 200 {
+        if a.next_float() != b.next_float() {
+            moved = true
+        }
+        i = i + 1
+    }
+    ctx.assert(moved, "Two unseeded Random.new() streams should not answer the same 200 next_float draws.")
+}
+
+local _check_ranges(ctx: TestTickContext) {
+    stream: Random = Random.new_seeded(-1.0)
+    i: number = 0
+    while i < 500 {
+        value: number = stream.next_float()
+        ctx.assert(value >= 0 and value < 1, "next_float should answer from 0 up to but not including 1.")
+        drawn: number = stream.next_int(10)
+        ctx.assert(drawn >= 0 and drawn < 10 and Math.floor(drawn) == drawn, "next_int(10) should answer a whole number from 0 to 9.")
+        i = i + 1
+    }
+    ctx.assert(stream.next_int(1) == 0, "next_int(1) should answer 0.")
+}
+
+# next_double is Java's wider draw, 53 random bits from two next calls over 2^53, so the same seed
+# repeats it, the first value is the one Java prints for that seed, and every draw stays in range.
+local _check_double(ctx: TestTickContext) {
+    a: Random = Random.new_seeded(12345.0)
+    b: Random = Random.new_seeded(12345.0)
+    i: number = 0
+    while i < 200 {
+        ctx.assert(a.next_double() == b.next_double(), "Two streams from one seed should answer the same next_double.")
+        i = i + 1
+    }
+    first: Random = Random.new_seeded(12345.0)
+    ctx.assert(first.next_double() == 0.3618031071604718, "new_seeded(12345)'s first next_double should be the value Java answers.")
+    stream: Random = Random.new_seeded(7.0)
+    i = 0
+    while i < 500 {
+        value: number = stream.next_double()
+        ctx.assert(value >= 0 and value < 1, "next_double should answer from 0 up to but not including 1.")
+        i = i + 1
+    }
+}

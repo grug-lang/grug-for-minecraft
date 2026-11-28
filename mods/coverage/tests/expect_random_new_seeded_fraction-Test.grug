@@ -1,0 +1,6 @@
+# new_seeded repeats Java's sequence for a seed a long holds, so a fractional one is reported rather
+# than rounded to a seed whose sequence nobody asked for (#1752).
+export tick(ctx: TestTickContext) {
+    ctx.expect_error("The seed has to be a whole number from")
+    stream: Random = Random.new_seeded(0.5)
+}

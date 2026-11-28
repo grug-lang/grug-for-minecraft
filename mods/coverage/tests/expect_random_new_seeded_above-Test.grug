@@ -1,0 +1,8 @@
+# A seed is a Java long, so a whole number past its largest is reported rather than truncated to a
+# sequence nobody asked for (#1752).
+export tick(ctx: TestTickContext) {
+    big: number = String.to_number("1e300").unwrap()
+
+    ctx.expect_error("The seed has to be a whole number from")
+    stream: Random = Random.new_seeded(big)
+}

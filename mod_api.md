@@ -167,6 +167,7 @@ Color.rgba(r: number, g: number, b: number, a: number) Color
 .entry_name(path: string, index: number) string
 .exists(path: string) bool
 .read_text(path: string) Option[string]
+.try_write_text(path: string, text: string) bool
 .write_text(path: string, text: string)
 File.open(root: resource) File
 
@@ -329,6 +330,13 @@ Option.new() Option[$Value]
 ## Player
 .get_held_item() Option[Item]
 .position() Vec3
+
+## Random
+.next_double() number
+.next_float() number
+.next_int(bound: number) number
+Random.new() Random
+Random.new_seeded(seed: number) Random
 
 ## RenderContext
 .draw_box(x1: number, y1: number, z1: number, x2: number, y2: number, z2: number)

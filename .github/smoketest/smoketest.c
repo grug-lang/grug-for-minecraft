@@ -151,6 +151,7 @@ enum kind {
     K_SCREEN_INIT_CTX,
     K_SCREEN_WIDGET_CTX,
     K_LIST_ROW_RESPONSE,
+    K_RANDOM,
 };
 struct obj {
     enum kind kind;
@@ -160,6 +161,7 @@ struct obj {
     union grug_value val;
     const char* str;
     void* priv;  // the state behind a screen, a widget, a context or a row response
+    uint64_t seed;  // a Random's 48-bit state, as java.util.Random keeps it
 };
 static struct obj* objs;
 static size_t nobjs, capobjs;
@@ -685,28 +687,34 @@ REGISTER("Level", "has_neighbor_signal", Level_has_neighbor_signal);
 static uint64_t rnd_seed;
 static bool rnd_have_gaussian;
 static double rnd_next_gaussian;
+// One draw's bits from Java's own generator: the 48-bit state advances and the top `bits` answer.
+static int32_t rnd_next_from(uint64_t* seed, int bits) {
+    *seed = (*seed * 0x5DEECE66Dull + 0xB) & ((1ull << 48) - 1);
+    return (int32_t)(uint32_t)(*seed >> (48 - bits));
+}
 static void rnd_set_seed(int64_t seed) {  // new Random(seed)
     rnd_seed = ((uint64_t)seed ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
     rnd_have_gaussian = false;
 }
 static void rnd_reset(void) { rnd_set_seed(42); }  // every test starts from the same seed, so --all equals a single run
-static int32_t rnd_next(int bits) {
-    rnd_seed = (rnd_seed * 0x5DEECE66Dull + 0xB) & ((1ull << 48) - 1);
-    return (int32_t)(uint32_t)(rnd_seed >> (48 - bits));
-}
-static double rnd_double(void) {  // Random.nextDouble: the two draws are sequenced, high bits first
-    int64_t hi = rnd_next(26);
-    int64_t lo = rnd_next(27);
+static int32_t rnd_next(int bits) { return rnd_next_from(&rnd_seed, bits); }
+static double rnd_next_double_from(uint64_t* seed) {  // Random.nextDouble: 26 high bits, then 27
+    int64_t hi = rnd_next_from(seed, 26);
+    int64_t lo = rnd_next_from(seed, 27);
     return (double)((hi << 27) + lo) * (1.0 / (double)(1ll << 53));
 }
+static double rnd_double(void) {  // Random.nextDouble: the two draws are sequenced, high bits first
+    return rnd_next_double_from(&rnd_seed);
+}
 // Random.nextInt(bound) for a bound from 1 to 2147483647.
-static int32_t rnd_next_int(uint32_t bound) {
-    uint32_t r = (uint32_t)rnd_next(31), m = bound - 1;
+static int32_t rnd_next_int_from(uint64_t* seed, uint32_t bound) {
+    uint32_t r = (uint32_t)rnd_next_from(seed, 31), m = bound - 1;
     if ((bound & m) == 0) return (int32_t)(((int64_t)bound * (int64_t)r) >> 31);
     // Java's loop rejects a draw when u - r + m overflows int; the same test on unsigned values.
-    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next(31)) {}
+    for (uint32_t u = r; (int32_t)(u - (r = u % bound) + m) < 0; u = (uint32_t)rnd_next_from(seed, 31)) {}
     return (int32_t)r;
 }
+static int32_t rnd_next_int(uint32_t bound) { return rnd_next_int_from(&rnd_seed, bound); }
 static union grug_value Level_random_int(ARGS) {
     UNUSED;
     double b = a[1]._number;
@@ -781,6 +789,66 @@ static double rnd_gaussian(void) {
 }
 static union grug_value Level_random_gaussian(ARGS) { UNUSED; return num(rnd_gaussian()); }
 REGISTER("Level", "random_gaussian", Level_random_gaussian);
+
+// A random stream a mod owns: java.util.Random itself, so a seeded stream repeats the sequence the
+// reference's own `new Random(seed)` draws. An unseeded one is seeded from a counter, because the
+// smoketest must be deterministic and a test only has to see two of them differ; the game seeds from
+// the clock and a counter of its own. The section above's helpers draw from any 48-bit state.
+static uint64_t rnd_unseeded;
+static struct obj* random_of(const union grug_value a[], const char* who) {
+    struct obj* o = get_obj(a[0]._id, K_RANDOM);
+    // SMOKETEST_EXCL_START: grug's types keep a Random method on a Random, and no committed test lets one be collected
+    if (!o) {
+        fail("%s: not a Random handle", who);
+        return NULL;
+    }
+    // SMOKETEST_EXCL_STOP
+    return o;
+}
+static union grug_value Random_new(ARGS) {
+    UNUSED;
+    uint64_t o = new_obj(K_RANDOM);
+    rnd_unseeded++;
+    objs[o - 1].seed = ((rnd_unseeded * 0x9E3779B97F4A7C15ull) ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+    return id(o);
+}
+REGISTER("Random", "new", Random_new);
+static union grug_value Random_new_seeded(ARGS) {
+    UNUSED;
+    double s = a[0]._number;
+    if (!is_whole(s) || s < -9223372036854775808.0 || s >= 9223372036854775808.0) {
+        char text[400];
+        double_text(s, text, sizeof text);
+        return fail("Random.new_seeded: The seed has to be a whole number from -9223372036854775808 to 9223372036854775807, and was %s", text);
+    }
+    uint64_t o = new_obj(K_RANDOM);
+    objs[o - 1].seed = ((uint64_t)java_long(s) ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+    return id(o);
+}
+REGISTER("Random", "new_seeded", Random_new_seeded);
+static union grug_value Random_next_double(ARGS) {
+    UNUSED;
+    struct obj* o = random_of(a, "Random.next_double");
+    if (!o) return num(0);  // SMOKETEST_EXCL_BRANCH: a report ends the test at the call
+    return num(rnd_next_double_from(&o->seed));
+}
+REGISTER("Random", "next_double", Random_next_double);
+static union grug_value Random_next_float(ARGS) {
+    UNUSED;
+    struct obj* o = random_of(a, "Random.next_float");
+    if (!o) return num(0);  // SMOKETEST_EXCL_BRANCH: a report ends the test at the call
+    return num(rnd_next_from(&o->seed, 24) / (double)(1 << 24));
+}
+REGISTER("Random", "next_float", Random_next_float);
+static union grug_value Random_next_int(ARGS) {
+    UNUSED;
+    struct obj* o = random_of(a, "Random.next_int");
+    if (!o) return num(0);  // SMOKETEST_EXCL_BRANCH: a report ends the test at the call
+    double b = a[1]._number;
+    if (!is_whole(b) || b < 1 || b > 2147483647.0) return fail("Random.next_int: The bound has to be a whole number from 1 to 2147483647");
+    return num((double)rnd_next_int_from(&o->seed, (uint32_t)b));
+}
+REGISTER("Random", "next_int", Random_next_int);
 static double time_offset;
 static union grug_value Level_get_time(ARGS) { UNUSED; return num((double)cur_tick + time_offset); }
 REGISTER("Level", "get_time", Level_get_time);
@@ -5671,12 +5739,14 @@ static const char* path_problem(const char* path, bool allow_root) {
     return NULL;
 }
 
-// The full path of `path` in one of the mod's two trees, or false after fail(). The path stays inside
-// the tree because every segment is a name and nothing is absolute.
-static bool tree_path(const char* mod, bool shipped, const char* path, bool allow_root, const char* who, char* out, size_t cap) {
-    const char* problem = path_problem(path, allow_root);
-    if (problem) {
-        fail("%s: The path \"%s\" %s", who, path ? path : "(no path)", problem);  // SMOKETEST_EXCL_BRANCH: a grug string is never null
+// The full path of `path` in one of the mod's two trees, or false with the reason in `problem`. The
+// path stays inside the tree because every segment is a name and nothing is absolute. The write that
+// has to answer a refusal rather than report one calls this directly; tree_path is the reporting
+// wrapper every other entry uses.
+static bool build_tree_path(const char* mod, bool shipped, const char* path, bool allow_root, char* out, size_t cap, char* problem, size_t problemcap) {
+    const char* why = path_problem(path, allow_root);
+    if (why) {
+        snprintf(problem, problemcap, "The path \"%s\" %s", path ? path : "(no path)", why);  // SMOKETEST_EXCL_BRANCH: a grug string is never null
         return false;
     }
     char root[4096];
@@ -5684,17 +5754,26 @@ static bool tree_path(const char* mod, bool shipped, const char* path, bool allo
                     : snprintf(root, sizeof root, "%s/grug_mod_files/%s/files", g_game_dir, mod);
     // SMOKETEST_EXCL_START: a temp and repository path this long cannot be built in a test
     if (n < 0 || (size_t)n >= sizeof root) {
-        fail("%s: the mod's directory path is too long", who);
+        snprintf(problem, problemcap, "the mod's directory path is too long");
         return false;
     }
     // SMOKETEST_EXCL_STOP
     n = snprintf(out, cap, "%s/%s", root, path);
     // SMOKETEST_EXCL_START: a path this long cannot be built in a test
     if (n < 0 || (size_t)n >= cap) {
-        fail("%s: the path \"%s\" is too long", who, path);
+        snprintf(problem, problemcap, "the path \"%s\" is too long", path);
         return false;
     }
     // SMOKETEST_EXCL_STOP
+    return true;
+}
+
+static bool tree_path(const char* mod, bool shipped, const char* path, bool allow_root, const char* who, char* out, size_t cap) {
+    char problem[512];
+    if (!build_tree_path(mod, shipped, path, allow_root, out, cap, problem, sizeof problem)) {
+        fail("%s: %s", who, problem);
+        return false;
+    }
     return true;
 }
 
@@ -5975,47 +6054,94 @@ static const char* case_clash_in_path(const char* mod, const char* path) {
     }
     return NULL;
 }
-static union grug_value File_write_text(ARGS) {
-    UNUSED;
-    const char* mod = file_mod(a, "File.write_text");
-    if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
-    const char* path = a[1]._string, *text = a[2]._string;
+// A write's outcome: it landed, the host's rules refused it (the path, a case clash, the cap), or
+// the filesystem failed one the rules allowed.
+enum { WRITE_LANDED, WRITE_REFUSED, WRITE_FS_FAILED };
+// The write itself, shared by write_text and try_write_text, with the report for a non-landed write
+// in `problem`.
+static int file_write(const char* mod, const char* path, const char* text, char* problem, size_t cap) {
     char full[4096];
-    if (!tree_path(mod, false, path, false, "File.write_text", full, sizeof full)) return none();  // SMOKETEST_EXCL_BRANCH: a refused path ends the test at the call
+    if (!build_tree_path(mod, false, path, false, full, sizeof full, problem, cap)) return WRITE_REFUSED;
     const char* clash = case_clash_in_path(mod, path);
-    if (clash)
-        return fail("File.write_text: The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", path, clash);
+    if (clash) {
+        snprintf(problem, cap, "The path \"%s\" differs only in case from \"%s\", which is one file on Windows and two on this system, so it is not a portable file name.", path, clash);
+        return WRITE_REFUSED;
+    }
     struct stat st;
-    long previous = lstat(full, &st) == 0 && S_ISREG(st.st_mode) ? mod_file_charge((long)st.st_size) : 0;  // SMOKETEST_EXCL_BRANCH: the only other existing kind a write names is a directory, whose refusal the rename reports with a platform message no cross-loader test can assert
+    long previous = lstat(full, &st) == 0 && S_ISREG(st.st_mode) ? mod_file_charge((long)st.st_size) : 0;
     char root[4096];
     snprintf(root, sizeof root, "%s/grug_mod_files/%s/files", g_game_dir, mod);
     long total = 0, after;
     total_bytes_in(root, &total);
     after = total - previous + mod_file_charge((long)strlen(text)) + pending_dirs(root, full);
-    if (after > mod_file_cap)
-        return fail("File.write_text: Writing \"%s\" would make the mod's files directory %ld bytes, over the %ld-byte cap.", path, after, mod_file_cap);
+    if (after > mod_file_cap) {
+        snprintf(problem, cap, "Writing \"%s\" would make the mod's files directory %ld bytes, over the %ld-byte cap.", path, after, mod_file_cap);
+        return WRITE_REFUSED;
+    }
     char parent[4096];
     snprintf(parent, sizeof parent, "%s", full);
     *strrchr(parent, '/') = 0;
-    if (!make_dirs(parent)) return fail("File.write_text: cannot create %s", parent);  // SMOKETEST_EXCL_BRANCH: a directory of the host's own temp tree is always creatable
+    if (!make_dirs(parent)) {
+        snprintf(problem, cap, "cannot create %s", parent);
+        return WRITE_FS_FAILED;  // SMOKETEST_EXCL: a directory of the host's own temp tree is always creatable
+    }
     char temp_dir[4096];
     snprintf(temp_dir, sizeof temp_dir, "%s/grug_mod_files/.tmp", g_game_dir);
-    if (!make_dirs(temp_dir)) return fail("File.write_text: cannot create %s", temp_dir);  // SMOKETEST_EXCL_BRANCH: a directory of the host's own temp tree is always creatable
+    if (!make_dirs(temp_dir)) {
+        snprintf(problem, cap, "cannot create %s", temp_dir);
+        return WRITE_FS_FAILED;  // SMOKETEST_EXCL: a directory of the host's own temp tree is always creatable
+    }
     char temp[4200];
     snprintf(temp, sizeof temp, "%s/.grug-write-XXXXXX", temp_dir);
     int fd = mkstemp(temp);
-    if (fd < 0) return fail("File.write_text: cannot make a temporary file in %s", parent);  // SMOKETEST_EXCL_BRANCH: the host's own temp tree always accepts one
+    if (fd < 0) {
+        snprintf(problem, cap, "cannot make a temporary file in %s", parent);
+        return WRITE_FS_FAILED;  // SMOKETEST_EXCL: the host's own temp tree always accepts one
+    }
     size_t off = 0, size = strlen(text);
     while (off < size) {
         ssize_t w = write(fd, text + off, size - off);
-        if (w <= 0) { close(fd); unlink(temp); return fail("File.write_text: cannot write %s", full); }  // SMOKETEST_EXCL_BRANCH: a file of the host's own temp tree always accepts its bytes
+        if (w <= 0) {
+            close(fd);
+            unlink(temp);
+            snprintf(problem, cap, "cannot write %s", full);
+            return WRITE_FS_FAILED;  // SMOKETEST_EXCL: a file of the host's own temp tree always accepts its bytes
+        }
         off += (size_t)w;
     }
-    if (close(fd) != 0) { unlink(temp); return fail("File.write_text: cannot close %s", full); }  // SMOKETEST_EXCL_BRANCH: closing a file of the host's own temp tree does not fail
-    if (rename(temp, full) != 0) { unlink(temp); return fail("File.write_text: cannot rename %s", full); }  // SMOKETEST_EXCL_BRANCH: renaming within the host's own temp tree does not fail
+    if (close(fd) != 0) {
+        unlink(temp);
+        snprintf(problem, cap, "cannot close %s", full);
+        return WRITE_FS_FAILED;  // SMOKETEST_EXCL: closing a file of the host's own temp tree does not fail
+    }
+    // A target that is a directory is the failure a committed test makes, with a directory in the
+    // way of the rename; every other arm above is one the host's own temp tree cannot hit.
+    if (rename(temp, full) != 0) {
+        unlink(temp);
+        snprintf(problem, cap, "cannot rename %s", full);
+        return WRITE_FS_FAILED;
+    }
+    return WRITE_LANDED;
+}
+static union grug_value File_write_text(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.write_text");
+    if (!mod) return none();  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    char problem[4200];
+    if (file_write(mod, a[1]._string, a[2]._string, problem, sizeof problem) != WRITE_LANDED) return fail("File.write_text: %s", problem);
     return none();
 }
 REGISTER("File", "write_text", File_write_text);
+static union grug_value File_try_write_text(ARGS) {
+    UNUSED;
+    const char* mod = file_mod(a, "File.try_write_text");
+    if (!mod) return boolean(false);  // SMOKETEST_EXCL_BRANCH: no committed test calls a failed File.open's handle
+    char problem[4200];
+    int outcome = file_write(mod, a[1]._string, a[2]._string, problem, sizeof problem);
+    if (outcome == WRITE_REFUSED) return fail("File.try_write_text: %s", problem);
+    return boolean(outcome == WRITE_LANDED);
+}
+REGISTER("File", "try_write_text", File_try_write_text);
 
 // The test world's name and dimension. The name is not asserted beyond being non-empty, because a
 // joined client answers the address it dialled (or MpServer on the oldest loaders) and never the
@@ -6164,6 +6290,7 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
     nblockdefs = 0;
     max_ticks = 200;
     rnd_reset();
+    rnd_unseeded = 0;
     memset(inv, 0, sizeof inv);
     time_offset = 0;
     operator_status = true;

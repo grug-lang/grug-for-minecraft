@@ -2033,8 +2033,28 @@
 						}
 					]
 				},
+				"try_write_text": {
+					"description": "The same write as `write_text`, answering whether it landed rather than reporting one the filesystem refused, for a caller that has something to keep and carry on with either way. A path the host refuses, a name that differs only in case from an existing entry, and a write that would pass the 16 MiB cap are reported exactly as `write_text` reports them, because those are the host's rules and not the filesystem's answer. Only a write the filesystem itself fails, such as a directory in the way of the rename or a full disk, answers false, and it leaves what was there, as every failed write does. A caller that would have nothing to do with a failed write still uses `write_text`, whose failure is reported.",
+					"return_type": {
+						"name": "bool"
+					},
+					"parameters": [
+						{
+							"name": "path",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "text",
+							"type": {
+								"name": "string"
+							}
+						}
+					]
+				},
 				"write_text": {
-					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the game directory, outside every mod's files directory, and are renamed over the target. The bytes are flushed to the disk before the rename, and the target's directory after it where the platform can flush a directory, so a crash or a power loss leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. A temporary file a crash leaves behind is in no mod's directory, so no read or listing sees it and no byte count includes it. The mod's whole written directory is charged one filesystem block of 4096 bytes per entry, a file's own size when larger and one block for a file smaller than that or for a directory, the directories the write creates included, against a cap of 16 MiB (16777216 bytes), so at most 4096 entries fit whatever their sizes. A write that would pass the cap is reported with the charge it would reach, and nothing is written.",
+					"description": "Writes `text` to `path` as UTF-8, creating the directories it needs. The write is atomic: the bytes go to a temporary file in the game directory, outside every mod's files directory, and are renamed over the target. The bytes are flushed to the disk before the rename, and the target's directory after it where the platform can flush a directory, so a crash or a power loss leaves either the old text or the new one and never half of it, and a write that fails leaves what was there. A temporary file a crash leaves behind is in no mod's directory, so no read or listing sees it and no byte count includes it. The mod's whole written directory is charged one filesystem block of 4096 bytes per entry, a file's own size when larger and one block for a file smaller than that or for a directory, the directories the write creates included, against a cap of 16 MiB (16777216 bytes), so at most 4096 entries fit whatever their sizes. A write that would pass the cap is reported with the charge it would reach, and nothing is written. A write that fails is reported, because this call has no answer to give; a caller that keeps what it had and carries on uses `try_write_text` instead.",
 					"parameters": [
 						{
 							"name": "path",
@@ -3694,6 +3714,59 @@
 					"return_type": {
 						"name": "Vec3"
 					}
+				}
+			}
+		},
+		"Random": {
+			"description": "A random stream a mod owns, which is Java's `java.util.Random` itself: an unseeded one draws from the clock and the JVM's own counter, so two of them answer different sequences, and a seeded one repeats the sequence Java specifies for its seed, so two of them answer the same values on every loader and in every run. A mod that wants a colour, a position or a pick of its own keeps one of these instead of drawing from the level's random, because `Level.random_int`, `Level.random_float` and `Level.random_gaussian` advance the sequence a world's own behaviour depends on: a draw from them changes what the game does on that seed. The reference's own `new Random()` is this class, so a value it would print is the value this class draws.",
+			"methods": {
+				"next_double": {
+					"description": "The stream's next value, from 0 up to but not including 1, which is what Java's `Random.nextDouble` answers: Java draws 53 random bits and divides them by 2^53, so this is the wider draw, and the stream advances by the two draws that takes. It is the draw the reference makes for its two Set random buttons, which set the sliders to `random.nextDouble()` and then narrow the value to a float for the colour; a grug `number` is a double, so the port keeps the double the reference draws and does not emulate the narrowing.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"next_float": {
+					"description": "The stream's next value, from 0 up to but not including 1, which is what Java's `Random.nextFloat` answers, and the stream advances by that one draw. The value is a float, so it has 24 bits of mantissa where a double has 53, and `String.from_float` writes it back as the text the reference's own file holds. It is the draw the reference makes for a new shape set's two colours.",
+					"return_type": {
+						"name": "number"
+					}
+				},
+				"next_int": {
+					"description": "The stream's next whole number, from 0 up to but not including `bound`, which is what Java's `Random.nextInt(bound)` answers; the stream advances by the draws that answer takes, including Java's own rejection loop, so a seeded stream stays the sequence Java specifies. `bound` has to be a whole number from 1 to 2147483647, and a bound that is not is reported rather than rounded or truncated, because a bound of 0 names no value and a fractional or larger one names a size Java's own method refuses.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "bound",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				}
+			},
+			"static_methods": {
+				"new": {
+					"description": "A new stream with no seed, as the reference's own `new Random()` makes one: the host seeds it from the clock and a counter every new stream moves, so two made in one tick still differ, and it is the draw the reference makes for a new set's colours and for its two Set random buttons.",
+					"return_type": {
+						"name": "Random"
+					}
+				},
+				"new_seeded": {
+					"description": "A new stream that repeats Java's sequence for `seed`, so two streams made with the same seed answer the same draws on every loader and in every run, which is what makes a random behaviour testable. `seed` has to be a whole number a Java long holds, from -9223372036854775808 to 9223372036854775807, and a seed that is not is reported and the call answers a stream seeded as `Random.new` would, rather than rounding the seed.",
+					"return_type": {
+						"name": "Random"
+					},
+					"parameters": [
+						{
+							"name": "seed",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				}
 			}
 		},

@@ -1,0 +1,8 @@
+# next_int draws from 0 up to but not including its bound, so a bound below 1 cannot name a number
+# and must be reported rather than hand Java's Random.nextInt an argument it refuses (#1752).
+export tick(ctx: TestTickContext) {
+    stream: Random = Random.new_seeded(1.0)
+
+    ctx.expect_error("The bound has to be a whole number from 1 to")
+    value: number = stream.next_int(0)
+}

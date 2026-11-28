@@ -290,7 +290,7 @@ export render_world(ctx: OverlayWorldContext) {
         _ensure_config(files)
         _ensure_state(files, level, name, dimension, key, x, y, z)
     }
-    _apply_pending(level, x, y, z)
+    _apply_pending(x, y, z)
     if active_screen != "" {
         _count_all(ctx)
     }
@@ -340,7 +340,7 @@ export world_binding(ctx: OverlayWorldBindingContext) {
 export screen_init(ctx: ScreenInitContext) {
     width: number = ctx.screen_width()
     if state_loaded and world_level.has() {
-        _state_check(world_level.unwrap(), world_x, world_y, world_z)
+        _state_check(world_x, world_y, world_z)
     }
     if active_screen == "configuration" {
         _configuration_init(width)
@@ -442,9 +442,10 @@ export screen_list_row(ctx: ListRowResponse) {
 # BaseScreen.onScreenClosed saves the whole state when persistence is on and something changed since
 # the last save, and then clears its shouldUpdatePersistence flag. The port has no flag: the state
 # text is the whole of what is saved, so a text equal to the one last written is a close with nothing
-# to save. The one difference is a rewrite of identical bytes, which the reference makes when its
-# flag was set by a mutation that is not persisted, such as adding a shape's properties; no byte of
-# the file moves either way.
+# to save. A refused save leaves that text and its flag alone, so the next close retries it, as the
+# reference's flag stays set. The one difference is a rewrite of identical bytes, which the reference
+# makes when its flag was set by a mutation that is not persisted, such as adding a shape's
+# properties; no byte of the file moves either way.
 # Escape reaches this through a mod screen's close, and so does a tab press, because opening a screen
 # over an open one asks the open one to close first.
 
@@ -1819,11 +1820,11 @@ local _cube_size(set: string, key: string, fallback: number) number {
 # String.from_float and String.from_double, which is Java 19 and later's own text on every JDK.
 
 # Reads the config once and keeps its three values as "async,random,persistence".
-# Config's constructor writes the default file when there is none, else loads it and rewrites it whole
-# when a key is missing, keeping the values the file held. Config.load catches the IOException a
-# refused write raises and keeps what it parsed, so the values are assigned and the flag is set
-# before the write: a write the host refuses ends this call once, instead of aborting every frame
-# (#1846).
+# Config's constructor loads the file, writing the default one when there is none and rewriting it
+# whole when a key is missing, and Config.load catches the IOException a refused write raises, prints
+# it and keeps the values it parsed. write_text's host error is the print here: it ends the call that
+# made it, so the values are assigned and the flag is set before the write, and a refused file leaves
+# them in use for the next frame, as the reference's catch does.
 
 local _ensure_config(files: File) {
     if config_loaded {
@@ -1836,6 +1837,9 @@ local _ensure_config(files: File) {
     }
     config_loaded = true
     if not text.has() or _config_missing(text.unwrap()) {
+        # Config.load writes the defaults it is missing, and Config.write catches the IOException and
+        # prints it, keeping the values it has. The host reports a refused write the same way, by
+        # printing it and ending this call, and the defaults are already in use.
         files.write_text("config/buildguide.cfg", _config_text(config_values))
     }
 }
@@ -3042,13 +3046,13 @@ local _index_from(text: string, needle: string, from: number) number {
 # reference's three keys are unbound by default and this port's defaults are a deviation that
 # about.json records (#1752).
 
-local _apply_pending(level: Level, x: number, y: number, z: number) {
+local _apply_pending(x: number, y: number, z: number) {
     if pending_toggle > 0 {
         flips: number = pending_toggle
         pending_toggle = 0
         # ShapeSet.updateAllShapes runs after pushNewShapeSet, but a set is generated inside the
         # frame here, so the first draw already sees the new set's shapes.
-        _state_check(level, x, y, z)
+        _state_check(x, y, z)
         flip: bool = false
         while flips > 0 {
             flip = not flip
@@ -3085,17 +3089,16 @@ local _apply_pending(level: Level, x: number, y: number, z: number) {
 # runs it once per State, from the toggle key and from a screen's own init. A new set goes through
 # pushNewShapeSet, which starts at
 # iShapeNew, takes its origin from the player and gets random colours when the config asks for them;
-# the colours come from the level's own random because grug has no unseeded generator to hand, and
-# every draw is uniform the same way the reference's `new Random()` draws are. The text form always
-# carries an origin, as the reference's loaded ShapeSet does, so the second rule is the same safety
-# net here that it is there.
+# the reference's own `new Random()` is the stream here too, so a draw moves no sequence the world's
+# own behaviour depends on. The text form always carries an origin, as the reference's loaded
+# ShapeSet does, so the second rule is the same safety net here that it is there.
 
-local _state_check(level: Level, x: number, y: number, z: number) {
+local _state_check(x: number, y: number, z: number) {
     if state_initialised {
         return
     }
     if _state_set_count() == 0 {
-        _state_push_set(level, x, y, z)
+        _state_push_set(x, y, z)
     }
     count: number = _state_set_count()
     i: number = 0
@@ -3112,12 +3115,13 @@ local _state_check(level: Level, x: number, y: number, z: number) {
 # State.pushNewShapeSet: the shape iShapeNew names, the player's feet as its origin, and the random
 # colours the config asks for.
 
-local _state_push_set(level: Level, x: number, y: number, z: number) {
+local _state_push_set(x: number, y: number, z: number) {
     index: number = _clamp(_int_or(_state_field(state, "iShapeNew", "1"), 1), 0, _shape_count() - 1)
     set: string = _set_new(index, x, y, z)
     if _config_random(config_values) {
-        set = _set_with_field(set, "shapeColour", _random_colour(level, "0.5"))
-        set = _set_with_field(set, "originColour", _random_colour(level, "0.5"))
+        random: Random = Random.new()
+        set = _set_with_field(set, "shapeColour", _random_colour(random, "0.5"))
+        set = _set_with_field(set, "originColour", _random_colour(random, "0.5"))
     }
     state = _state_append_set(state, set)
 }
@@ -3148,13 +3152,11 @@ local _config_random(values: string) bool {
     return _piece(values, ",", 1) == "true"
 }
 
-# A new set's colour from the level's random, three draws and the alpha the set already has, in the
-# text Float.toString gives a float, which is String.from_float. The reference makes a new Random and
-# draws from it, so its draws do not touch the level's sequence; this port's do, which about.json
-# records (#1846).
+# A new set's colour from the stream the set was made with, three draws and the alpha the set already
+# has, in the text Float.toString gives a float, which is String.from_float.
 
-local _random_colour(level: Level, alpha: string) string {
-    return String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.concat(String.from_float(level.random_float()), ","), String.concat(String.from_float(level.random_float()), String.concat(",", alpha))))
+local _random_colour(random: Random, alpha: string) string {
+    return String.concat(String.concat(String.from_float(random.next_float()), ","), String.concat(String.concat(String.from_float(random.next_float()), ","), String.concat(String.from_float(random.next_float()), String.concat(",", alpha))))
 }
 
 local _state_with_field(text: string, key: string, value: string) string {
@@ -3623,20 +3625,18 @@ local _visual_set_shape_colour() {
     _visual_write("shapeColour", _visual_colour_text(v_shape_r.unwrap().value(), v_shape_g.unwrap().value(), v_shape_b.unwrap().value(), v_shape_a.unwrap().value()))
 }
 
-# setShapeColour with three fresh draws and the slider's own alpha. The reference makes a new Random,
-# so its sequence is untouched; this port draws from the level, which about.json records (#1846).
+# setShapeColour with three fresh draws and the slider's own alpha. The reference makes a new Random
+# for the press and sets each slider to random.nextDouble(), so the port draws the same double; a
+# grug number is a double, and the color is not narrowed to a float the way the reference's cast is.
 
 local _visual_random_shape() {
     if _state_set_count() == 0 {
         return
     }
-    if not world_level.has() {
-        return
-    }
-    level: Level = world_level.unwrap()
-    r: number = level.random_float()
-    g: number = level.random_float()
-    b: number = level.random_float()
+    random: Random = Random.new()
+    r: number = random.next_double()
+    g: number = random.next_double()
+    b: number = random.next_double()
     _visual_put_slider(v_shape_r.unwrap(), "R", r)
     _visual_put_slider(v_shape_g.unwrap(), "G", g)
     _visual_put_slider(v_shape_b.unwrap(), "B", b)
@@ -3668,13 +3668,10 @@ local _visual_random_origin() {
     if _state_set_count() == 0 {
         return
     }
-    if not world_level.has() {
-        return
-    }
-    level: Level = world_level.unwrap()
-    r: number = level.random_float()
-    g: number = level.random_float()
-    b: number = level.random_float()
+    random: Random = Random.new()
+    r: number = random.next_double()
+    g: number = random.next_double()
+    b: number = random.next_double()
     _visual_put_slider(v_origin_r.unwrap(), "R", r)
     _visual_put_slider(v_origin_g.unwrap(), "G", g)
     _visual_put_slider(v_origin_b.unwrap(), "B", b)
@@ -3829,7 +3826,9 @@ local _bool_text(value: bool) string {
     return "false"
 }
 
-# Config.write: the whole file, comments and values, at the path Config's constructor reads.
+# Config.write: the whole file, comments and values, at the path Config's constructor reads. A refused
+# write is the host's error here, which prints it as Config.write's catch does, and the values were
+# set before it.
 
 local _config_write() {
     files: File = File.open(r"files")
@@ -3926,9 +3925,13 @@ local _state_save() {
         return
     }
     files: File = File.open(r"files")
-    files.write_text(_state_path(world_name, world_dimension), text)
-    persistence_text = text
-    persistence_written = true
+    # State.savePersistence throws on a refused write and BaseScreen.onScreenClosed catches it and
+    # leaves shouldUpdatePersistence set, so the next close tries again. The written text and flag
+    # move only when the write landed, which makes this close's save retry the next one.
+    if files.try_write_text(_state_path(world_name, world_dimension), text) {
+        persistence_text = text
+        persistence_written = true
+    }
 }
 
 # ShapelistScreen's seventeen widgets and the list of sets beside them. The three origin fields show
@@ -4122,7 +4125,7 @@ local _shapelist_add() {
         return
     }
     count: number = _state_set_count()
-    _state_push_set(world_level.unwrap(), world_x, world_y, world_z)
+    _state_push_set(world_x, world_y, world_z)
     state = _state_with_field(state, "iShapeSet", String.from_number(count))
     list: Widget = s_list.unwrap()
     list.set_rows(count + 1)

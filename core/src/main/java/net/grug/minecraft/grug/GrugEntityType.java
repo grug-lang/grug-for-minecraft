@@ -42,7 +42,8 @@ public enum GrugEntityType {
     Widget,
     ScreenInitContext,
     ScreenWidgetContext,
-    ListRowResponse;
+    ListRowResponse,
+    Random;
 
     private static final GrugEntityType[] values = GrugEntityType.values();
 
