@@ -14,6 +14,12 @@ export tick(ctx: TestTickContext) {
     ctx.assert(chest.offer_liquid_here("minecraft:water", 1000, 0, true) == -1, "A chest should answer -1 for an offer to one block.")
     ctx.assert(chest.take_liquid_here(1000, true) == -1, "A chest should answer -1 for a take from one block.")
 
+    # The same answers through a real grug handle, whose liquid exports are simply not there.
+    level.place_block(x, y + 1, z, "grug:coverage_init_block")
+    plain: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    ctx.assert(plain.offer_liquid_here("minecraft:water", 1000, 0, true) == -1, "A block entity with no offer should answer -1 for one block.")
+    ctx.assert(plain.take_liquid_here(1000, true) == -1, "A block entity with no take should answer -1 for one block.")
+
     level.place_block(x + 2, y, z, "grug:coverage_response_block")
     container: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
     ctx.assert(container.offer_liquid_here("minecraft:flowing_water", 1000, 0, true) == 1000, "One block's offer should take what it was offered.")
