@@ -103,8 +103,9 @@ export tick(ctx: TestTickContext) {
 
     if step == 4 {
         ctx.assert(_text(ctx) == "text1", "A typed 1 should land at the end of the field's text.")
-        # Backspace removes the character before the caret.
-        ctx.press_screen_key(259, false, false, true)
+        # Backspace removes the character before the caret. The API's backspace is 8, not the 259
+        # the GLFW numbering gives it, and the caret keys below use the GLFW codes the API names.
+        ctx.press_screen_key(8, false, false, true)
         step = 5
         ctx.not_done()
         return
