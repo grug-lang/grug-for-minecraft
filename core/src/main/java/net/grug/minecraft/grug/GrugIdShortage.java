@@ -1,10 +1,13 @@
 package net.grug.minecraft.grug;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A kind of resource, ids or sprites, that grug's mods need more of than a game before 1.7 has
@@ -23,11 +26,20 @@ public final class GrugIdShortage {
     private final int free;
     private final Map<String, Integer> needsByMod;
 
-    private GrugIdShortage(String kind, int needed, int free, Map<String, Integer> needsByMod) {
+    /** The mods that need each thing, or null when it was recorded as a count of each mod's own. */
+    private final Map<String, List<String>> modsByKey;
+
+    private GrugIdShortage(
+            String kind,
+            int needed,
+            int free,
+            Map<String, Integer> needsByMod,
+            Map<String, List<String>> modsByKey) {
         this.kind = kind;
         this.needed = needed;
         this.free = free;
         this.needsByMod = needsByMod;
+        this.modsByKey = modsByKey;
     }
 
     /** Remembers that the mods need {@code needed} of the kind and only {@code free} are free. */
@@ -38,7 +50,34 @@ public final class GrugIdShortage {
                         kind,
                         needed,
                         free,
-                        Collections.unmodifiableMap(new HashMap<>(needsByMod))));
+                        Collections.unmodifiableMap(new HashMap<>(needsByMod)),
+                        null));
+    }
+
+    /**
+     * Remembers a shortage of slots, where two mods can need the same one: each key is one slot of
+     * the kind and holds every mod that needs it, so the slot is only freed once all of them are
+     * turned off (#1921).
+     */
+    static synchronized void recordSlots(
+            String kind,
+            int needed,
+            int free,
+            Map<String, ? extends Collection<String>> modsByKey) {
+        Map<String, Integer> needsByMod = new HashMap<>();
+        Map<String, List<String>> held = new HashMap<>();
+        for (Map.Entry<String, ? extends Collection<String>> key : modsByKey.entrySet()) {
+            Set<String> mods = new LinkedHashSet<>(key.getValue());
+            held.put(key.getKey(), Collections.unmodifiableList(new ArrayList<>(mods)));
+            for (String mod : mods) needsByMod.merge(mod, 1, Integer::sum);
+        }
+        recorded.add(
+                new GrugIdShortage(
+                        kind,
+                        needed,
+                        free,
+                        Collections.unmodifiableMap(needsByMod),
+                        Collections.unmodifiableMap(held)));
     }
 
     /** Every kind of resource that is short, in the order the loader found out. */
@@ -102,5 +141,32 @@ public final class GrugIdShortage {
     /** How many of the kind a mod needs, by the name of its directory. */
     public int needs(String mod) {
         return needsByMod.getOrDefault(mod, 0);
+    }
+
+    /**
+     * How many of the kind turning off {@code off} would give back: one for each slot whose every
+     * user is off, so a slot two mods share counts only when both are (#1921). A shortage recorded
+     * as a count of each mod's own is freed per mod, as it has no shared slot to hold back.
+     */
+    public int freed(Collection<String> off) {
+        if (modsByKey == null) {
+            int freed = 0;
+            for (Map.Entry<String, Integer> need : needsByMod.entrySet()) {
+                if (off.contains(need.getKey())) freed += need.getValue();
+            }
+            return freed;
+        }
+        int freed = 0;
+        for (List<String> mods : modsByKey.values()) {
+            boolean everyOff = true;
+            for (String mod : mods) {
+                if (!off.contains(mod)) {
+                    everyOff = false;
+                    break;
+                }
+            }
+            if (everyOff) freed++;
+        }
+        return freed;
     }
 }

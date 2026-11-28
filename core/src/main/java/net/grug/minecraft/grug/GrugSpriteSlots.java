@@ -1,6 +1,10 @@
 package net.grug.minecraft.grug;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,30 +65,39 @@ public final class GrugSpriteSlots {
     }
 
     /**
-     * The slots the blocks need, keyed the way {@link Allocator#hasRoomFor} counts them and valued
-     * by the mod that needs each: one entry per distinct face texture, because two blocks that name
-     * the same texture share a slot, and one entry per block whose faces do not resolve, because it
-     * falls back to a slot of its own.
+     * The slots the blocks need, keyed the way {@link Allocator#hasRoomForSprites} counts them and
+     * valued by every mod that needs each: one entry per distinct face texture, because two blocks
+     * that name the same texture share a slot, and one entry per block whose faces do not resolve,
+     * because it falls back to a slot of its own.
+     *
+     * <p>A texture two mods share lists both, so the screen knows it is freed only when both are
+     * turned off (#1921).
      *
      * @param modByBlock the mod of each block, by the name registration keys it by
      * @param facesByBlock the six face texture references of each block, or null for one whose
      *     model did not resolve
      */
-    public static Map<String, String> blockSpriteNeeds(
+    public static Map<String, List<String>> blockSpriteNeeds(
             Map<String, String> modByBlock, Map<String, String[]> facesByBlock) {
-        Map<String, String> needs = new HashMap<>();
+        Map<String, List<String>> needs = new HashMap<>();
         for (Map.Entry<String, String> block : modByBlock.entrySet()) {
             String[] faces = facesByBlock.get(block.getKey());
             if (faces == null) {
                 // A texture reference always carries a namespace, so it never meets this key.
-                needs.put("block " + block.getKey(), block.getValue());
+                addMod(needs, "block " + block.getKey(), block.getValue());
                 continue;
             }
             for (String face : faces) {
-                needs.put(face, block.getValue());
+                addMod(needs, face, block.getValue());
             }
         }
         return needs;
+    }
+
+    /** Notes that the mod needs the slot for {@code key}, once however many faces name it. */
+    private static void addMod(Map<String, List<String>> needs, String key, String mod) {
+        List<String> mods = needs.computeIfAbsent(key, unused -> new ArrayList<>());
+        if (!mods.contains(mod)) mods.add(mod);
     }
 
     /**
@@ -152,22 +165,39 @@ public final class GrugSpriteSlots {
          *
          * <p>Run before the first slot is taken, so the screen shows what all the mods need rather
          * than where the atlas happened to run out, and so no block is registered with no sprite to
-         * draw. {@link #next()} keeps refusing a caller that ignores this and allocates anyway.
+         * draw. {@link #next()} keeps refusing a caller that ignores this and allocates anyway. A
+         * key two mods share is one slot but is recorded for both, so the screen does not free it
+         * while either mod still needs it (#1921).
          *
          * @param needed how many slots the mods need together
          * @param kind what the slots hold, such as "block sprite", which the screen shows
-         * @param modByKey the mod of each thing that takes a slot, keyed by what the slot is for:
+         * @param modsByKey the mods of each thing that takes a slot, keyed by what the slot is for:
          *     two blocks that name the same texture take one slot, so it is counted once
+         */
+        public boolean hasRoomForSprites(
+                int needed, String kind, Map<String, ? extends Collection<String>> modsByKey) {
+            if (needed <= remaining()) return true;
+
+            GrugIdShortage.recordSlots(kind, needed, remaining(), modsByKey);
+            return false;
+        }
+
+        /**
+         * Whether each thing that takes a slot, one mod to a name, fits in the slots left. See
+         * {@link #hasRoomForSprites}, which a texture two mods share needs.
+         *
+         * @param needed how many slots the mods need together
+         * @param kind what the slots hold, such as "item sprite", which the screen shows
+         * @param modByKey the mod of each thing that takes a slot, keyed by what the slot is for
          */
         public boolean hasRoomFor(int needed, String kind, Map<String, String> modByKey) {
             if (needed <= remaining()) return true;
 
-            Map<String, Integer> needsByMod = new HashMap<>();
-            for (String mod : modByKey.values()) {
-                needsByMod.merge(mod, 1, Integer::sum);
+            Map<String, List<String>> modsByKey = new HashMap<>();
+            for (Map.Entry<String, String> key : modByKey.entrySet()) {
+                modsByKey.put(key.getKey(), Collections.singletonList(key.getValue()));
             }
-            GrugIdShortage.record(kind, needed, remaining(), needsByMod);
-            return false;
+            return hasRoomForSprites(needed, kind, modsByKey);
         }
     }
 }
