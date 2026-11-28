@@ -32,13 +32,11 @@ public final class GrugGuiScale {
 
     /**
      * The scale this version's own window computes for a framebuffer, which is the game's rule and
-     * not a preference: the largest factor whose size still holds 320 by 240.
+     * not a preference: the largest factor whose size still holds 320 by 240, and never below 1.
+     * The window's loop says the same thing, since a size divided by a factor still holds a
+     * dimension exactly when the size holds that dimension times the factor.
      */
     public static int natural(int width, int height) {
-        int scale = 1;
-        while (width / (scale + 1) >= 320 && height / (scale + 1) >= 240) {
-            scale++;
-        }
-        return scale;
+        return Math.max(1, Math.min(width / 320, height / 240));
     }
 }
