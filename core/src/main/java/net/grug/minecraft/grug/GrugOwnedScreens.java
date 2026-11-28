@@ -238,10 +238,10 @@ public final class GrugOwnedScreens {
         }
         screen.setOpen(true);
         openScreen = screen;
-        // A row defect belongs to the open time whose frame asked the row: a test that reads
-        // list_row_error after opening a screen would otherwise see the previous screen's defect,
-        // which may belong to another mod's export (#1760).
-        GrugListRowResponse.clearLastDefect();
+        // A row defect and the count of asked rows belong to the open time whose frames asked the
+        // rows: a test that reads either after opening a screen would otherwise see the previous
+        // screen's, which may belong to another mod's export (#1760).
+        GrugListRowResponse.beginOpenTime();
         adapter.showOwnedScreen(screen);
         return null;
     }
@@ -686,6 +686,7 @@ public final class GrugOwnedScreens {
     private static void askRow(GrugOwnedScreen screen, GrugWidget widget, int index) {
         GrugOverlayScripts.Script script = screen.script();
         if (!canAsk(script, script.screenListRowFnId)) return;
+        GrugListRowResponse.rowAsked();
         GrugListRowResponse response = new GrugListRowResponse(index, widget);
         long responseId =
                 GrugEntities.addEntity(GrugEntityType.ListRowResponse, response, frameRowRoots);

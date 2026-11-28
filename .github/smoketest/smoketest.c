@@ -395,6 +395,9 @@ static bool stubbed;  // the running test called a graphics or capability stub, 
 // TestTickContext.list_row_error, as GrugListRowResponse.lastDefect does in the game.
 static char last_row_error[4096];
 static bool frame_asked_a_row;
+// How many rows the open screen's frames have asked since its open time began, which
+// TestTickContext.rows_asked answers and note_screen_opened starts again at 0.
+static long rows_asked;
 
 struct impl { const char* cls; const char* name; host_fn fn; };
 // An implementation registers itself where it is defined, with REGISTER right after its function,
@@ -4451,6 +4454,7 @@ static void note_screen_opened(void) {
     overlay_screen_serial += 1;
     overlay_drawn = false;
     last_row_error[0] = 0;
+    rows_asked = 0;
     overlay_first_frame_recorded = false;
     overlay_first_frame_cleared = false;
     overlay_key_held = false;
@@ -4483,6 +4487,11 @@ REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
 // does not fail the run, which is what GrugListRowResponse.lastDefect answers in the game.
 static union grug_value TTC_list_row_error(ARGS) { UNUSED; return str(last_row_error); }
 REGISTER("TestTickContext", "list_row_error", TTC_list_row_error);
+// How many rows the open screen's frames have asked since its open time began. An empty
+// list_row_error also holds for a frame that asked no row, so a test proves a row was asked by
+// reading this count before a click and again after the frame drew, as GrugListRowResponse does.
+static union grug_value TTC_rows_asked(ARGS) { UNUSED; return num((double) rows_asked); }
+REGISTER("TestTickContext", "rows_asked", TTC_rows_asked);
 static union grug_value TTC_overlay_first_frame_cleared(ARGS) { UNUSED; return boolean(overlay_first_frame_cleared); }
 REGISTER("TestTickContext", "overlay_first_frame_cleared", TTC_overlay_first_frame_cleared);
 // The point a test parks the cursor at so a capture shows a hover. The smoketest has no window and
@@ -5623,6 +5632,7 @@ static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
         last_row_error[0] = 0;
         frame_asked_a_row = true;
     }
+    rows_asked += 1;
     call_screen_export(s, screen_list_row_fn, &arg, 1);
     r = &objs[rid - 1];
     r->open = false;

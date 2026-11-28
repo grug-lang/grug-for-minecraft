@@ -973,6 +973,22 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: how many rows the open screen's {@code screen_list_row} export has been asked
+     * since that screen's open time began, which is 0 for a screen whose frame has asked none.
+     *
+     * <p>A row is asked by the screen's frame pass, between two ticks of the test, so an export
+     * that answers within the rules leaves {@link #TestTickContext_list_row_error} empty, and that
+     * answer also holds for a frame that asked no row because those rows belong to the last frame
+     * that did. A test reads this count before the click that changes a tab and again after the
+     * frame drew: a count that grew is the positive proof that the frame asked a row, which the
+     * empty error alone is not. See #1760.
+     */
+    public static double TestTickContext_rows_asked(long contextId) {
+        if (!requireTickContext("TestTickContext.rows_asked", contextId)) return 0.0;
+        return GrugListRowResponse.askedRows();
+    }
+
+    /**
      * Test only: whether this loader ever asked an overlay's exports, which is how a test tells a
      * loader that draws overlays on the inventory and container screens from one that does not. The
      * answer stays false on a loader with no overlay, so a test that needs the overlay to have

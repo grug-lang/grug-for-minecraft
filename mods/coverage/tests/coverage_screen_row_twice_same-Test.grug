@@ -139,6 +139,9 @@ export tick(ctx: TestTickContext) {
         }
         ctx.assert(String.index_of(reported, "already been answered") >= 0, "Answering a row twice should report that it was already answered, even with the same text.")
         ctx.assert(twice.unwrap().change_from(normal.unwrap()) < 1, "The row should still show the first answer, because a second one is refused.")
+        # The screen's open time has asked rows by now, which is what lets a test tell an asked row
+        # from a frame that asked none: the empty error of an unasked frame survives from that frame.
+        ctx.assert(ctx.rows_asked() > 0, "The open screen's frames should have asked the list's row.")
         ctx.close_screen()
     }
 }

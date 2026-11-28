@@ -5,9 +5,14 @@
 # box is too large to generate and draws no cells rather than stalling the frame. Next, the M and I
 # boundaries are typed and stepped into, and the saved line proves neither was stored where a load
 # would refuse it. Last, the overlay is turned on and each shape takes an oversize value in turn
-# (a Circle and a Torus of radius 10000, a Sphere of 1e20 and a Circle of Infinity); the world mark
-# after each proves the frame counted and drew its origin cube, so no case stalls or reports an
-# error, and the saved line proves the value survives a reload.
+# (a Circle and a Torus of radius 10000, a Sphere and an Ellipsoid of 1e20, and a Circle of
+# Infinity); the world mark after each proves the frame drew the stalled set's origin cube, and the
+# saved line proves the value survives a reload and that the set's transient generation state never
+# reaches the file. A Catenary whose first solve leaves the finite range then takes the reference's
+# error arm: the screen and the frame keep running, both the stalled and the errored set answer their
+# shape list row without breaking a row rule, and the value is saved. The 0 counts and the indicator
+# glyph while generating, the red error colour and the green to white fade are drawn pixels that no
+# test entry reads, so the capture suite is their only proof and this test claims none of them.
 # Every proof is read back from the saved state, because the widgets and their positions are the
 # host's and no test entry reads their pixels; a click a hidden or missing widget ignored therefore
 # shows up as a value the state did not take.
@@ -21,6 +26,7 @@ presses: number = 0
 was_persistent: bool = false
 start_origin_x: number = 0
 start_count: number = 0
+rows_before: number = 0
 
 export init(ctx: TestInitContext) {
     # The tab switch and the four oversize shapes add enough one-click ticks that the default 200 is
@@ -1187,6 +1193,7 @@ export tick(ctx: TestTickContext) {
         presses = 0
         state: string = _saved_state(ctx)
         ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeCircle") == "X,Infinity,1,false", "An infinite Circle radius should be kept, and the set should still load with it.")
+        ctx.assert(String.index_of(state, "gen=") < 0, "A stalled set's generation state should never reach the saved file.")
         step = 123
         ctx.press_world_key(72, false)
         ctx.not_done()
@@ -1201,6 +1208,305 @@ export tick(ctx: TestTickContext) {
             return
         }
         waited = 0
+        step = 142
+        ctx.not_done()
+        return
+    }
+
+    if step == 142 {
+        # An Ellipsoid's box is not guarded before this change, so this set is the state the branch
+        # adds: on the old code the frame walks 2e20 cubed positions and never returns, while here it
+        # draws the origin cube and leaves the shape generating with no cells.
+        ctx.press_world_key(66, false)
+        step = 143
+        ctx.not_done()
+        return
+    }
+
+    if step == 143 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the huge ellipsoid.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        step = 144
+        ctx.not_done()
+        return
+    }
+
+    if step == 144 {
+        # The shape dropdown opens at its top, and row 5, Ellipsoid, is at y 190 to 210.
+        ctx.scroll_screen(85, 100, 8)
+        step = 145
+        ctx.not_done()
+        return
+    }
+
+    if step == 145 {
+        ctx.click_screen(85, 200, 0)
+        step = 146
+        ctx.not_done()
+        return
+    }
+
+    if step == 146 {
+        # Ellipsoid's X radius is row 0, and 1e20 makes its box 2e20+1 positions on every axis.
+        _type_property(ctx, 0, "1e20")
+        step = 147
+        ctx.not_done()
+        return
+    }
+
+    if step == 147 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 148
+        ctx.not_done()
+        return
+    }
+
+    if step == 148 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the huge ellipsoid.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        ctx.assert(_reloaded_shape_values(_set_line(state, _current_index(state)), "brentmaas.buildguide.common.shape.ShapeEllipsoid") == "1.0E20,3.0,3.0,NO,false", "An Ellipsoid radius of 1e20 should be kept, and the set should still load with it.")
+        ctx.assert(String.index_of(state, "gen=") < 0, "A stalled set's generation state should never reach the saved file.")
+        step = 149
+        ctx.press_world_key(72, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 149 {
+        if not ctx.world_overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A frame with an Ellipsoid radius of 1e20 should still draw.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        step = 125
+        ctx.not_done()
+        return
+    }
+
+    if step == 125 {
+        # A live Catenary whose first solve leaves the finite range is the reference's error arm. The
+        # shape is ready with no cells and its row is red, and both are pixels no test entry reads, so
+        # the capture suite is their proof. This proves the frame and the screen keep running, that
+        # the row export of the stalled and then the errored set answers a frame without breaking its
+        # rules, that the value is saved, and that no transient generation state reaches the file.
+        ctx.press_world_key(66, false)
+        step = 126
+        ctx.not_done()
+        return
+    }
+
+    if step == 126 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen for the catenary.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Shape list tab is the third chrome button, at x 255 to 375 and y 30 to 50. The Shape
+        # tab with its dropdown closed asks no row, so the count read here can only grow from the
+        # list tab's rows, and the step after the click proves a row was asked rather than only that
+        # no answer was wrong.
+        rows_before = ctx.rows_asked()
+        ctx.click_screen(265, 40, 0)
+        step = 137
+        ctx.not_done()
+        return
+    }
+
+    if step == 137 {
+        # The set still holds the Ellipsoid of 1e20 from the step before, so its row is the stalled
+        # state: the export must answer its text and colour once, as the reference's row does, and a
+        # row that returned without answering or answered twice is the first err reported here.
+        if not ctx.overlay_drawn() or not (ctx.rows_asked() > rows_before) {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should ask the stalled set's row and draw it.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.assert(String.length(ctx.list_row_error()) == 0, "The stalled set's row should answer without breaking a row rule.")
+        ctx.click_screen(65, 40, 0)
+        step = 138
+        ctx.not_done()
+        return
+    }
+
+    if step == 138 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw for the catenary.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        step = 139
+        ctx.not_done()
+        return
+    }
+
+    if step == 139 {
+        # The dropdown opens at its top, and row 0, Catenary, is at the list's (5, 90) with 20-pixel
+        # rows, so (85, 100) is inside it.
+        ctx.scroll_screen(85, 100, 8)
+        step = 128
+        ctx.not_done()
+        return
+    }
+
+    if step == 128 {
+        ctx.click_screen(85, 100, 0)
+        step = 129
+        ctx.not_done()
+        return
+    }
+
+    if step == 129 {
+        # dx 1419 with the class's own dy 0, dz 0 and added length 1 makes the first solve's step
+        # leave the finite range, which throws in the reference and is the port's error arm.
+        _type_property(ctx, 0, "1419")
+        step = 130
+        ctx.not_done()
+        return
+    }
+
+    if step == 130 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 131
+        ctx.not_done()
+        return
+    }
+
+    if step == 131 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the catenary.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
+        state: string = _saved_state(ctx)
+        set: string = _set_line(state, _current_index(state))
+        ctx.assert(_reloaded_shape_values(set, "brentmaas.buildguide.common.shape.ShapeCatenary") == "1419,0,0,Runnable,1.0,false", "A Catenary dx of 1419 should be kept, and the set should still load with it.")
+        ctx.assert(String.index_of(state, "gen=") < 0, "An errored set's generation state should never reach the saved file.")
+        ctx.assert(String.index_of(set, "|") < 0, "The set should save without the port's shape separator.")
+        step = 132
+        ctx.press_world_key(66, false)
+        ctx.not_done()
+        return
+    }
+
+    if step == 132 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The binding should reopen the screen after the errored catenary.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        # The Shape tab with its dropdown closed asks no row, so the count can only grow from the
+        # Shape list tab's rows, as in the stalled set's step above.
+        rows_before = ctx.rows_asked()
+        ctx.click_screen(265, 40, 0)
+        step = 133
+        ctx.not_done()
+        return
+    }
+
+    if step == 133 {
+        # The errored set's row is the reference's red one, and the colour is a pixel the capture
+        # suite pins; what a test can read is that the export was asked its row and still answered
+        # within the rules.
+        if not ctx.overlay_drawn() or not (ctx.rows_asked() > rows_before) {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape list tab should ask the errored set's row and draw it.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.assert(String.length(ctx.list_row_error()) == 0, "The errored set's row should answer without breaking a row rule.")
+        ctx.click_screen(65, 40, 0)
+        step = 140
+        ctx.not_done()
+        return
+    }
+
+    if step == 140 {
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The Shape tab should draw after the errored catenary.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        ctx.click_screen(155, 80, 0)
+        step = 141
+        ctx.not_done()
+        return
+    }
+
+    if step == 141 {
+        ctx.scroll_screen(85, 100, 8)
+        step = 134
+        ctx.not_done()
+        return
+    }
+
+    if step == 134 {
+        # Row 1, Circle, at its own defaults: the errored Catenary entry stays in the set but the
+        # set's current shape is a Circle the reference drew, so a later test does not start from an
+        # error.
+        ctx.click_screen(85, 120, 0)
+        step = 135
+        ctx.not_done()
+        return
+    }
+
+    if step == 135 {
+        ctx.press_screen_key(256, false, false, true)
+        step = 136
+        ctx.not_done()
+        return
+    }
+
+    if step == 136 {
+        if ctx.screen_open() {
+            presses = presses + 1
+            ctx.assert(presses < 8, "Escape should close the Shape screen after the errored catenary.")
+            ctx.press_screen_key(256, false, false, true)
+            ctx.not_done()
+            return
+        }
+        presses = 0
         step = 124
         # toggle_enable is unbound, as the reference leaves it, so the toggle back off is a press
         # by the id its about.json names.

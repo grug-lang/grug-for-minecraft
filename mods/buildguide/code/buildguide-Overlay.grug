@@ -258,10 +258,34 @@ block_shape: number = 0
 block_total: number = 0
 cell_count: number = 0
 cell_counting: bool = false
+# The world clock of the last frame, in ticks, fractional part included. The reference times the
+# generation spinner and the green-to-white fade with System.currentTimeMillis; grug has no wall
+# clock, so the level's own tick counter is the clock, and 50 ms is one tick.
+world_time: number = 0
+# Whether a cell loop's box cannot be walked in one call. _box_fits sets this when a span is not
+# finite or over max_shape_positions, so an emitter that calls it only has to return and the
+# generation pass can leave the set generating instead of walking a box that would overrun the
+# call's budget.
+shape_blocked: bool = false
+# Whether the catenary's solve ended in the reference's error arm. The generation pass marks the
+# set's shape errored from this, which is the red row and the empty buffer.
+shape_failed: bool = false
+# Whether a shape is waiting for its generation pass. The client draws the world before the screen,
+# so a shape marked generating during a world pass must keep the state through that frame's screen
+# render or its row would never show the indicator: the pass after the draw is the next world pass.
+generation_waiting: bool = false
+# The most steps a catenary solve may take. The reference's two Newton loops are unbounded, so a
+# solve that does not converge never returns and the client freezes; here the step count stops it
+# and the generation pass takes the arm that solve really is (see _emit_catenary). The bound cannot
+# cut a converging solve: the first solve takes at most 719 steps over a broad scan of deltas (719
+# at about 1405 blocks), and it stops converging before 4096 in any case, because the derivative's
+# sinh overflows and the step stalls or the parameter leaves the finite range. The second solve is
+# shorter still, since it starts from a converged curvature.
+max_solve_steps: number = 4096
 # The most positions one shape's cell loop may scan in the frame that generates it. The reference
-# generates on a cached thread and lets a huge shape stall there, while this port generates in
-# render_world, where a grug call over 100 ms is a runtime error, so a box past this draws no cells
-# and about.json records the deviation. The number is about a quarter of that budget for the loop's
+# generates on a cached thread and lets a huge shape stall there, while a grug call over 100 ms is a
+# runtime error here, so a box past this is left generating with the spinner turning and about.json
+# records the platform difference. The number is about a quarter of that budget for the loop's
 # arithmetic: a circle of radius 249 scans 499 by 499, and a sphere of radius 30 scans 61 cubed.
 max_shape_positions: number = 250000
 
@@ -285,29 +309,40 @@ export render_world(ctx: OverlayWorldContext) {
     world_x = x
     world_y = y
     world_z = z
+    world_time = level.get_time() + ctx.partial_tick()
     if not config_loaded or not state_loaded or state_key != key {
         files: File = File.open(r"files")
         _ensure_config(files)
         _ensure_state(files, level, name, dimension, key, x, y, z)
     }
     _apply_pending(x, y, z)
+    # The generation pass that follows the previous frame's draw, and since this client draws the
+    # world before the screen, the pass that follows the draw of the frame whose screen render showed
+    # the shape generating. A shape this pass walks completes, stalls on a box too large, or takes
+    # the catenary's error arm, and the draw below shows its cells or the stalled set's origin cube.
+    # Every shape the reference's own update submitted is walked, the current one and a non-current
+    # one a colour change restarted, because the reference's thread finishes both.
+    if generation_waiting {
+        generation_waiting = false
+        _generate_all(ctx)
+    }
     if active_screen != "" {
         _count_all(ctx)
     }
-    if not _state_enabled() {
-        return
+    if _state_enabled() and _state_set_count() > 0 and _set_has_origin(_state_current_set()) {
+        # The reference toggles the depth test around every shape set's buffer from the state's flag,
+        # and the flag is global, so a frame's guide is drawn with exactly one depth-test value: the
+        # state's. The host applies it around this call's lines and triangles and puts the game's own
+        # value back.
+        ctx.set_depth_test(_visual_depth())
+        _draw_all(ctx)
     }
-    if _state_set_count() == 0 {
-        return
+    # A set that is still generating when this pass ends is generated in the next one, so this
+    # frame's screen render shows its row turning and its counts at 0. A set this pass completed is
+    # ready and draws from the next frame on.
+    if _any_generating() {
+        generation_waiting = true
     }
-    if not _set_has_origin(_state_current_set()) {
-        return
-    }
-    # The reference toggles the depth test around every shape set's buffer from the state's flag, and
-    # the flag is global, so a frame's guide is drawn with exactly one depth-test value: the state's.
-    # The host applies it around this call's lines and triangles and puts the game's own value back.
-    ctx.set_depth_test(_visual_depth())
-    _draw_all(ctx)
 }
 
 # The four declared bindings, which the player rebinds in the Controls menu under the reference's
@@ -489,6 +524,9 @@ local _draw_all(ctx: OverlayWorldContext) {
 # State.loadPersistence's updateShape() does, so the set's row is white and it draws. Only a live
 # generation error sets `error` at runtime, as the catenary's non-converging solve does, and that
 # still keeps the set from being drawn, as the reference's `ready && !error` check does.
+# The reference's buffer holds the origin cube too, so a generating or errored set draws nothing at
+# all. A set whose box is too large ever to walk stays like that, and about.json records that, with
+# the origin cube drawn so the stalled set still marks its place and the frame still finishes.
 
 local _draw_set(ctx: OverlayWorldContext, set: string) {
     if _set_field_value(set, "visible") != "true" {
@@ -501,6 +539,10 @@ local _draw_set(ctx: OverlayWorldContext, set: string) {
     if _set_shape_error(set, id) {
         return
     }
+    kind: string = _set_gen_kind(set, id)
+    if kind == "g" {
+        return
+    }
     values: string = _set_shape_values(set, id)
     if String.length(values) == 0 {
         values = _shape_defaults(id)
@@ -510,7 +552,9 @@ local _draw_set(ctx: OverlayWorldContext, set: string) {
     oz: number = _origin_piece(set, 2)
     size: number = _cube_size(set, "shapeCubeSize", 0.6)
     origin_size: number = _cube_size(set, "originCubeSize", 0.2)
-    _emit_shape(ctx, id, values, ox, oy, oz, size, _colour(_set_field_value(set, "shapeColour")))
+    if kind != "s" {
+        _emit_shape(ctx, id, values, ox, oy, oz, size, _colour(_set_field_value(set, "shapeColour")))
+    }
     offset: Vec3 = _origin_offset(id, values)
     _cube(ctx, ox + 0.5 - origin_size / 2 + offset.x(), oy + 0.5 - origin_size / 2 + offset.y(), oz + 0.5 - origin_size / 2 + offset.z(), origin_size, _colour(_set_field_value(set, "originColour")))
 }
@@ -555,12 +599,24 @@ local _emit_shape(ctx: OverlayWorldContext, id: number, v: string, ox: number, o
 
 # ShapeCatenary: the rope between the origin and (dx, dy, dz), add_length longer than the straight
 # distance, or a vertical rope when the two ends are less than a block apart.
-# The reference solves for the catenary parameter with Newton's method and has no iteration bound: a
-# solve whose values leave the finite range makes its Double.isFinite check throw, and a solve whose
-# step changes nothing repeats that step forever. grug cannot raise an error to the player and must
-# not hang, so a step that is not finite, or that changes nothing, ends the solve and the shape draws
-# no cells at once. The cell loops keep the reference's own bounds (0 to d, and h to the height)
-# rather than a cube cap of this port's own. about.json records this deviation.
+# The reference solves for the catenary parameter with Newton's method and has no iteration bound.
+# Three things can end its first loop: it converges, which is the case every rope a player can ask
+# for takes (at most 719 steps over a broad scan of deltas); the parameter leaves the finite range,
+# where the step recomputes a chi of NaN so the loop ends and the Double.isFinite check then throws
+# the reference's error arm; or the step changes nothing because the derivative overflowed, where
+# the reference repeats that step forever, which wedges its pool thread for good and freezes the
+# client with asyncEnabled false. The first two are told apart here after the loop: a non-finite
+# parameter is the red row and the empty buffer, and a finite parameter that did not converge is the
+# stall, which shows the spinner, the white row and no cells where the reference never returns from
+# it. The port draws the origin cube for a stalled shape, where the reference draws nothing, because
+# its buffer holds the origin cube and its draw skips an unready shape; about.json records that.
+# The step bound only keeps a frame from running away; it cannot cut a converging solve, since no
+# first solve comes within thousands of it.
+# The second solve has no throw and no finite check in the reference. A non-finite rl or base makes
+# every cell test false, or leaves the row loop with no cells, so the reference draws only the
+# origin cube; a solve that does not end wedges the pool thread, which is the stall here. The cell
+# loops keep the reference's own bounds (0 to d, and h to the height) rather than a cube cap of this
+# port's own. about.json records the arms that differ from the reference.
 
 local _emit_catenary(ctx: OverlayWorldContext, v: string, ox: number, oy: number, oz: number, size: number, colour: Color) {
     dx: number = _value_int(v, 0)
@@ -573,39 +629,52 @@ local _emit_catenary(ctx: OverlayWorldContext, v: string, ox: number, oy: number
         s: number = Math.sqrt(dr * dr + dy * dy) + add_length
         a: number = 1
         chi: number = 2 * a * Math.sinh(dr / 2 / a) - Math.sqrt(s * s - dy * dy)
-        solved: bool = _finite(chi)
-        while solved and Math.abs(chi) > 0.001 {
+        steps: number = 0
+        # The reference's own condition, which is false for a NaN chi, and its own step. The two
+        # breaks are the ones the reference cannot take: the step bound, and a step that would
+        # change nothing, which the reference repeats until the client is killed.
+        while Math.abs(chi) > 0.001 {
             dchi: number = 2 * Math.sinh(dr / 2 / a) - dr / a * Math.cosh(dr / 2 / a)
             next: number = Math.max(a - chi / dchi, a / 2)
-            if not _finite(dchi) or not _finite(next) or next == a {
-                solved = false
-            } else {
-                a = next
-                chi = 2 * a * Math.sinh(dr / 2 / a) - Math.sqrt(s * s - dy * dy)
-                if not _finite(chi) {
-                    solved = false
-                }
+            if steps >= max_solve_steps or next == a {
+                break
             }
+            a = next
+            chi = 2 * a * Math.sinh(dr / 2 / a) - Math.sqrt(s * s - dy * dy)
+            steps = steps + 1
+        }
+        if not (Math.abs(chi) <= 0.001) {
+            if not _finite(a) {
+                # The reference throws: a red row and an empty buffer, with no cells and no cube.
+                shape_failed = true
+            } else {
+                # The reference's step repeats forever, so this is its never-returning arm: the
+                # shape stays generating, and the draw shows the stalled set's origin cube.
+                shape_blocked = true
+            }
+            return
         }
         rl: number = 0
-        if solved {
-            chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
-            solved = _finite(chi)
-        }
-        while solved and Math.abs(chi) > 0.001 {
+        chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
+        steps = 0
+        while Math.abs(chi) > 0.001 {
             dchi: number = Math.sinh(rl / a) - Math.sinh((rl + dr) / a)
             next: number = rl - chi / dchi
-            if not _finite(dchi) or not _finite(next) or next == rl {
-                solved = false
-            } else {
-                rl = next
-                chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
-                if not _finite(chi) {
-                    solved = false
-                }
+            if steps >= max_solve_steps or next == rl {
+                break
             }
+            rl = next
+            chi = a * Math.cosh(rl / a) + dy - a * Math.cosh((rl + dr) / a)
+            steps = steps + 1
         }
-        if not solved {
+        # A solve that did not converge and left the finite range draws the origin cube and no
+        # cell, as the reference's own NaN comparisons do. A finite solve that did not converge is
+        # the reference's never-returning arm, which stalls here.
+        if not (Math.abs(chi) <= 0.001) {
+            if not _finite(rl) {
+                return
+            }
+            shape_blocked = true
             return
         }
         d: number = _trunc(Math.max(Math.abs(dx), Math.abs(dz)))
@@ -617,6 +686,9 @@ local _emit_catenary(ctx: OverlayWorldContext, v: string, ox: number, oy: number
             return
         }
         h: number = _trunc(Math.min(0, dy) - base)
+        if not _box_fits(d + 1, Math.max(0, dy) - h + 1, 1) {
+            return
+        }
         i: number = 0
         while i <= d {
             j: number = h
@@ -650,6 +722,9 @@ local _emit_catenary(ctx: OverlayWorldContext, v: string, ox: number, oy: number
             end = dy
         }
         i: number = _trunc(start)
+        if not _box_fits(end - i + 1, 1, 1) {
+            return
+        }
         while i <= end {
             _shape_cube(ctx, ox, oy, oz, 0, i, 0, size, colour)
             i = i + 1
@@ -733,6 +808,9 @@ local _emit_cone(ctx: OverlayWorldContext, v: string, ox: number, oy: number, oz
     if height > 0 {
         z_end = Math.ceil(height)
     }
+    if not _box_fits(upper - lower + 1, upper - lower + 1, z_end - z_start + 1) {
+        return
+    }
     x: number = lower
     while x <= upper {
         y: number = lower
@@ -805,6 +883,14 @@ local _emit_cuboid(ctx: OverlayWorldContext, v: string, ox: number, oy: number, 
             lower_z = dz + 1
             upper_z = 1
         }
+    }
+    # The three loops and each enabled wall are counted exactly, so a thin frame is walked and only
+    # a box whose own cubes overrun the budget stalls.
+    span_x: number = upper_x - lower_x
+    span_y: number = upper_y - lower_y
+    span_z: number = upper_z - lower_z
+    if not _cuboid_fits(span_x, span_y, span_z, walls) {
+        return
     }
     x: number = lower_x
     while x < upper_x {
@@ -1040,6 +1126,9 @@ local _emit_ellipsoid(ctx: OverlayWorldContext, v: string, ox: number, oy: numbe
     y_upper: number = Math.ceil(y_end)
     z_lower: number = Math.floor(z_start)
     z_upper: number = Math.ceil(z_end)
+    if not _box_fits(x_upper - x_lower + 1, y_upper - y_lower + 1, z_upper - z_lower + 1) {
+        return
+    }
     x: number = x_lower
     while x <= x_upper {
         y: number = y_lower
@@ -1074,6 +1163,9 @@ local _emit_grid(ctx: OverlayWorldContext, v: string, ox: number, oy: number, oz
     offset_x: number = _value_int(v, 3)
     offset_y: number = _value_int(v, 4)
     offset_z: number = _value_int(v, 5)
+    if not _box_fits(steps_x, steps_y, steps_z) {
+        return
+    }
     x: number = 0
     while x < steps_x {
         y: number = 0
@@ -1121,6 +1213,15 @@ local _emit_helix(ctx: OverlayWorldContext, v: string, ox: number, oy: number, o
         z_end = height
     } else {
         z_start = height + 1
+    }
+    # Each column of the ring walks its heights once per turn, so the turns widen the box's own
+    # budget; a turn count that is not finite is the reference's endless angle and is refused too.
+    turn_span: number = turns + 2
+    if not _box_fits(turn_span, 1, 1) {
+        return
+    }
+    if not _box_fits((upper - lower + 1) * turn_span, upper - lower + 1, z_end - z_start) {
+        return
     }
     x: number = lower
     while x <= upper {
@@ -1191,6 +1292,9 @@ local _emit_line(ctx: OverlayWorldContext, v: string, ox: number, oy: number, oz
     unit_x: number = dx / d
     unit_y: number = dy / d
     unit_z: number = dz / d
+    if not _box_fits(d + 1, 1, 1) {
+        return
+    }
     i: number = 0
     while i <= d {
         _shape_cube(ctx, ox, oy, oz, _trunc(unit_x * i + 0.5 * Math.signum(dx)), _trunc(unit_y * i + 0.5 * Math.signum(dy)), _trunc(unit_z * i + 0.5 * Math.signum(dz)), size, colour)
@@ -1220,6 +1324,9 @@ local _emit_parabola(ctx: OverlayWorldContext, v: string, ox: number, oy: number
     if depth <= 0 {
         s_start = depth + 1
         s_end = 1
+    }
+    if not _box_fits(upper - lower + 1, Math.ceil(height), s_end - s_start) {
+        return
     }
     a: number = lower
     while a <= upper {
@@ -1265,6 +1372,9 @@ local _emit_paraboloid(ctx: OverlayWorldContext, v: string, ox: number, oy: numb
     a_upper: number = Math.ceil(halfwidth_y + offset)
     b_lower: number = Math.floor(-halfwidth_z + offset)
     b_upper: number = Math.ceil(halfwidth_z + offset)
+    if not _box_fits(a_upper - a_lower + 1, b_upper - b_lower + 1, Math.abs(height)) {
+        return
+    }
     a: number = a_lower
     while a <= a_upper {
         b: number = b_lower
@@ -1311,6 +1421,9 @@ local _emit_polygon(ctx: OverlayWorldContext, v: string, ox: number, oy: number,
     if depth <= 0 {
         h_start = depth + 1
         h_end = 1
+    }
+    if not _box_fits(2 * max_r + 1, 2 * max_r + 1, h_end - h_start) {
+        return
     }
     a: number = -max_r
     while a <= max_r {
@@ -1363,6 +1476,12 @@ local _emit_pyramid(ctx: OverlayWorldContext, v: string, ox: number, oy: number,
         h_start = Math.floor(height + 1)
     }
     absolute_height: number = Math.abs(height)
+    # The widest row is the base, at radius plus one before the corner round-off, so it bounds every
+    # row's square and therefore the whole walk.
+    bound_r: number = _trunc(Math.ceil((radius + 1 + offset) / Math.cos(Math.pi() / sides)))
+    if not _box_fits(h_end - h_start, 2 * bound_r + 1, 2 * bound_r + 1) {
+        return
+    }
     h: number = h_start
     while h < h_end {
         r: number = (radius + 1) * Math.max(absolute_height - Math.abs(h), 0) / absolute_height - 1
@@ -1696,17 +1815,118 @@ local _finite(value: number) bool {
 }
 
 # Whether a cell loop of the given three spans scans at most max_shape_positions positions. A span
-# that is not finite (an infinity from a hand-edited file, or a subtraction of two infinities) or
-# not positive draws nothing, which is where about.json records the deviation.
+# that is not finite (an infinity from a hand-edited file, or a subtraction of two infinities) does
+# not fit, and a span at or below zero walks nothing at all, which is the frame's own finish rather
+# than a box too large, so it fits. The frame cost of a larger box is the platform difference
+# about.json records: the reference walks it on a thread and draws it when it finishes, while a
+# grug call over its budget is a runtime error, so such a set is left generating with no cells.
+# A refusal records itself, so every emitter only has to return and the generation pass reads the
+# one flag; a draw pass that refuses leaves the flag set for the pass that follows it.
+
 local _box_fits(x_span: number, y_span: number, z_span: number) bool {
     if not _finite(x_span) or not _finite(y_span) or not _finite(z_span) {
+        shape_blocked = true
         return false
     }
     if not (x_span > 0) or not (y_span > 0) or not (z_span > 0) {
-        return false
+        return true
     }
     # Each factor is compared before it is multiplied, so no product can reach an infinity.
-    return x_span <= max_shape_positions and y_span <= max_shape_positions / x_span and z_span <= max_shape_positions / x_span / y_span
+    if x_span <= max_shape_positions and y_span <= max_shape_positions / x_span and z_span <= max_shape_positions / x_span / y_span {
+        return true
+    }
+    shape_blocked = true
+    return false
+}
+
+# Whether the cuboid's three walk loops emit at most max_shape_positions cubes in total. The old
+# guard bounded each pair of spans to a sixth of the budget, which refused a thin cuboid whose
+# wireframe is tiny but whose two long spans alone exceed a sixth (a 205 by 205 by 1 frame is 816
+# cubes and was refused), so this counts the loops themselves. A span at or below 1 has a single line
+# on the two other axes' loops, one above it has the pair of end lines, and a wall fills only the
+# interior of its plane: the three walk loops cover the edges, so no cube is counted twice.
+
+local _cuboid_fits(span_x: number, span_y: number, span_z: number, walls: number) bool {
+    if not _finite(span_x) or not _finite(span_y) or not _finite(span_z) {
+        shape_blocked = true
+        return false
+    }
+    if not (span_x > 0) or not (span_y > 0) or not (span_z > 0) {
+        return true
+    }
+    edge_x: number = 1
+    if span_x > 1 {
+        edge_x = 2
+    }
+    edge_y: number = 1
+    if span_y > 1 {
+        edge_y = 2
+    }
+    edge_z: number = 1
+    if span_z > 1 {
+        edge_z = 2
+    }
+    inner_x: number = Math.max(span_x - 2, 0)
+    inner_y: number = Math.max(span_y - 2, 0)
+    inner_z: number = Math.max(span_z - 2, 0)
+    remaining: number = max_shape_positions
+    remaining = _budget_take(remaining, span_x, edge_y, edge_z)
+    if remaining < 0 {
+        shape_blocked = true
+        return false
+    }
+    remaining = _budget_take(remaining, inner_y, edge_x, edge_z)
+    if remaining < 0 {
+        shape_blocked = true
+        return false
+    }
+    remaining = _budget_take(remaining, inner_z, edge_x, edge_y)
+    if remaining < 0 {
+        shape_blocked = true
+        return false
+    }
+    if walls == 0 or walls == 1 or walls == 4 or walls == 5 {
+        remaining = _budget_take(remaining, inner_y, inner_z, edge_x)
+        if remaining < 0 {
+            shape_blocked = true
+            return false
+        }
+    }
+    if walls == 0 or walls == 2 or walls == 4 or walls == 6 {
+        remaining = _budget_take(remaining, inner_x, inner_z, edge_y)
+        if remaining < 0 {
+            shape_blocked = true
+            return false
+        }
+    }
+    if walls == 0 or walls == 3 or walls == 5 or walls == 6 {
+        remaining = _budget_take(remaining, inner_x, inner_y, edge_z)
+        if remaining < 0 {
+            shape_blocked = true
+            return false
+        }
+    }
+    return true
+}
+
+# The remainder of the budget after three factors are multiplied out of it, or -1 when their product
+# is larger than the remainder. Each factor is divided out of what is left before the next is
+# compared, so no product is formed and a span near the integer limit cannot overflow a double; a
+# zero factor adds nothing.
+
+local _budget_take(remaining: number, factor_a: number, factor_b: number, factor_c: number) number {
+    if not (factor_a > 0) or not (factor_b > 0) or not (factor_c > 0) {
+        return remaining
+    }
+    limit: number = remaining / factor_a
+    if factor_b > limit {
+        return -1
+    }
+    limit = limit / factor_b
+    if factor_c > limit {
+        return -1
+    }
+    return remaining - factor_a * factor_b * factor_c
 }
 
 local _rot_xx(rotation: number) number {
@@ -1913,11 +2133,25 @@ local _ensure_state(files: File, level: Level, name: string, dimension: string, 
 }
 
 # The state as the persistence file holds it: without the `!` after a refused shape's class name,
-# which is this text's own marker, and without the `|` between a set's own fields and its shapes,
-# which is this text's separator. A close saves this text.
+# which is this text's own marker, without the `|` between a set's own fields and its shapes, which
+# is this text's separator, and without a set's generation field, which is this port's transient
+# state. A close saves this text.
 
 local _state_file_text(text: string) string {
-    return _replace_all(_replace_all(text, "!", ""), "|", "")
+    out: string = ""
+    lines: number = _split_count(text, _newline())
+    i: number = 0
+    while i < lines {
+        line: string = _line_at(text, i)
+        if _has_prefix(line, "shapeSet=") {
+            set: string = String.substring(line, 9, String.length(line))
+            out = String.concat(out, _line(String.concat("shapeSet=", _set_strip_gen(set))))
+        } else {
+            out = String.concat(out, _line(line))
+        }
+        i = i + 1
+    }
+    return _replace_all(_replace_all(out, "!", ""), "|", "")
 }
 
 # One visited key's record in `state_store`, which is a run of records and nothing else: the key,
@@ -2408,6 +2642,10 @@ local _set_new(index: number, x: number, y: number, z: number) string {
     fields: string = String.concat("index=", String.from_number(index))
     fields = String.concat(fields, ";origin=")
     fields = String.concat(fields, _origin_text(x, y, z))
+    # No generation record is written: an absent record is a shape that was never generated, and the
+    # reference's constructor leaves the index's shape unupdated, so the first world pass generates
+    # it. A generation record is this port's transient state and never a file field, which
+    # _state_file_text cuts out so a save is the reference's own bytes.
     fields = String.concat(fields, ";visible=true;shapeColour=1.0,1.0,1.0,0.5;originColour=1.0,0.0,0.0,0.5;shapeCubeSize=0.6;originCubeSize=0.2;")
     shapes: string = String.concat(String.concat(_shape_class(index), "="), String.concat(_shape_defaults(index), ";"))
     return String.concat(fields, String.concat("|", shapes))
@@ -3753,6 +3991,10 @@ local _visual_write(key: string, value: string) {
     index: number = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, count - 1)
     set: string = _state_set_at(state, index)
     set = _set_with_field(set, key, value)
+    # ShapeSet.setShapeColour, setOriginColour and setCubeSize all end in updateAllShapes, which
+    # restarts every shape the set holds because each buffer carries the set's colours and cube size.
+    # The generation pass walks them on the next world pass, as the reference's thread pool does.
+    set = _set_invalidate_all(set)
     state = _state_with_set(state, index, set)
 }
 
@@ -3884,11 +4126,11 @@ local _config_default_on(index: number) bool {
 }
 
 # BaseScreen.render's two counts, taken on the world frame that draws under a screen. The reference
-# generates a shape whether or not it is drawn, and sums only the visible sets for the total, so this
-# pass generates every set with the draw suppressed: a shape under a screen is generated once for the
-# count and once for the draw. The current shape's count is its set's whether or not the set is
-# visible. An errored shape is skipped, as it is when drawn, where the reference would show the cells
-# it managed to emit before its exception.
+# generates a shape whether or not it is drawn and keeps the cell count its own generation found, so
+# this pass reads the count each set's generation stored instead of walking its cells again: a set
+# that is generating, stalled on a box too large, or errored counts 0, which is Shape.getNumberOfBlocks
+# while it is not ready and its empty buffer after the throw. The current shape's count is its set's
+# whether or not the set is visible, and only visible sets join the total.
 
 local _count_all(ctx: OverlayWorldContext) {
     block_shape = 0
@@ -3898,48 +4140,220 @@ local _count_all(ctx: OverlayWorldContext) {
     if count > 0 {
         current = _clamp(_int_or(_state_field(state, "iShapeSet", ""), 0), 0, count - 1)
     }
-    cell_counting = true
     found: number = 0
-    lines: number = _split_count(state, _newline())
     i: number = 0
-    while i < lines {
-        line: string = _line_at(state, i)
-        if _has_prefix(line, "shapeSet=") {
-            set: string = String.substring(line, 9, String.length(line))
-            before: number = cell_count
-            _count_set(ctx, set)
-            cells: number = cell_count - before
-            if _set_field_value(set, "visible") == "true" {
-                block_total = block_total + cells
+    while i < count {
+        set: string = _state_set_at(state, i)
+        cells: number = _count_set(set)
+        if _set_field_value(set, "visible") == "true" {
+            block_total = block_total + cells
+        }
+        if found == current {
+            block_shape = block_shape + cells
+        }
+        found = found + 1
+        i = i + 1
+    }
+}
+
+# One set's cells as its own generation counted them: 0 unless it is ready, and 0 for a shape in the
+# catenary's error arm.
+
+local _count_set(set: string) number {
+    id: number = _set_int(set, "index", 0)
+    if id < 0 or id >= _shape_count() {
+        return 0
+    }
+    if _set_gen_kind(set, id) != "r" {
+        return 0
+    }
+    if _set_shape_error(set, id) {
+        return 0
+    }
+    return _set_gen_cells(set, id)
+}
+
+# The generation pass that follows the draw, which the next world pass runs: every shape a set still
+# waits on is walked once with the draw suppressed, and its cells, completion tick and count are
+# stored. The walk covers a non-current shape too, because the reference's update submitted whatever
+# shape it changed and its thread pool finishes that shape after the player has switched away. A box
+# whose walk is over max_shape_positions leaves the shape stalled (`s`) with the indicator turning
+# and no cells, and a catenary solve that leaves the finite range puts the shape in its error arm:
+# the set is ready (`r`) with no cells, marked with the `!` that colours its row red, and the draw
+# sees the error and draws nothing. A catenary solve that never converges is the reference's
+# never-returning arm, so it stalls like the over-large box.
+
+local _generate_all(ctx: OverlayWorldContext) {
+    count: number = _state_set_count()
+    i: number = 0
+    while i < count {
+        set: string = _state_set_at(state, i)
+        id: number = 0
+        while id < _shape_count() {
+            if _set_gen_pending(set, id) {
+                set = _generate_shape(ctx, set, id)
             }
-            if found == current {
-                block_shape = block_shape + cells
+            id = id + 1
+        }
+        state = _state_with_set(state, i, set)
+        i = i + 1
+    }
+}
+
+# Whether any set still waits on a shape's generation pass, which a stalled or completed shape is not.
+# The current shape of a set the file created still waits, since a record is written only by a pass.
+
+local _any_generating() bool {
+    count: number = _state_set_count()
+    i: number = 0
+    while i < count {
+        set: string = _state_set_at(state, i)
+        id: number = 0
+        while id < _shape_count() {
+            if _set_gen_pending(set, id) {
+                return true
             }
-            found = found + 1
+            id = id + 1
         }
         i = i + 1
     }
-    cell_counting = false
+    return false
 }
 
-# One set's cells, generated with the same defaults ShapeSet.getShape would, and counted by
-# _shape_cube. The origin cube is not a cell, so it is not drawn here.
+# One shape's generation pass. The completion tick is stored as this tick plus one, so 0 stays the
+# marker for a shape that never completed: the reference's completedAt is 0 until a generation
+# finishes, and a completion that happened to fall on this port's first tick would otherwise read as
+# "never" and stay white.
 
-local _count_set(ctx: OverlayWorldContext, set: string) {
-    id: number = _set_int(set, "index", 0)
-    if id < 0 or id >= _shape_count() {
-        return
-    }
+local _generate_shape(ctx: OverlayWorldContext, set: string, id: number) string {
+    # A shape the stopped load left in its error arm is ready with no cells, and its row stays red.
     if _set_shape_error(set, id) {
-        return
+        return _set_gen_put(set, id, "r", world_time + 1, 0)
     }
     values: string = _set_shape_values(set, id)
     if String.length(values) == 0 {
         values = _shape_defaults(id)
     }
+    cell_count = 0
+    shape_blocked = false
+    shape_failed = false
+    cell_counting = true
     _emit_shape(ctx, id, values, 0, 0, 0, 1, _colour("1.0,1.0,1.0,1.0"))
+    cell_counting = false
+    cells: number = cell_count
+    if shape_failed {
+        return _set_gen_put(_set_put_shape(set, id, values, true), id, "r", world_time + 1, 0)
+    }
+    if shape_blocked {
+        # The reference assigns completedAt only when a generation finishes, so its
+        # getHowLongAgoCompletedMillis for a shape that never finishes is the whole epoch and the row
+        # is white. A stalled shape keeps the still-generating 0, so its row is white too.
+        return _set_gen_put(set, id, "s", 0, 0)
+    }
+    return _set_gen_put(set, id, "r", world_time + 1, cells)
 }
 
+# A shape's transient generation state, which no file holds, one record per shape id the set holds:
+# `g` while the shape is generating (its cells dropped), `s` while its box is too large to walk in
+# one call and it stays generating with the indicator turning, and `r` once it is ready, with the
+# tick it completed on and the cell count it generated. The reference keeps one of these in each
+# Shape object as `ready`, `completedAt` and `nBlocks`, so switching shape keeps a non-current
+# shape's record and switching back does not start its generation again. An absent record is a
+# shape that was never generated: the reference's constructor and its restore create a shape
+# without updating it, and only the current shape is walked, so an absent record is generating for
+# the set's current shape and not yet walked for any other. The four fields never reach
+# toPersistence.
+
+# The set with one shape's record replaced or appended. _set_with_field replaces a key it finds, so
+# a record that is not there yet is appended after the set's own fields. The record is read back
+# with _set_field_value, which matches the whole key, and the saved shape entries are fully
+# qualified class names, so no key can collide with one of these.
+
+local _set_gen_put(set: string, id: number, kind: string, since: number, cells: number) string {
+    key: string = _set_gen_key(id)
+    value: string = String.concat(kind, String.concat(String.concat(",", String.from_number(since)), String.concat(",", String.from_number(cells))))
+    if String.length(_set_field_value(set, key)) == 0 {
+        fields: string = String.concat(_set_fields(set), String.concat(String.concat(key, "="), String.concat(value, ";")))
+        return String.concat(fields, String.concat("|", _set_shapes(set)))
+    }
+    return _set_with_field(set, key, value)
+}
+
+local _set_gen_key(id: number) string {
+    return String.concat("gen", String.from_number(id))
+}
+# A shape's record kind. An absent record is generating for the set's current shape, because the
+# reference's constructor and restore leave the shape unupdated until the load updates it; a
+# non-current absent record answers ready, since nothing draws or counts it and the record is
+# written when it is first walked.
+
+local _set_gen_kind(set: string, id: number) string {
+    value: string = _set_field_value(set, _set_gen_key(id))
+    if String.length(value) == 0 {
+        if id == _set_int(set, "index", 0) {
+            return "g"
+        }
+        return "r"
+    }
+    kind: string = _piece(value, ",", 0)
+    if kind == "g" or kind == "s" {
+        return kind
+    }
+    return "r"
+}
+
+local _set_gen_cells(set: string, id: number) number {
+    return _int_or(_piece(_set_field_value(set, _set_gen_key(id)), ",", 2), 0)
+}
+# Whether this shape is still waiting for a generation pass: a record it holds that is generating,
+# or the set's current shape whose record was never written. A stalled or completed shape is not.
+
+local _set_gen_pending(set: string, id: number) bool {
+    if String.length(_set_field_value(set, _set_gen_key(id))) == 0 {
+        return id == _set_int(set, "index", 0)
+    }
+    return _set_gen_kind(set, id) == "g"
+}
+
+# ShapeSet.updateAllShapes, which every setter of the set's colours and cube sizes ends in: every
+# shape the set holds is walked again, because each buffer carries those values. A shape the set
+# holds is one it has a shape entry for, whether or not the entry was generated since the load, so
+# the record is written for each of them and the generation pass walks them all.
+
+local _set_invalidate_all(set: string) string {
+    id: number = 0
+    while id < _shape_count() {
+        if String.length(_set_shape_values(set, id)) > 0 {
+            set = _set_gen_put(set, id, "g", _set_gen_since(set, id), 0)
+        }
+        id = id + 1
+    }
+    return set
+}
+
+local _set_gen_since(set: string, id: number) number {
+    parsed: Option[number] = String.to_number(_piece(_set_field_value(set, _set_gen_key(id)), ",", 1))
+    if parsed.has() {
+        return parsed.unwrap()
+    }
+    return 0
+}
+
+local _set_strip_gen(set: string) string {
+    fields: string = _set_fields(set)
+    count: number = _split_count(fields, ";")
+    out: string = ""
+    i: number = 0
+    while i < count {
+        entry: string = _piece(fields, ";", i)
+        at: number = String.index_of(entry, "=")
+        if at < 0 or not _has_prefix(String.substring(entry, 0, at), "gen") {
+            out = String.concat(out, String.concat(entry, ";"))
+        }
+        i = i + 1
+    }
+    return String.concat(out, _set_shapes(set))
+}
 # State.savePersistence, written on every screen close while persistence is on and the state has
 # loaded. The persistence text has no `!` after a refused shape's class name, which is this text's own
 # marker for it, so every `!` is dropped. The `|` between a set's own fields and its shapes is this
@@ -4415,8 +4829,10 @@ local _shape_name(id: number) string {
     return "None"
 }
 
-# getFormattedShapeName: a set's shape name, struck through while the set is invisible. Not visible
-# is read from the field because the state is the only copy of the set the list has.
+# getFormattedShapeName: a set's shape name, struck through while the set is invisible and followed
+# by the progress indicator while its shape is not ready. The reference times the indicator with the
+# wall clock's 100 ms step; this port has only the level's tick clock, and one tick is 50 ms, so the
+# step is two ticks. The four characters are the reference's own table.
 
 local _shape_row_text(set: string) string {
     if String.length(set) == 0 {
@@ -4427,22 +4843,42 @@ local _shape_row_text(set: string) string {
         return "None"
     }
     name: string = _shape_name(id)
-    if _set_field_value(set, "visible") != "true" {
-        return String.concat("§m", name)
+    indicator: string = ""
+    kind: string = _set_gen_kind(set, id)
+    if kind == "g" or kind == "s" {
+        phase: number = Math.remainder(Math.floor(world_time / 2), 4)
+        if phase < 0 {
+            phase = phase + 4
+        }
+        chars: string = "|/-\\"
+        indicator = String.concat(" ", String.substring(chars, phase, phase + 1))
     }
-    return name
+    if _set_field_value(set, "visible") != "true" {
+        return String.concat(String.concat("§m", name), indicator)
+    }
+    return String.concat(name, indicator)
 }
 
-# getShapeProgressColour: red for a shape that failed, else its completed colour. A setted shape is
-# generated on the frame that draws it, so it is always complete on this port and white; the green to
-# white second after a generation and the spinner while it runs are the reference's asynchronous
-# generation, which about.json records.
+# getShapeProgressColour: red for a shape in the catenary's error arm, else the green to white fade
+# from the tick the shape completed on. The reference's colour is 0x00FF00 + f * 0x010001, which is
+# Color.rgb(f, 255, f) for a fraction f of the second after completion; a shape whose completedAt is
+# 0, never completed, is white because the reference's elapsed time is then the whole epoch. The
+# port's clock starts at 0 rather than at the epoch, so a completion is stored as its tick plus one
+# and 0 stays white here too.
+
 local _shape_row_colour(set: string) Color {
     id: number = _set_int(set, "index", 0)
     if String.length(set) > 0 and id >= 0 and id < _shape_count() and _set_shape_error(set, id) {
         return Color.rgb(255, 0, 0)
     }
-    return Color.rgb(255, 255, 255)
+    fraction: number = 255
+    since: number = _set_gen_since(set, id)
+    if since > 0 {
+        elapsed: number = (world_time - (since - 1)) * 50
+        fraction = _clamp(elapsed * 255 / 1000, 0, 255)
+    }
+    faded: number = Math.floor(fraction)
+    return Color.rgb(faded, 255, faded)
 }
 
 # ---------------------------------------------------------------- ShapeScreen
@@ -5204,7 +5640,12 @@ local _prop_store(row: number, text: string) {
     }
     set: string = _state_current_set()
     values: string = _shape_values_now()
-    state = _state_with_set(state, _state_index(), _set_put_shape(set, id, _value_replace(values, row, text), false))
+    set = _set_put_shape(set, id, _value_replace(values, row, text), false)
+    # Shape.setValue calls update, which marks this shape generating; a pass later the generation
+    # walk fills it in. The completion tick is kept, as the reference keeps its stale completedAt
+    # until the new generation finishes, so the row's colour does not jump back to green.
+    set = _set_gen_put(set, id, "g", _set_gen_since(set, id), 0)
+    state = _state_with_set(state, _state_index(), set)
 }
 
 local _prop_store_all(values: string) {
@@ -5213,7 +5654,9 @@ local _prop_store_all(values: string) {
         return
     }
     set: string = _state_current_set()
-    state = _state_with_set(state, _state_index(), _set_put_shape(set, id, values, false))
+    set = _set_put_shape(set, id, values, false)
+    set = _set_gen_put(set, id, "g", _set_gen_since(set, id), 0)
+    state = _state_with_set(state, _state_index(), set)
 }
 
 local _prop_show_text(row: number, text: string) {
@@ -5606,8 +6049,12 @@ local _shape_choose(id: number) {
     if _state_set_count() > 0 {
         set: string = _state_current_set()
         values: string = _set_shape_values(set, id)
+        # A class the set already holds keeps its values and its buffer, and the reference's
+        # setShape does not update it; the first use of a class starts a shape that has to be
+        # generated, as ShapeSet.getShape's own update does.
         if String.length(values) == 0 {
             values = _shape_defaults(id)
+            set = _set_gen_put(set, id, "g", 0, 0)
         }
         set = _set_put_shape(set, id, values, false)
         set = _set_with_field(set, "index", String.from_number(id))
