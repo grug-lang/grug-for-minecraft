@@ -24,11 +24,13 @@
 
 # The state of the world this client is in, as one string in the reference's own file format, plus a
 # `!` after the class name of a shape whose properties did not parse, which is how the reference's
-# Shape.error survives in a text with no objects. It is loaded once per world and dimension, or
-# started from a default state when persistence is off. See "the state as a whole" below.
+# Shape.error survives in a text with no objects. The reference keeps one State per world and
+# dimension for the whole session, so each visited key's state stays in `state_store` and is
+# restored on return. See "the state as a whole" below.
 state: string = ""
 state_key: string = ""
 state_loaded: bool = false
+state_store: string = ""
 
 # What the last close wrote and whether it wrote at all, so a close that changed nothing writes
 # nothing. This is BaseScreen.shouldUpdatePersistence, which the reference sets on every mutation and
@@ -477,8 +479,10 @@ local _draw_all(ctx: OverlayWorldContext) {
 # its defaults when the set holds none, and the reference draws that, so a set whose file named
 # another class still shows both; here the default is drawn without being written into the set, and
 # only a property change or the Shape tab's dropdown writes one.
-# A set in error keeps its shape and its text, and is simply not drawn, which is what the reference's
-# `ready && !error` check does.
+# A saved value the class refuses is regenerated from its default at load, which is what
+# State.loadPersistence's updateShape() does, so the set's row is white and it draws. Only a live
+# generation error sets `error` at runtime, as the catenary's non-converging solve does, and that
+# still keeps the set from being drawn, as the reference's `ready && !error` check does.
 
 local _draw_set(ctx: OverlayWorldContext, set: string) {
     if _set_field_value(set, "visible") != "true" {
@@ -1770,10 +1774,11 @@ local _colour_channel(text: string, index: number) number {
 }
 
 # A set's cube size, as ShapeSet.getShapeCubeSize and getOriginCubeSize answer it: the file's value,
-# with Math.min's cap. A file value of NaN or an infinity stays as it is in the reference: every
-# vertex of that cube is then non-finite or unbounded, so the GPU draws nothing or a broken cube;
-# draw_triangle refuses a non-finite coordinate with a host error on every frame, so the port draws
-# the cap instead, which about.json records (#1752, #1846).
+# with Math.min's cap for a finite value. Math.min leaves NaN as it is, and an infinite or NaN size
+# makes every vertex of the cube non-finite, so the reference's GPU draws nothing for that set's
+# cubes. draw_triangle refuses a non-finite coordinate with a host error on every frame, so a
+# non-finite size answers 0.0 instead: the same nothing, as a cube with no volume, without the host
+# error. The cell still counts, as it does in the reference.
 
 local _cube_size(set: string, key: string, fallback: number) number {
     parsed: Option[number] = String.to_number(_set_field_value(set, key))
@@ -1782,7 +1787,7 @@ local _cube_size(set: string, key: string, fallback: number) number {
         size = parsed.unwrap()
     }
     if not _finite(size) {
-        return 1.0 - 0.001
+        return 0.0
     }
     if not (size <= 1.0 - 0.001) {
         return 1.0 - 0.001
@@ -1836,26 +1841,197 @@ local _ensure_config(files: File) {
 }
 
 # Creates, and loads when persistence is on, the state of the world and dimension this frame is in.
-# The reference caches one State per key for the session; this keeps one and rebuilds it whenever the
-# key changes, which about.json records (#1752).
+# The reference's AbstractStateManager keeps one State per key in a HashMap for the session, so an
+# edit no screen close saved yet is still there on return to a key; `state_store` keeps every
+# visited key's state, its initialised flag and its written flag, and a switch back restores them
+# without reading the file again.
 
 local _ensure_state(files: File, level: Level, name: string, dimension: string, key: string, x: number, y: number, z: number) {
     if state_loaded and state_key == key {
         return
     }
-    state = _state_open(files, name, dimension, _config_persistence(config_values), x, y, z)
+    if state_loaded {
+        # The stored written flag answers whether the file matched the state when the key was left,
+        # not merely whether a save ever happened: an edit no close saved has to write on the next
+        # close after the key is restored.
+        matched: bool = persistence_written and _state_file_text(state) == persistence_text
+        _store_put(state_key, state, state_initialised, matched)
+    }
     state_key = key
     state_loaded = true
-    state_initialised = false
-    # A new key is a new State in the reference, and its load leaves persistence to be written once,
-    # so the next close writes this world's text even when it matches nothing the port saved.
     persistence_text = ""
-    persistence_written = false
+    if _store_present(key) {
+        # The same State object comes back, so its initialised flag and whatever it had in memory
+        # are the reference's; the written text is the state's own text exactly when the file was
+        # last left matching it, which is what the stored written flag records.
+        state = _store_state(key)
+        state_initialised = _store_flag(key, 1)
+        persistence_written = _store_flag(key, 2)
+        if persistence_written {
+            persistence_text = _state_file_text(state)
+        }
+    } else {
+        state = _state_open(files, name, dimension, _config_persistence(config_values), x, y, z)
+        state_initialised = false
+        # A new key is a new State in the reference, and its load leaves persistence to be written
+        # once, so the next close writes this world's text even when it matches nothing saved.
+        persistence_written = false
+    }
     # A press counted before this key change belongs to the state that was showing, not to this
     # one, and the reference has no way to carry it across a world or dimension switch (#1846).
     pending_toggle = 0
     pending_origin = 0
     pending_global_origin = 0
+}
+
+# The state as the persistence file holds it: without the `!` after a refused shape's class name,
+# which is this text's own marker, and without the `|` between a set's own fields and its shapes,
+# which is this text's separator. A close saves this text.
+
+local _state_file_text(text: string) string {
+    return _replace_all(_replace_all(text, "!", ""), "|", "")
+}
+
+# One visited key's record in `state_store`, which is a run of records and nothing else: the key,
+# then the length of the state text, then the state exactly as it is, then the initialised flag and
+# the written flag, each on its own line. The state has line feeds of its own, so its length goes
+# before it and no line of it can be mistaken for a field after it; a key never holds a line feed,
+# because the host refuses a path with a control character in it (#1757). The written flag is the
+# file's match with the state, so a restored key recomputes its saved text only when there is
+# nothing to save.
+
+local _store_put(key: string, text: string, initialised: bool, written: bool) {
+    out: string = ""
+    pos: number = 0
+    total: number = String.length(state_store)
+    while pos < total {
+        next: number = _store_next(pos)
+        if _store_key_at(pos) != key {
+            out = String.concat(out, String.substring(state_store, pos, next))
+        }
+        if next <= pos {
+            pos = total
+        } else {
+            pos = next
+        }
+    }
+    out = String.concat(out, _line(key))
+    out = String.concat(out, _line(String.from_number(String.length(text))))
+    out = String.concat(out, text)
+    out = String.concat(out, _line(_bool_text(initialised)))
+    out = String.concat(out, _line(_bool_text(written)))
+    state_store = out
+}
+
+local _store_present(key: string) bool {
+    return _store_at(key) >= 0
+}
+
+local _store_at(key: string) number {
+    pos: number = 0
+    total: number = String.length(state_store)
+    while pos < total {
+        if _store_key_at(pos) == key {
+            return pos
+        }
+        next: number = _store_next(pos)
+        if next <= pos {
+            return -1
+        }
+        pos = next
+    }
+    return -1
+}
+
+local _store_key_at(pos: number) string {
+    key_end: number = _index_from(state_store, _newline(), pos)
+    if key_end < 0 {
+        return ""
+    }
+    return String.substring(state_store, pos, key_end)
+}
+
+# Where the record at this position ends: past its two flag lines.
+local _store_next(pos: number) number {
+    key_end: number = _index_from(state_store, _newline(), pos)
+    if key_end < 0 {
+        return String.length(state_store)
+    }
+    length_end: number = _index_from(state_store, _newline(), key_end + 1)
+    if length_end < 0 {
+        return String.length(state_store)
+    }
+    width: number = _int_or(String.substring(state_store, key_end + 1, length_end), 0)
+    init_end: number = _index_from(state_store, _newline(), length_end + 1 + width)
+    if init_end < 0 {
+        return String.length(state_store)
+    }
+    written_end: number = _index_from(state_store, _newline(), init_end + 1)
+    if written_end < 0 {
+        return String.length(state_store)
+    }
+    return written_end + 1
+}
+
+local _store_state(key: string) string {
+    at: number = _store_at(key)
+    if at < 0 {
+        return ""
+    }
+    start: number = _store_state_start(at)
+    if start < 0 {
+        return ""
+    }
+    return String.substring(state_store, start, start + _store_state_width(at))
+}
+
+# Field 1 is the initialised flag and 2 the written flag, as the record stores them.
+local _store_flag(key: string, field: number) bool {
+    at: number = _store_at(key)
+    if at < 0 {
+        return false
+    }
+    start: number = _store_state_start(at)
+    if start < 0 {
+        return false
+    }
+    after: number = start + _store_state_width(at)
+    init_end: number = _index_from(state_store, _newline(), after)
+    if init_end < 0 {
+        return false
+    }
+    if field == 1 {
+        return String.substring(state_store, after, init_end) == "true"
+    }
+    written_end: number = _index_from(state_store, _newline(), init_end + 1)
+    if written_end < 0 {
+        return false
+    }
+    return String.substring(state_store, init_end + 1, written_end) == "true"
+}
+
+local _store_state_start(at: number) number {
+    key_end: number = _index_from(state_store, _newline(), at)
+    if key_end < 0 {
+        return -1
+    }
+    length_end: number = _index_from(state_store, _newline(), key_end + 1)
+    if length_end < 0 {
+        return -1
+    }
+    return length_end + 1
+}
+
+local _store_state_width(at: number) number {
+    key_end: number = _index_from(state_store, _newline(), at)
+    if key_end < 0 {
+        return 0
+    }
+    length_end: number = _index_from(state_store, _newline(), key_end + 1)
+    if length_end < 0 {
+        return 0
+    }
+    return _int_or(String.substring(state_store, key_end + 1, length_end), 0)
 }
 
 # The state for a world: loaded from its file on the first access when persistence is enabled. The
@@ -1923,6 +2099,12 @@ local _state_load(text: string, x: number, y: number, z: number) string {
     if not load_failed {
         i_set = String.from_number(_state_clamp_set(_int_or(i_set, 0), count))
         i_new = String.from_number(_clamp(_int_or(i_new, 1), 0, _shape_count() - 1))
+        # State.loadPersistence calls updateShape() right after restorePersistence, and every
+        # Shape.update clears `error` inside its task and regenerates from the property values in
+        # place, which are the defaults for a refused piece. So a refused saved value is not a
+        # permanent error: the shape draws from its default (#1888). The marker survives only in a
+        # stopped load's partial state, which #1816 records as a deviation.
+        sets = _replace_all(sets, "!", "")
     }
     return _state_text(enabled, depth, sets, i_set, i_new)
 }
@@ -2400,7 +2582,9 @@ local _set_put_shape(set: string, id: number, values: string, refused: bool) str
     return String.concat(_set_fields(set), String.concat("|", out))
 }
 
-# Whether the shape of this id is in error. The shape is still there, because the reference keeps it.
+# Whether the shape of this id is in error. A refused saved value's marker is dropped by a load that
+# read the whole file, so this is true only for a shape left in error by a stopped load (#1816) or a
+# live generation error. The shape is still there, because the reference keeps it.
 
 local _set_shape_error(set: string, id: number) bool {
     entry: string = _shape_entry(_set_shapes(set), id)
@@ -2481,7 +2665,9 @@ local _shape_key(key: string) string {
 # ---------------------------------------------------------------- shape properties
 
 # Shape.restorePersistence: the pieces the file holds, up to the class's property count, every one
-# applied whether or not an earlier one failed, and the shape in error when any failed.
+# applied whether or not an earlier one failed, and the shape in error when any failed. That error is
+# cleared by the load's own updateShape() when the whole file was read, so it marks only a stopped
+# load's partial state (#1888).
 
 local _values_apply(kinds: string, values: string, raw: string) string {
     pieces: number = _split_count(raw, ",")
@@ -2633,9 +2819,10 @@ local _shape_defaults(id: number) string {
 # ShapeRegistry registers ShapeCatenary, ShapeCircle, ShapeCone, ShapeCuboid, ShapeEllipse,
 # ShapeEllipsoid, ShapeGrid, ShapeHelix, ShapeLine, ShapeParabola, ShapeParaboloid, ShapePolygon,
 # ShapePolygonalPyramid, ShapeSphere and ShapeTorus, in that order, and the state file's shape index
-# space is that order. Two defaults load in error in the reference and here: the grid's stepsY of 1
-# fails a strict "above 1" and the polygon's sides of 3 fails a strict "above 3", so a file naming
-# either class at its defaults gets a shape in error that is kept and not drawn.
+# space is that order. Two defaults a saved file can name are refused by their own class: the grid's
+# stepsY of 1 fails a strict "above 1" and the polygon's sides of 3 fails a strict "above 3". The
+# reference's load regenerates from the value in place, so the default is kept and the default Grid
+# or Polygon draws rather than staying in error (#1888).
 
 local _shape_row(id: number) string {
     if id == 0 {
@@ -3734,7 +3921,7 @@ local _state_save() {
     if not _config_persistence(config_values) {
         return
     }
-    text: string = _replace_all(_replace_all(state, "!", ""), "|", "")
+    text: string = _state_file_text(state)
     if persistence_written and text == persistence_text {
         return
     }
@@ -4814,9 +5001,9 @@ local _prop_inc(row: number) {
 }
 
 # One step of a property's value, or "" where the class refuses it. The step is refused when the value
-# it would land on is one the class's setValueFromString refuses, so a player cannot step a shape into
-# a value a reload would replace with the defaults: a MinimumInt of 4 keeps its 4 rather than stepping
-# to the 3 that loads in error, and a MinimumFloat of 3.0 keeps its 3.0 rather than stepping to 2.0.
+# it would land on is one the class's setValueFromString refuses, so a player cannot step a shape to
+# a value a reload would replace with the default: a MinimumInt of 4 keeps its 4 rather than stepping
+# to the 3 that a reload refuses, and a MinimumFloat of 3.0 keeps its 3.0 rather than stepping to 2.0.
 # The zero skip a nonzero value has stays, because the reference's own buttons step past zero.
 
 local _prop_stepped(kind: string, text: string, delta: number) string {

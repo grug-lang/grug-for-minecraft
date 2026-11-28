@@ -128,18 +128,8 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "The port keeps one state in memory and reloads that world@dimension's file when the key changes, where the reference keeps a state per key for the whole session, so revisiting a world there keeps an edit that no screen close saved.",
-					"why": "Saving on a screen close restores what a player changed through the screens, which is what persistence is for, but an edit made with the world keys, or any edit with persistence off, is gone once the overlay moves to another world here. One state keeps the overlay small, and a per-key store is a map the file format does not need.",
-					"tracking_issue": 1752
-				},
-				{
 					"what": "A state whose load stopped before the reference's clamps, as #1816 records, can hold an iShapeSet or an iShapeNew past the end. The port clamps both into range when it reads the current set and when it starts the next set, where the reference's getShapeSet and its first toggle press would throw an index error on such a value.",
 					"why": "grug has no exception to raise, and a stopped load has to leave the overlay drawing something rather than ending the client's tick. The clamp is the same Math.max and Math.min the reference runs after a whole load, so a file it reads in full loads identically.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "A shapeCubeSize or originCubeSize of NaN or -Infinity in a state file is drawn as an almost full cube of 1.0 - 1e-3, where the reference leaves it NaN or -Infinity and the GPU then draws nothing for that cube.",
-					"why": "ShapeSet.getShapeCubeSize answers Math.min(size, 1.0 - 1e-3), which leaves NaN and -Infinity as they are, and every vertex of such a cube is non-finite. The world overlay refuses a non-finite coordinate with a host error, so drawing it exactly would report an error on every frame; a gap between the port and the reference only on a hand-edited file is the smaller cost until the overlay can carry a cube that draws nothing.",
 					"tracking_issue": 1752
 				},
 				{
