@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 class GrugSpriteSlotsTest {
@@ -99,6 +100,18 @@ class GrugSpriteSlotsTest {
     }
 
     @Test
+    void spritesTwoModsShareAreCountedOnceAndFitTogether() {
+        GrugSpriteSlots.Allocator blocks = new GrugSpriteSlots.Allocator(160);
+        Map<String, List<String>> needs = new LinkedHashMap<>();
+        for (int texture = 0; texture < blocks.remaining(); texture++) {
+            needs.put("grug:block/texture" + texture, List.of("a", "b"));
+        }
+
+        assertTrue(blocks.hasRoomForSprites(needs.size(), "block sprite", needs));
+        assertTrue(GrugIdShortage.all().isEmpty());
+    }
+
+    @Test
     void oneSlotOverRecordsTheShortageAndWhatEachModNeeds() {
         GrugSpriteSlots.Allocator items = GrugSpriteSlots.Allocator.items(160);
         Map<String, String> needs = new LinkedHashMap<>();
@@ -142,12 +155,12 @@ class GrugSpriteSlotsTest {
         faces.put("second", cube); // shares every texture with the first
         faces.put("third", null);
 
-        Map<String, String> needs = GrugSpriteSlots.blockSpriteNeeds(mods, faces);
+        Map<String, List<String>> needs = GrugSpriteSlots.blockSpriteNeeds(mods, faces);
 
         assertEquals(3, needs.size());
-        assertEquals("b", needs.get("grug:block/stone")); // the last block to name it
-        assertEquals("b", needs.get("grug:block/side"));
-        assertEquals("c", needs.get("block third"));
+        assertEquals(List.of("a", "b"), needs.get("grug:block/stone")); // both mods need it
+        assertEquals(List.of("a", "b"), needs.get("grug:block/side"));
+        assertEquals(List.of("c"), needs.get("block third"));
     }
 
     @Test

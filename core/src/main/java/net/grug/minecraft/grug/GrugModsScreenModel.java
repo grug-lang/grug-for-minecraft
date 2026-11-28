@@ -5,8 +5,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.ToIntFunction;
 
 /**
@@ -204,13 +206,13 @@ public final class GrugModsScreenModel {
 
     /** What the mods turned off since the screen opened would give back of the kind. */
     private int freed(GrugIdShortage shortage) {
-        int freed = 0;
+        Set<String> turnedOff = new HashSet<>();
         for (GrugModManager.Entry entry : entries) {
             if (Boolean.TRUE.equals(atOpen.get(entry.name())) && !entry.on()) {
-                freed += shortage.needs(entry.name());
+                turnedOff.add(entry.name());
             }
         }
-        return freed;
+        return shortage.freed(turnedOff);
     }
 
     /** Whether turning the mod on downloads it: it is in no place the game can take it from. */

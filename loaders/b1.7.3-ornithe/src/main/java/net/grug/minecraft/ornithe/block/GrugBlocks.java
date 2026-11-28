@@ -20,6 +20,7 @@ import net.ornithemc.osl.core.api.util.NamespacedIdentifiers;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class GrugBlocks {
@@ -66,11 +67,11 @@ public final class GrugBlocks {
         for (String cleanName : GrugModLoader.blockFiles.keySet()) {
             blockFaces.put(cleanName, GrugBlockModels.resolveFaceTextures(cleanName));
         }
-        Map<String, String> blockSpriteNeeds =
+        Map<String, List<String>> blockSpriteNeeds =
                 GrugSpriteSlots.blockSpriteNeeds(GrugModLoader.blockMods, blockFaces);
         boolean blockIdsFit = blockIds.hasRoomFor(GrugModLoader.blockMods);
         boolean blockSpritesFit =
-                BLOCK_SPRITE_SLOTS.hasRoomFor(
+                BLOCK_SPRITE_SLOTS.hasRoomForSprites(
                         blockSpriteNeeds.size(), "block sprite", blockSpriteNeeds);
         // Blocks that do not fit are not registered at all: the mod manager's screen takes over at
         // the title screen so the player can turn mods off (#510).

@@ -522,6 +522,70 @@ class GrugModsScreenModelTest {
         }
     }
 
+    @Test
+    void aTextureTwoModsShareIsFreedOnlyWhenBothModsAreOff() throws IOException {
+        GrugIdShortage.clear();
+        try {
+            // a and c each ship 15 blocks: 14 blocks that name the same 84 textures, and one block
+            // that names three textures of its own. Each mod needs 87 of the atlas's 86 usable
+            // slots, so the 90 distinct textures are 4 short (#1921).
+            java.util.Map<String, String> mods = new java.util.LinkedHashMap<>();
+            java.util.Map<String, String[]> faces = new java.util.HashMap<>();
+            for (String mod : new String[] {"a", "c"}) {
+                for (int block = 0; block < 14; block++) {
+                    String name = mod + block;
+                    mods.put(name, mod);
+                    String[] textures = new String[6];
+                    for (int face = 0; face < 6; face++) {
+                        textures[face] = "grug:block/shared" + (block * 6 + face);
+                    }
+                    faces.put(name, textures);
+                }
+                String own = mod + "14";
+                mods.put(own, mod);
+                String[] ownTextures = new String[6];
+                for (int face = 0; face < 6; face++)
+                    ownTextures[face] = "grug:block/" + mod + face % 3;
+                faces.put(own, ownTextures);
+            }
+            java.util.Map<String, java.util.List<String>> needs =
+                    GrugSpriteSlots.blockSpriteNeeds(mods, faces);
+            assertEquals(90, needs.size());
+            assertFalse(
+                    new GrugSpriteSlots.Allocator(160)
+                            .hasRoomForSprites(needs.size(), "block sprite", needs));
+
+            GrugModsScreenModel model = model(3);
+            assertEquals(
+                    List.of("a: ON (87 block sprites)", "c: ON (87 block sprites)", "b: OFF"),
+                    model.labels());
+            assertEquals(
+                    List.of(
+                            "Block sprites: 4 short (90 needed, 86 free)."
+                                    + " Turn off mods to free them."),
+                    model.kindLines());
+            assertFalse(model.resourcesFit());
+
+            // c is the mod the last block to name a shared texture credited it to, so turning it
+            // off freed every one of them before #1921. a still needs them, so only c's own three
+            // textures are given back.
+            model.click(1);
+            assertEquals(
+                    List.of(
+                            "Block sprites: 1 short (90 needed, 86 free)."
+                                    + " Turn off mods to free them."),
+                    model.kindLines());
+            assertFalse(model.resourcesFit());
+
+            model.click(0); // a too, so no mod that needs the shared textures is still on
+            assertEquals(
+                    List.of("Block sprites: enough once the game restarts."), model.kindLines());
+            assertTrue(model.resourcesFit());
+        } finally {
+            GrugIdShortage.clear();
+        }
+    }
+
     /** The ids each of two mods needs, by the name of a block or item they ship. */
     private static java.util.Map<String, String> needs(
             String firstMod, int first, String secondMod, int second) {
