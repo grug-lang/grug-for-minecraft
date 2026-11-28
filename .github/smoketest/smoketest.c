@@ -1724,7 +1724,9 @@ static struct files_ref {
     uint64_t be_extract_item;
     uint64_t be_add_item;
     uint64_t be_offer_liquid;
+    uint64_t be_offer_liquid_here;
     uint64_t be_take_liquid;
+    uint64_t be_take_liquid_here;
     uint64_t be_get_liquid;
     uint64_t be_get_liquid_amount;
     uint64_t be_get_liquid_capacity;
@@ -2710,6 +2712,31 @@ static union grug_value BE_offer_liquid(ARGS) {
     return num(r.x);
 }
 REGISTER("BlockEntity", "offer_liquid", BE_offer_liquid);
+// One block's share of an offer, which a tank column's walk passes up. Its arguments, the liquid
+// check and its answer are offer_liquid's; only the export's name and function id differ.
+static union grug_value offer_here(ARGS, uint64_t fn) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.offer_liquid_here: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    const char* liquid = canonical_liquid(a[1]._string);
+    if (!liquid) return fail("BlockEntity.offer_liquid_here: %s is not a liquid. A liquid is named by its still block, such as minecraft:water or minecraft:lava.", a[1]._string);
+    if (!isfinite(a[2]._number)) {
+        char amount_text[40];
+        number_text(a[2]._number, amount_text, sizeof amount_text);
+        return fail("BlockEntity.offer_liquid_here: The amount has to be a finite number, and was %s.", amount_text);
+    }
+    union grug_value args[4] = {str(liquid), a[2], a[3], a[4]};
+    struct obj r; bool errored;
+    if (!ask_response(b, fn, K_LIQUID_RESPONSE, args, 4, &r, &errored, "offer_liquid_here")) return num(-1);
+    if (errored) return none();
+    if (r.z != LIQ_AMOUNT || !isfinite(r.x) || r.x < 0) return fail("offer_liquid_here: The export answered with the wrong kind of answer, and this question wants a finite amount of 0 or more.");
+    return num(r.x);
+}
+static union grug_value BE_offer_liquid_here(ARGS) {
+    UNUSED;
+    return offer_here(gst, a, g, G.be_offer_liquid_here);
+}
+REGISTER("BlockEntity", "offer_liquid_here", BE_offer_liquid_here);
 static union grug_value BE_take_liquid(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -2727,6 +2754,28 @@ static union grug_value BE_take_liquid(ARGS) {
     return num(r.x);
 }
 REGISTER("BlockEntity", "take_liquid", BE_take_liquid);
+// One block's share of a draw, which a tank column's walk passes down.
+static union grug_value take_here(ARGS, uint64_t fn) {
+    UNUSED;
+    struct be* b = be_of(a[0]._id);
+    if (!b) return fail("BlockEntity.take_liquid_here: not a live block entity");  // SMOKETEST_EXCL: no committed test
+    if (!isfinite(a[1]._number)) {
+        char amount_text[40];
+        number_text(a[1]._number, amount_text, sizeof amount_text);
+        return fail("BlockEntity.take_liquid_here: The amount has to be a finite number, and was %s.", amount_text);
+    }
+    union grug_value args[2] = {a[1], a[2]};
+    struct obj r; bool errored;
+    if (!ask_response(b, fn, K_LIQUID_RESPONSE, args, 2, &r, &errored, "take_liquid_here")) return num(-1);
+    if (errored) return none();
+    if (r.z != LIQ_AMOUNT || !isfinite(r.x) || r.x < 0) return fail("take_liquid_here: The export answered with the wrong kind of answer, and this question wants a finite amount of 0 or more.");
+    return num(r.x);
+}
+static union grug_value BE_take_liquid_here(ARGS) {
+    UNUSED;
+    return take_here(gst, a, g, G.be_take_liquid_here);
+}
+REGISTER("BlockEntity", "take_liquid_here", BE_take_liquid_here);
 static union grug_value BE_get_liquid(ARGS) {
     UNUSED;
     struct be* b = be_of(a[0]._id);
@@ -6539,7 +6588,9 @@ int main(int argc, char** argv) {
     G.be_extract_item = grug_get_on_fn_id(g_state, "BlockEntity", "extract_item");
     G.be_add_item = grug_get_on_fn_id(g_state, "BlockEntity", "add_item");
     G.be_offer_liquid = grug_get_on_fn_id(g_state, "BlockEntity", "offer_liquid");
+    G.be_offer_liquid_here = grug_get_on_fn_id(g_state, "BlockEntity", "offer_liquid_here");
     G.be_take_liquid = grug_get_on_fn_id(g_state, "BlockEntity", "take_liquid");
+    G.be_take_liquid_here = grug_get_on_fn_id(g_state, "BlockEntity", "take_liquid_here");
     G.be_get_liquid = grug_get_on_fn_id(g_state, "BlockEntity", "get_liquid");
     G.be_get_liquid_amount = grug_get_on_fn_id(g_state, "BlockEntity", "get_liquid_amount");
     G.be_get_liquid_capacity = grug_get_on_fn_id(g_state, "BlockEntity", "get_liquid_capacity");

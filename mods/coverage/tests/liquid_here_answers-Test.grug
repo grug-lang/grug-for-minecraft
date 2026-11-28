@@ -1,0 +1,24 @@
+# The liquid entries one store passes to the next block of itself, which are BuildCraft's
+# TileTank.actualFill and actualEmtpy. They answer like offer_liquid and take_liquid, -1 included
+# when the block entity has no export for them, so a walk that reaches a block whose store ends
+# there does not read a refusal as the end of the store.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "minecraft:chest")
+    chest: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    ctx.assert(chest.offer_liquid_here("minecraft:water", 1000, 0, true) == -1, "A chest should answer -1 for an offer to one block.")
+    ctx.assert(chest.take_liquid_here(1000, true) == -1, "A chest should answer -1 for a take from one block.")
+
+    level.place_block(x + 2, y, z, "grug:coverage_response_block")
+    container: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
+    ctx.assert(container.offer_liquid_here("minecraft:flowing_water", 1000, 0, true) == 1000, "One block's offer should take what it was offered.")
+    offered: Option[string] = container.get_saved_string("offered_liquid")
+    ctx.assert(offered.has(), "The export should have saved the liquid it was offered.")
+    ctx.assert(offered.unwrap() == "minecraft:water", "The host should normalise a flowing name for the walk too.")
+    ctx.assert(container.take_liquid_here(1000, true) == 500, "One block's take should give what its export answers.")
+}

@@ -1,0 +1,62 @@
+# Covers a column of tanks as one store, as TileTank.fill and actualFill make it in BuildCraft
+# 2.2.14: the offer enters at the bottom tank, whatever tank received it, which takes the room it has
+# and passes the rest to the tank above. A tank holding another liquid refuses the offer there and it
+# goes no further.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:tank")
+    level.place_block(x, y + 1, z, "grug:tank")
+    level.place_block(x, y + 2, z, "grug:tank")
+    bottom: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    middle: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    top: BlockEntity = level.get_block_entity(x, y + 2, z).unwrap()
+
+    # The offer starts at the bottom tank even when the top tank is the one asked.
+    ctx.assert(top.offer_liquid("minecraft:water", 10000, 0, true) == 10000, "The column should take the 10000 it has room for.")
+    ctx.assert(bottom.get_liquid_amount() == 10000, "The bottom tank should take the offer first.")
+    ctx.assert(middle.get_liquid_amount() == 0, "Nothing should reach the middle tank while the bottom has room.")
+    ctx.assert(top.get_liquid_amount() == 0, "Nothing should reach the top tank while the bottom has room.")
+
+    # A partial fill: the bottom takes its 6000 of room and the other 2000 spills into the middle.
+    ctx.assert(top.offer_liquid("minecraft:water", 8000, 0, true) == 8000, "The column should take the whole 8000.")
+    ctx.assert(bottom.get_liquid_amount() == 16000, "The bottom tank should be full.")
+    ctx.assert(middle.get_liquid_amount() == 2000, "The rest of the offer should spill into the middle tank.")
+    ctx.assert(top.get_liquid_amount() == 0, "The spill should stop at the tank that has room.")
+
+    # fill false walks the whole column and changes nothing: the middle has 14000 of room and the top
+    # 16000, so all 20000 would be taken.
+    ctx.assert(top.offer_liquid("minecraft:water", 20000, 0, false) == 20000, "A dry offer should walk the column.")
+    ctx.assert(bottom.get_liquid_amount() == 16000, "A dry offer should change nothing.")
+    ctx.assert(middle.get_liquid_amount() == 2000, "A dry offer should change nothing.")
+    ctx.assert(top.get_liquid_amount() == 0, "A dry offer should change nothing.")
+
+    # A full column takes nothing.
+    ctx.assert(top.offer_liquid("minecraft:water", 30000, 0, true) == 30000, "The column should take what the rest of it holds.")
+    ctx.assert(middle.get_liquid_amount() == 16000, "The middle tank should be full.")
+    ctx.assert(top.get_liquid_amount() == 16000, "The top tank should be full.")
+    ctx.assert(top.offer_liquid("minecraft:water", 1, 0, true) == 0, "A full column should take nothing.")
+
+    # A bottom tank holding another liquid refuses the offer, as actualFill does, and it never reaches
+    # the empty tank above.
+    level.place_block(x + 2, y, z, "grug:tank")
+    level.place_block(x + 2, y + 1, z, "grug:tank")
+    water_bottom: BlockEntity = level.get_block_entity(x + 2, y, z).unwrap()
+    empty_top: BlockEntity = level.get_block_entity(x + 2, y + 1, z).unwrap()
+    water_bottom.set_saved_string("liquid", "minecraft:water")
+    water_bottom.set_saved_number("amount", 1000)
+
+    ctx.assert(empty_top.offer_liquid("minecraft:lava", 5000, 0, true) == 0, "A column holding water should refuse lava.")
+    ctx.assert(water_bottom.get_liquid_amount() == 1000, "The refused lava should have changed nothing.")
+    ctx.assert(empty_top.get_liquid_amount() == 0, "The refused lava should not have reached the empty tank.")
+    ctx.assert(not empty_top.get_liquid().has(), "The refused lava should not have given the top tank a liquid.")
+
+    # The same liquid is taken, the bottom first and the rest above.
+    ctx.assert(empty_top.offer_liquid("minecraft:water", 20000, 0, true) == 20000, "The column should take the water it has room for.")
+    ctx.assert(water_bottom.get_liquid_amount() == 16000, "The bottom tank should be full.")
+    ctx.assert(empty_top.get_liquid_amount() == 5000, "The rest should spill into the top tank.")
+}

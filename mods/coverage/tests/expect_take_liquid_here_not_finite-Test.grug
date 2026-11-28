@@ -1,0 +1,20 @@
+# An amount a take_liquid_here draws through the store has to be finite, and the host refuses it
+# before the export is asked, with the entry's own name in the report.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 20
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:coverage_response_block")
+    be: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+
+    nan: number = Math.sqrt(-1)
+    ctx.expect_error("BlockEntity.take_liquid_here: The amount has to be a finite number")
+    given: number = be.take_liquid_here(nan, true)
+
+    infinity: number = Math.cosh(1000)
+    ctx.expect_error("BlockEntity.take_liquid_here: The amount has to be a finite number")
+    given_again: number = be.take_liquid_here(infinity, true)
+}

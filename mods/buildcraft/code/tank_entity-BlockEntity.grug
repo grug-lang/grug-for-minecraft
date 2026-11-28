@@ -6,6 +6,10 @@
 # The tank holds the liquid itself; a pipe or a script asks it through the liquid exports, and the
 # host dispatches to them. That is the reference's ILiquidContainer: fill, empty, getLiquidId,
 # getLiquidQuantity and getCapacity.
+# Tanks stacked in a column are one store, as TileTank makes them: fill starts at the bottom tank and
+# spills upward, and empty starts at the top tank and draws downward. offer_liquid and take_liquid
+# are the ways into the column and walk it; offer_liquid_here and take_liquid_here are one tank's
+# share of that walk, which is TileTank.actualFill and actualEmtpy.
 level: Level = me.level()
 pos: BlockPos = me.block_pos()
 center: Vec3 = pos.center()
@@ -16,9 +20,29 @@ z: number = center.z()
 # TileTank.capacity.
 capacity: number = 16000
 
-# TileTank.fill: a different liquid than the one it holds is refused, what it takes is cut to the
-# room left, and fill false only asks. It answers how much of the offer it took, 0 for a refusal.
+# TileTank.fill: a column of tanks is one store, so the offer enters at the bottom tank, which is
+# where fill's loop stops, and actualFill there takes what it can and passes the rest up.
 export offer_liquid(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse) {
+    bottom_y: number = y
+    below: string = level.get_block(x, bottom_y - 1, z)
+    while below == "grug:tank" {
+        bottom_y = bottom_y - 1
+        below = level.get_block(x, bottom_y - 1, z)
+    }
+    bottom_opt: Option[BlockEntity] = level.get_block_entity(x, bottom_y, z)
+    if not bottom_opt.has() {
+        response.answer_amount(0)
+        return
+    }
+    bottom: BlockEntity = bottom_opt.unwrap()
+    taken: number = bottom.offer_liquid_here(liquid, amount, from_side, fill)
+    response.answer_amount(taken)
+}
+
+# TileTank.actualFill: one tank's share of a column's fill. A different liquid than the one it holds
+# is refused and goes no further, it takes the room left, and what is still offered goes to the tank
+# above, which is actualFill's recursion. The answer is the share the whole column took.
+export offer_liquid_here(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse) {
     stored: number = me.get_saved_number("amount")
     if stored > 0 {
         held: Option[string] = me.get_saved_string("liquid")
@@ -29,33 +53,68 @@ export offer_liquid(liquid: string, amount: number, from_side: number, fill: boo
             }
         }
     }
-
-    room: number = capacity - stored
-    if room <= 0 or amount <= 0 {
+    if amount <= 0 {
         response.answer_amount(0)
         return
     }
 
+    room: number = capacity - stored
     taken: number = amount
     if taken > room {
         taken = room
     }
-    if fill {
+    if taken < 0 {
+        taken = 0
+    }
+    if fill and taken > 0 {
         me.set_saved_string("liquid", liquid)
         me.set_saved_number("amount", stored + taken)
+    }
+
+    left: number = amount - taken
+    if left > 0 {
+        above_block: string = level.get_block(x, y + 1, z)
+        if above_block == "grug:tank" {
+            above_opt: Option[BlockEntity] = level.get_block_entity(x, y + 1, z)
+            if above_opt.has() {
+                above: BlockEntity = above_opt.unwrap()
+                taken = taken + above.offer_liquid_here(liquid, left, from_side, fill)
+            }
+        }
     }
     response.answer_amount(taken)
 }
 
-# TileTank.empty: what it gives is cut to what it holds, and take false only asks. It answers how
-# much it gave, 0 when it holds nothing.
+# TileTank.empty: the draw enters at the top tank, which is where empty's loop stops, and
+# actualEmtpy there gives what it has and draws the rest from below.
 export take_liquid(amount: number, take: bool, response: LiquidResponse) {
-    stored: number = me.get_saved_number("amount")
-    if stored <= 0 or amount <= 0 {
+    top_y: number = y
+    above: string = level.get_block(x, top_y + 1, z)
+    while above == "grug:tank" {
+        top_y = top_y + 1
+        above = level.get_block(x, top_y + 1, z)
+    }
+    top_opt: Option[BlockEntity] = level.get_block_entity(x, top_y, z)
+    if not top_opt.has() {
+        response.answer_amount(0)
+        return
+    }
+    top: BlockEntity = top_opt.unwrap()
+    given: number = top.take_liquid_here(amount, take)
+    response.answer_amount(given)
+}
+
+# TileTank.actualEmtpy: one tank's share of a column's draw. It gives what it holds at most, and what
+# is still wanted is drawn from the tank below, which is actualEmtpy's recursion. The reference does
+# not look at the liquid here, so a column holding two liquids answers with their sum; the port keeps
+# that. The answer is the share the whole column gave.
+export take_liquid_here(amount: number, take: bool, response: LiquidResponse) {
+    if amount <= 0 {
         response.answer_amount(0)
         return
     }
 
+    stored: number = me.get_saved_number("amount")
     given: number = amount
     if given > stored {
         given = stored
@@ -64,6 +123,18 @@ export take_liquid(amount: number, take: bool, response: LiquidResponse) {
         me.set_saved_number("amount", stored - given)
         if stored - given <= 0 {
             me.set_saved_string("liquid", "")
+        }
+    }
+
+    left: number = amount - given
+    if left > 0 {
+        below_block: string = level.get_block(x, y - 1, z)
+        if below_block == "grug:tank" {
+            below_opt: Option[BlockEntity] = level.get_block_entity(x, y - 1, z)
+            if below_opt.has() {
+                below: BlockEntity = below_opt.unwrap()
+                given = given + below.take_liquid_here(left, take)
+            }
         }
     }
     response.answer_amount(given)

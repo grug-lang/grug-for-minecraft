@@ -20,11 +20,13 @@ export init(ctx: BlockEntityInitContext)
 export item_extracted(slot: number, amount: number)
 export item_inserted(slot: number, amount: number)
 export offer_liquid(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse)
+export offer_liquid_here(liquid: string, amount: number, from_side: number, fill: bool, response: LiquidResponse)
 export on_neighbor_change()
 export output_taken(amount: number)
 export render(ctx: RenderContext)
 export render_frame(ctx: RenderFrameContext)
 export take_liquid(amount: number, take: bool, response: LiquidResponse)
+export take_liquid_here(amount: number, take: bool, response: LiquidResponse)
 export tick()
 .add_item(item: Item, damage: number, count: number, from_side: number, add: bool) number
 .append_saved_list_record(name: string) number
@@ -57,6 +59,7 @@ export tick()
 .is_slot_insertable(slot: number) bool
 .level() Level
 .offer_liquid(liquid: string, amount: number, from_side: number, fill: bool) number
+.offer_liquid_here(liquid: string, amount: number, from_side: number, fill: bool) number
 .receive_energy(amount: number) number
 .redraw()
 .remove_saved_list_record(name: string, index: number)
@@ -71,6 +74,7 @@ export tick()
 .take_crafting_result(amount: number) number
 .take_item_from_slot(slot: number, amount: number) number
 .take_liquid(amount: number, take: bool) number
+.take_liquid_here(amount: number, take: bool) number
 .update_recipe_output(start_slot: number)
 
 ## Item
