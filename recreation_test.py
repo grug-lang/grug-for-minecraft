@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import about_schema
 import recreation
 
 PAYLOAD = b"a small stand-in for a reference jar"
@@ -97,6 +98,11 @@ class RecreationTest(unittest.TestCase):
         about = Path(self.directory.name) / "about.json"
         about.write_text(json.dumps({"derived_from": [entry]}), encoding="utf-8")
         self.assertIsNone(recreation.load_recreation(about))
+
+    def test_recreation_fields_match_the_schema(self):
+        # load_recreation classifies an entry by these, so a recreation field the schema gains
+        # without a matching entry here would make a recreation entry read as no recreation.
+        self.assertEqual(about_schema.RECREATION_FIELDS, recreation.RECREATION_FIELDS)
 
     # The top-level loader set (#910), which selects the loaders a mod's tests run on.
 
