@@ -1,0 +1,132 @@
+# A screen_scroll answer that closes and reopens the screen ends the open time the wheel began in, so
+# the list fallback after that call must not scroll the new open time's list with the old event
+# (#1885). The overlay's Q key arms a one-shot reopen from screen_scroll: the export closes the
+# screen, opens it again and writes "reopened" to the mod's own file. P gives the list ten rows, which
+# is more than its viewport shows, so a wheel moves the first row it draws.
+# `screen_render` writes the smallest row index the frame asked to the mod's own file, so the
+# reopened screen's first row has to be 0: without the guard the armed wheel scrolls the new open
+# time's list and the first row reads 1. A wheel with no arm then reaches the same list and moves the
+# first row to 1, which proves the list itself still takes the wheel.
+# A loader without a screen host answers an err to Screen.open, so the test returns early there, and
+# it ends early on the dedicated server, whose joined client owns the screen.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        files: File = File.open(r"files")
+        # The writable directory outlives a run, so both markers start empty and a later run of the
+        # suite cannot read what this test wrote before.
+        files.write_text("screen_reopen/state.txt", "")
+        files.write_text("screen_reopen/rows.txt", "")
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # P gives the list more rows than its viewport shows and Q arms the one-shot reopen from
+        # screen_scroll.
+        ctx.press_world_key(80, false)
+        ctx.press_world_key(81, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The coverage screen should draw a frame before the wheel turns.")
+            ctx.not_done()
+            return
+        }
+        # The list is at (screen width - 150, 130) and 140 wide by 80 high. One notch down is what
+        # the armed screen_scroll answers; the reopen ends this open time.
+        ctx.scroll_screen(ctx.screen_width() - 130, 150, -1)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        state: string = files.read_text("screen_reopen/state.txt").unwrap()
+        if state != "reopened" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The armed wheel should close and reopen the screen.")
+            ctx.not_done()
+            return
+        }
+        if not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The reopened screen should draw a frame of its own.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(ctx.overlay_first_frame_cleared(), "The reopened screen's first frame should begin with the drawn mark clear.")
+        ctx.assert(files.read_text("screen_reopen/rows.txt").unwrap() == "0", "The wheel that reopened the screen must not scroll the new open time's list.")
+        # No arm this time: the wheel reaches the list under the point.
+        ctx.scroll_screen(ctx.screen_width() - 130, 150, -1)
+        step = 4
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_reopen/rows.txt").unwrap() != "1" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "A wheel over the list should move its first row to 1.")
+            ctx.not_done()
+            return
+        }
+        ctx.close_screen()
+        ctx.assert(not ctx.screen_open(), "The test's own close should leave no screen open.")
+        # P flips the list back to its default, so no test that runs after this one inherits ten
+        # rows.
+        ctx.press_world_key(80, false)
+        return
+    }
+
+    ctx.not_done()
+}

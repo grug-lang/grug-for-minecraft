@@ -105,6 +105,7 @@ export tick(ctx: TestTickContext)
 .placed_supported() bool
 .registers_mod_recipes() bool
 .screenshots_supported() bool
+.text_field_typing_supported() bool
 .world_overlay_supported() bool
 
 # Classes

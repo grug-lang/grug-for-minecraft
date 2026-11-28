@@ -627,6 +627,19 @@ public final class GrugOwnedScreens {
         return screen == openScreen && widget.visible() && widget.active();
     }
 
+    /**
+     * Whether {@code screen} is still the open screen at the open time {@code generation} names.
+     *
+     * <p>A loader captures the generation before it hands a frame, a press or a wheel movement to
+     * the mod, because the export may close and reopen its own screen. The work after that call
+     * then belongs to the open time before it, and drawing or hit-testing the new open time's
+     * widgets from the host the game is replacing would show or reach what the earlier open time
+     * never laid out (#1885).
+     */
+    public static boolean stillOpen(GrugOwnedScreen screen, long generation) {
+        return screen == openScreen && screen.generation() == generation;
+    }
+
     // --- The export calls ---------------------------------------------------------------------
 
     /**

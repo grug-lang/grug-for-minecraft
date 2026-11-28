@@ -285,6 +285,10 @@ public final class GrugOwnedScreenHost extends GuiScreen {
         // The rows are asked before anything is drawn, because the lists draw the answers this
         // frame.
         GrugOwnedScreens.prepareFrame(screen);
+        // A row export may have closed or reopened the screen, which ends this host's open time:
+        // the copies it would sync and draw belong to the new open time, which its own host owns
+        // (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return;
         // A row export may have moved, shown or hidden a widget while it answered, and the game's
         // copies are a frame behind: syncing again here draws and hit-tests the widgets the mod
         // laid out for this frame (#1871's review).
@@ -308,6 +312,9 @@ public final class GrugOwnedScreenHost extends GuiScreen {
         // and titles on top of them.
         GrugOverlayGeometry geometry =
                 GrugOwnedScreens.renderScreen(screen, width, height, mouseX, mouseY);
+        // screen_render may have closed or reopened the screen too, and neither the old open
+        // time's geometry nor its drawn mark belongs to the screen the game shows now (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return;
         GrugOverlayHost.drawGeometry(mc, geometry);
         GrugOwnedScreens.noteScreenFrame(screen);
     }
@@ -321,6 +328,10 @@ public final class GrugOwnedScreenHost extends GuiScreen {
             GrugOverlay.noteTestPressTaken();
             return;
         }
+        // A screen_click answer may have closed or reopened the screen, so the widget loop below
+        // would hit-test the new open time's widgets with a press the player made on the old one
+        // (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return;
         // The mod may have shown, hidden or moved a widget during that call, and the game's copies
         // are a frame behind. A press that lands on a button or a slider is routed by the copies'
         // own visibility, bounds and position, so they are brought up to date first: otherwise a
@@ -394,6 +405,12 @@ public final class GrugOwnedScreenHost extends GuiScreen {
      * used up, which is always true because Escape is the screen's own close.
      */
     boolean pressKey(char character, int key, boolean ctrl, boolean shift, boolean repeat) {
+        // The mod may have rewritten the focused field's text or deactivated it in answer to an
+        // earlier event, and the game's field is a frame behind: the key is applied to the model's
+        // text, and a field the mod deactivated gives the keyboard up before the next frame copies
+        // the flag (#1884). A rewrite moves the caret to the end of the new text, which is what
+        // Widget.set_text promises; an echo leaves it where it was.
+        syncWidgets();
         GuiTextField focused = focusedField();
         if (focused != null && key != Keyboard.KEY_ESCAPE) {
             // The API says screen_key is not asked while a field has the keyboard, so typing
@@ -422,6 +439,10 @@ public final class GrugOwnedScreenHost extends GuiScreen {
             GrugOverlay.noteTestPressTaken();
             return true;
         }
+        // A screen_scroll answer may have closed or reopened the screen, and the list fallback
+        // below would then scroll a list of the new open time with the old event. A scroll that
+        // stayed in this open time still reaches the list under the wheel (#1885).
+        if (!GrugOwnedScreens.stillOpen(screen, generation)) return true;
         GrugWidget list = GrugOwnedScreens.listAt(screen, x, y);
         if (list != null) {
             // A list that is not active does not move, but the wheel over it is still absorbed

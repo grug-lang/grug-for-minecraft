@@ -1000,6 +1000,17 @@ public class HostFunctions {
     }
 
     /**
+     * Test only: whether a key a test presses types its character into the field of a mod-owned
+     * screen that has focus. Every loader's screen host does. The logic smoketest runs a mod
+     * screen's exports without the game's own focus and key plumbing, so no field there ever takes
+     * a character, and a typing test returns early there instead of failing for a focus the
+     * smoketest does not model.
+     */
+    public static boolean Test_text_field_typing_supported(long testId) {
+        return true;
+    }
+
+    /**
      * Test only: whether this host draws frames a test can capture and compare, which a test asks
      * before it asserts that two captures differ. Every loader draws them through its own {@code
      * Screenshot.capture}; the logic smoketest paints nothing, so it answers false and a test skips
