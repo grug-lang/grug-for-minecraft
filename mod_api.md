@@ -457,6 +457,7 @@ String.trim(text: string) string
 .reload_count(relative_path: string) number
 .remove_entities(level: Level, kind: string)
 .round_trip_nbt(block_entity: BlockEntity)
+.rows_asked() number
 .screen_open() bool
 .screen_width() number
 .screenshot() Screenshot

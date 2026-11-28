@@ -14,6 +14,9 @@ public final class GrugListRowResponse extends GrugResponse {
     /** The defect a row export reported in the most recent frame, or null when none did. */
     private static String lastDefect = null;
 
+    /** How many rows this screen's open time has asked, for {@code TestTickContext.rows_asked}. */
+    private static long askedRows = 0;
+
     private final int index;
     private final GrugWidget widget;
     private String text = "";
@@ -87,8 +90,42 @@ public final class GrugListRowResponse extends GrugResponse {
     }
 
     /**
-     * Forgets the defect {@link #lastDefect} answers, before the next frame asks its rows, and when
-     * a screen's open time begins: a defect belongs to the open time whose rows reported it.
+     * Counts a row whose {@code screen_list_row} export is about to be asked, before it runs. A row
+     * whose export this mod has not defined is not counted, because nothing was asked of it.
+     */
+    static void rowAsked() {
+        synchronized (defectLock) {
+            askedRows++;
+        }
+    }
+
+    /**
+     * How many rows the open screen's frames have asked since its open time began, which is what
+     * {@code TestTickContext.rows_asked} answers. It is a count rather than the most recent frame's
+     * because a frame that asks no row keeps the last answer, which is also true of {@link
+     * #lastDefect}: a test reads it before a click and again after the frame drew, and a count that
+     * grew proves the click reached a tab whose list asked a row.
+     */
+    public static long askedRows() {
+        synchronized (defectLock) {
+            return askedRows;
+        }
+    }
+
+    /**
+     * Begins an open time: a new screen starts with no row defect and no row asked, because both
+     * belong to the rows the open time's frames ask.
+     */
+    public static void beginOpenTime() {
+        synchronized (defectLock) {
+            lastDefect = null;
+            askedRows = 0;
+        }
+    }
+
+    /**
+     * Forgets the defect {@link #lastDefect} answers, before the next frame asks its rows. The
+     * count of asked rows stays, because it names what the open time has asked so far.
      */
     public static void clearLastDefect() {
         synchronized (defectLock) {

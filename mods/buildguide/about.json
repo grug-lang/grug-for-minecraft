@@ -101,6 +101,12 @@
 					"what": "A state whose load stopped before the reference's clamps, as #1816 records, can hold an iShapeSet or an iShapeNew past the end. The reference's getShapeSet and its first toggle press then throw an index error on such a value, which fails the client tick.",
 					"why": "A grug mod's error is printed and cleared and the game keeps running, so the port cannot end the tick on such a value and there is no exception to raise. The port clamps both into range when it reads the current set and when it starts the next set, with the same Math.max and Math.min the reference runs after a whole load, so a file the reference reads in full loads identically here and a stopped load still draws something rather than ending the tick.",
 					"tracking_issue": 1752
+				},
+				{
+					"rule": "mod-code-runs-on-the-frame",
+					"what": "The reference's asyncEnabled defaults to true and hands a shape's generation to a cached thread pool, so that thread walks the cells and the client draws them once it finishes, and the reference's own frame never pays for the walk. The thread's result is one buffer holding the shape's cells and then the origin cube (Shape.java:84), and the draw asks for the shape to be ready first (AbstractRenderHandler.java:32), so an unready shape draws nothing at all. With asyncEnabled false Shape.update still submits and then waits on the future, so the walk happens in the clicking frame.",
+					"why": "A grug mod's code runs on the game's own thread and a cell walk needs the OverlayWorldContext, which a screen export has none of, so the port walks a shape in the world pass that follows its draw. That defers every generation by one frame, and with asyncEnabled false the port still shows one generating frame where the reference shows none. Three arms differ beyond that timing. First, the port cannot walk a box over max_shape_positions in one call, because a call over the engine's budget is a runtime error: such a shape stays stalled for good with the spinner turning, the white row and the 0 counts, where the reference's thread would walk it to completion however long that takes, so those cells appear there and never here. Second, the stalled shape draws the set's origin cube here, and the reference draws nothing at all, because its origin cube is part of the unready buffer that its draw skips. Third, the catenary's solve has no iteration bound in the reference: a parameter that leaves the finite range throws (the red row and the empty buffer, reproduced here), but a step that changes nothing repeats forever, which wedges the pool thread for good, and with asyncEnabled false freezes the client in the clicking frame. The port stops that loop after max_solve_steps, far above the 719 steps the longest converging solve was measured at, and treats a finite parameter that did not converge as that same never-returning arm: the spinner, the white row and no cells, plus the origin cube the reference does not draw. Every other visible state is reproduced when the walk fits and the solve ends: the generating frame, the `| / - \\` indicator, the 0 counts, the green to white fade and the red error arm.",
+					"tracking_issue": 1752
 				}
 			],
 			"deviations": [
@@ -108,21 +114,6 @@
 					"what": "Every string the mod shows is the en_us sentence as fixed text: the three config comments and the titles, labels and button texts of its five screens, where the reference resolves them through Translatable in the client's language. A non-English client therefore reads English here, and its rewritten config is not the reference's bytes.",
 					"why": "mod_api.json has no entry for a translated string, so a translated string needs a general host function that a port of any translated mod would use.",
 					"tracking_issue": 1817
-				},
-				{
-					"what": "A catenary whose Newton solve does not converge draws no cells: the reference either reports an invalid value or never leaves its loop, and the port answers no cells at once in both cases.",
-					"why": "grug cannot raise an error to the player yet. A solve whose values leave the finite range makes the reference throw, and a solve whose Newton step changes nothing (dx 1419, dz 0, an added length of 1) repeats that step until the shape is cancelled. The port ends the solve when a step is non-finite or changes nothing, which bounds both arms.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "A circle, an ellipse, a sphere or a torus whose cell box is too large to generate in the frame that draws it draws no cells: a box over 250000 positions (a radius of 10000, which the property field accepts as the reference's does) or a bound that is not finite (a hand-edited 1e20, or an infinity) makes the port answer no cells at once, where the reference casts the bounds to int and walks them on a generation thread.",
-					"why": "The reference generates on a cached thread, so a huge shape stalls only that thread while the client keeps drawing. This port generates in render_world, where a grug call over 100 ms is a runtime error, so it cannot scan a box that size in one frame. A box over 250000 positions, or one with a non-finite bound, therefore draws nothing at all.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "A shape is generated in render_world on the frame that draws it, where the reference hands generation to a cached thread pool. Shape.update sets ready to false and closes the buffer, and the render handler draws nothing for a set whose shape is not ready, so the reference's guide disappears for the few frames a generation takes; this port stalls that one frame and shows the finished shape at once, so the shape list's generation spinner never shows and its row text is the completed white, never the green a completion starts at, and the Shape tab's heading under Shape is that same white without the spinner the reference appends to it.",
-					"why": "grug has no thread to hand generation to, so a shape's update cannot run beside the frame. The asyncEnabled config option is read and written byte for byte but changes nothing yet.",
-					"tracking_issue": 1752
 				},
 				{
 					"what": "The Shape and Shape list dropdowns are a list drawn inside their parent screen, where the reference opens a DropdownOverlayScreen of its own over it, with its own chrome, close button and tab states: the V hides itself, the X and the fifteen rows take its place, and the parent's own widgets and texts step aside while the list is up.",

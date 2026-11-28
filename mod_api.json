@@ -5632,6 +5632,12 @@
 						}
 					]
 				},
+				"rows_asked": {
+					"description": "Test only: how many rows the open screen's screen_list_row export has been asked since that screen's open time began, and 0 for a screen whose frame has asked none. A row is asked by the screen's frame pass, between two ticks of the test, so an export that answers within the rules leaves list_row_error empty, and that answer also holds for a frame that asked no row because those rows belong to the last frame that did. A test reads this count before the click that changes a tab and again after the frame drew, and a count that grew is the positive proof that the frame asked a row, which an empty list_row_error alone is not. The count starts again at 0 when a screen opens. See #1760. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"return_type": {
+						"name": "number"
+					}
+				},
 				"screen_open": {
 					"description": "Whether a screen is open. On a client it is the client's own screen. On a dedicated server it is forwarded to the joined client of the player who started the run (#1094), so a server-run test sees that client's screen and not the container menu the server holds. A block's GUI is not necessarily open when `use_block` returns: on 1.20.6 the server opens it with a packet, and a settled world does not say the packet has arrived, so a test that captures the panel waits for this first. The answer is the client's own screen object, so it is true only once that screen exists, which is after the packet arrived. A screen that `close_screen` leaves in place on a loader that needs one does not count. See #418 and #168. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {

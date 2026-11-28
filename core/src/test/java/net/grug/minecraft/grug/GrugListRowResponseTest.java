@@ -200,6 +200,33 @@ class GrugListRowResponseTest {
     }
 
     @Test
+    void anOpenTimeCountsTheRowsItsFramesAskedAndStartsAtZero() {
+        GrugListRowResponse.beginOpenTime();
+        assertEquals(0L, GrugListRowResponse.askedRows(), "an open time starts having asked none");
+        GrugListRowResponse.rowAsked();
+        GrugListRowResponse.rowAsked();
+        assertEquals(2L, GrugListRowResponse.askedRows());
+        // A frame's clear belongs to the defect; the count says what the open time has asked.
+        GrugListRowResponse.clearLastDefect();
+        assertEquals(
+                2L, GrugListRowResponse.askedRows(), "clearing a frame's defect keeps the count");
+        GrugListRowResponse.beginOpenTime();
+        assertEquals(0L, GrugListRowResponse.askedRows(), "a new open time counts from 0 again");
+    }
+
+    @Test
+    void theAskedCountIsAnsweredByItsHostFunction() {
+        GrugListRowResponse.beginOpenTime();
+        long context =
+                GrugEntities.addEntity(
+                        GrugEntityType.TestTickContext, GrugTestState.openTickContext());
+        GrugListRowResponse.rowAsked();
+        assertEquals(1.0, HostFunctions.TestTickContext_rows_asked(context));
+        GrugTestState.closeTickContext();
+        assertEquals(0.0, HostFunctions.TestTickContext_rows_asked(context));
+    }
+
+    @Test
     void aResponseWhoseEntityIsGoneIsReportedAsStale() {
         GrugEntities.removeEntity(responseId);
         assertEquals(0.0, HostFunctions.ListRowResponse_index(responseId));
