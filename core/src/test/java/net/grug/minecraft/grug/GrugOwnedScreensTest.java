@@ -292,7 +292,7 @@ class GrugOwnedScreensTest {
     }
 
     @Test
-    void openingAnotherScreenAsksTheOpenOnesClosedFirst() {
+    void openingAnotherScreenReplacesTheOpenOneWithoutAskingItClosed() {
         GrugOwnedScreen first = openScreen();
         init(first, 320, 240);
         GrugOwnedScreen second = createScreen();
@@ -300,16 +300,20 @@ class GrugOwnedScreensTest {
 
         assertFalse(first.open());
         assertTrue(second.open());
-        assertEquals(1, recorder.count(script.screenClosedFnId));
-        assertEquals(1, loader.hidden.size());
-        assertSame(first, loader.hidden.get(0));
+        assertNull(first.widget("button"), "the replaced screen's widgets go with its open time");
+        assertEquals(0, recorder.count(script.screenClosedFnId));
+        assertSame(second, GrugOwnedScreens.openScreen());
+        assertEquals(2, loader.shown.size());
+        assertSame(second, loader.shown.get(1));
+        assertTrue(loader.hidden.isEmpty(), "the new screen's host replaced the old one");
     }
 
     @Test
-    void openingTheOpenScreenAgainClosesItFirst() {
+    void openingTheOpenScreenAgainStartsANewOpenTimeWithoutAClose() {
         GrugOwnedScreen screen = openScreen();
         assertNull(GrugOwnedScreens.open(loader.adapter(), screen));
-        assertEquals(1, recorder.count(script.screenClosedFnId));
+        assertEquals(
+                0, recorder.count(script.screenClosedFnId), "a close and reopen runs no close");
         assertTrue(screen.open());
         assertSame(screen, GrugOwnedScreens.openScreen());
     }
@@ -326,56 +330,110 @@ class GrugOwnedScreensTest {
     }
 
     @Test
-    void aClosedHandlerThatOpensAnotherScreenIsClosedToo() {
-        GrugOwnedScreen first = openScreen();
-        GrugOwnedScreen second = createScreen();
-        recorder.onClosed =
-                () -> {
-                    recorder.onClosed = null;
-                    if (GrugOwnedScreens.openScreen() == null) {
-                        GrugOwnedScreens.open(loader.adapter(), second);
-                    }
-                };
-        GrugOwnedScreen third = createScreen();
-        assertNull(GrugOwnedScreens.open(loader.adapter(), third));
-        assertFalse(first.open());
-        assertFalse(second.open());
-        assertTrue(third.open());
-        assertEquals(2, recorder.count(script.screenClosedFnId));
+    void closingTheTopPutsTheScreenBelowBackWithItsWidgetsKept() {
+        GrugOwnedScreen below = openScreen();
+        GrugWidget[] button = new GrugWidget[1];
+        recorder.onInit = () -> button[0] = declareButton(below, "button");
+        init(below, 320, 240);
+        GrugOwnedScreen above = createScreen();
+        assertNull(GrugOwnedScreens.openOver(loader.adapter(), above));
+
+        assertNull(GrugOwnedScreens.close(loader.adapter(), above));
+
+        assertFalse(above.open());
+        assertTrue(below.open());
+        assertSame(below, GrugOwnedScreens.openScreen());
+        // The screen below keeps the widget it declared, at the value it had, and the loader shows
+        // a fresh host for it, whose own init asks screen_init again.
+        assertSame(button[0], below.widget("button"));
+        assertSame(below, loader.shown.get(loader.shown.size() - 1));
+        assertEquals(0, recorder.count(script.screenClosedFnId), "a close swaps screens silently");
+        assertTrue(loader.hidden.isEmpty(), "nothing was hidden: the screen below took its place");
     }
 
     @Test
-    void aClosedHandlerThatReopensTheScreenDoesNotKeepOpenInALoop() {
-        GrugOwnedScreen first = openScreen();
-        recorder.onClosed = () -> GrugOwnedScreens.open(loader.adapter(), first);
-        GrugOwnedScreen second = createScreen();
+    void openingOverAPushedScreenKeepsTheOneBelowOpenButCovered() {
+        GrugOwnedScreen below = openScreen();
+        init(below, 320, 240);
+        recorder.asked.clear();
+        GrugOwnedScreen above = createScreen();
+        assertNull(GrugOwnedScreens.openOver(loader.adapter(), above));
 
-        assertNull(GrugOwnedScreens.open(loader.adapter(), second));
+        assertSame(above, GrugOwnedScreens.openScreen());
+        assertTrue(above.open());
+        assertFalse(below.open(), "only the top of the stack is open");
+        assertFalse(GrugOwnedScreens.clickScreen(below, 1, 1, 0, 0, 0, false));
+        assertFalse(GrugOwnedScreens.keyScreen(below, 1, 0, false, false, false));
+        assertEquals(0, recorder.count(script.screenInitFnId), "the covered screen is not asked");
+    }
 
-        // The handler opened first again every time it heard screen_closed. The screen asked for
-        // wins, and first heard the close once rather than once per pass of a loop that never ends.
-        assertFalse(first.open());
-        assertTrue(second.open());
-        assertSame(second, GrugOwnedScreens.openScreen());
+    @Test
+    void openingOverAScreenThatIsAlreadyInTheStackIsAnErr() {
+        GrugOwnedScreen screen = openScreen();
+        String problem = GrugOwnedScreens.openOver(loader.adapter(), screen);
+        assertNotNull(problem);
+        assertTrue(problem.contains("already in the player's screen stack"));
+        assertEquals(1, loader.shown.size());
+        assertSame(screen, GrugOwnedScreens.openScreen());
+    }
+
+    @Test
+    void openingOverIsRefusedWithoutAWorldAndOnADedicatedServer() {
+        GrugOwnedScreen screen = createScreen();
+        loader.level = null;
+        String problem = GrugOwnedScreens.openOver(loader.adapter(), screen);
+        assertNotNull(problem);
+        assertTrue(problem.contains("no world is loaded"));
+
+        loader.level = new Object();
+        loader.supported = false;
+        problem = GrugOwnedScreens.openOver(loader.adapter(), screen);
+        assertNotNull(problem);
+        assertTrue(problem.contains("no mod-owned screens"));
+        assertTrue(loader.shown.isEmpty());
+    }
+
+    @Test
+    void escapeEndsTheWholeStackAndAsksClosedOnceOnTheTop() {
+        GrugOwnedScreen bottom = openScreen();
+        GrugOwnedScreen middle = createScreen();
+        GrugOwnedScreen top = createScreen();
+        assertNull(GrugOwnedScreens.openOver(loader.adapter(), middle));
+        assertNull(GrugOwnedScreens.openOver(loader.adapter(), top));
+
+        GrugOwnedScreens.closeAll(loader.adapter());
+
+        assertFalse(top.open());
+        assertFalse(middle.open());
+        assertFalse(bottom.open());
+        assertNull(GrugOwnedScreens.openScreen());
         assertEquals(1, recorder.count(script.screenClosedFnId));
+        assertSame(top, loader.hidden.get(0), "the top screen's host is the one taken away");
     }
 
     @Test
-    void aClosedHandlerThatOpensTheSameScreenAgainLeavesItOpen() {
+    void escapeOnAnEmptyStackAsksNothing() {
+        GrugOwnedScreens.closeAll(loader.adapter());
+        assertEquals(0, recorder.count(script.screenClosedFnId));
+        assertTrue(loader.hidden.isEmpty());
+        GrugOwnedScreens.closeAll(null);
+    }
+
+    @Test
+    void aClosedHandlerThatOpensTheSameScreenAgainKeepsItThroughEscape() {
         GrugOwnedScreen screen = openScreen();
         recorder.onClosed =
                 () -> {
                     recorder.onClosed = null;
                     GrugOwnedScreens.open(loader.adapter(), screen);
                 };
-        assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
+        GrugOwnedScreens.closeAll(loader.adapter());
 
-        // The end of the open time asked screen_closed, which opened the screen again. Hiding it
-        // afterwards would take away a screen that is up and the mod still owns.
+        // Escape asked the screen closed, which opened it again. Hiding the host afterwards would
+        // take away a screen that is up and the mod still owns.
         assertTrue(screen.open());
         assertSame(screen, GrugOwnedScreens.openScreen());
         assertEquals(1, recorder.count(script.screenClosedFnId));
-        assertEquals(2, loader.shown.size());
         assertTrue(loader.hidden.isEmpty());
     }
 
@@ -389,12 +447,12 @@ class GrugOwnedScreensTest {
     }
 
     @Test
-    void closingAsksClosedAndHidesTheScreen() {
+    void closingTheLastScreenHidesItWithoutAskingItClosed() {
         GrugOwnedScreen screen = openScreen();
         assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
         assertFalse(screen.open());
         assertNull(GrugOwnedScreens.openScreen());
-        assertEquals(1, recorder.count(script.screenClosedFnId));
+        assertEquals(0, recorder.count(script.screenClosedFnId));
         assertSame(screen, loader.hidden.get(0));
     }
 
@@ -431,14 +489,10 @@ class GrugOwnedScreensTest {
     void aRemovalNotedForAnOpenTimeThatEndedDoesNotEndTheReopenedOne() {
         GrugOwnedScreen screen = openScreen();
         long old = screen.generation();
-        // The host the game replaced carries the open time it was made for, and screen_closed
-        // reopened the same screen before the loader drained the removal.
-        recorder.onClosed =
-                () -> {
-                    recorder.onClosed = null;
-                    assertNull(GrugOwnedScreens.open(loader.adapter(), screen));
-                };
+        // The host the game replaced carries the open time it was made for, and the screen was
+        // closed and opened again before the loader drained the removal.
         assertNull(GrugOwnedScreens.close(loader.adapter(), screen));
+        assertNull(GrugOwnedScreens.open(loader.adapter(), screen));
         assertTrue(screen.open());
         assertEquals(old + 1, screen.generation());
 
@@ -492,6 +546,49 @@ class GrugOwnedScreensTest {
         assertNull(GrugOwnedScreens.openScreen());
         assertEquals(1, loader.hidden.size(), "the loader is not left showing the dropped screen");
         assertSame(open, loader.hidden.get(0));
+    }
+
+    @Test
+    void droppingAScriptEndsEveryScreenOfItsStackAndClosesTheTopOnce() {
+        GrugOwnedScreen bottom = openScreen();
+        GrugOwnedScreen top = createScreen();
+        assertNull(GrugOwnedScreens.openOver(loader.adapter(), top));
+
+        GrugOwnedScreens.scriptDropped(script);
+
+        assertFalse(bottom.open());
+        assertFalse(top.open());
+        assertNull(GrugOwnedScreens.openScreen());
+        assertEquals(1, recorder.count(script.screenClosedFnId));
+        assertSame(top, loader.hidden.get(0), "the top screen's host is the one taken away");
+    }
+
+    @Test
+    void droppingAScriptThatMadeNoScreenChangesNothing() {
+        GrugOwnedScreen screen = openScreen();
+        GrugOwnedScreens.scriptDropped(newScript(99));
+        assertTrue(screen.open());
+        assertSame(screen, GrugOwnedScreens.openScreen());
+        assertTrue(loader.hidden.isEmpty());
+    }
+
+    @Test
+    void aScreenOverAnotherScriptsScreenComesBackWhenTheTopScriptIsDropped() {
+        GrugOverlayScripts.Script other = newScript(90);
+        GrugOwnedScreens.beginScriptCreation(other);
+        GrugOwnedScreen bottom = GrugOwnedScreens.newScreen(loader.adapter()).screen;
+        GrugOwnedScreens.endScriptCreation();
+        assertNull(GrugOwnedScreens.open(loader.adapter(), bottom));
+        GrugOwnedScreen top = createScreen();
+        assertNull(GrugOwnedScreens.openOver(loader.adapter(), top));
+
+        GrugOwnedScreens.scriptDropped(script);
+
+        assertFalse(top.open());
+        assertTrue(bottom.open());
+        assertSame(bottom, GrugOwnedScreens.openScreen());
+        assertEquals(1, recorder.count(script.screenClosedFnId));
+        assertSame(bottom, loader.shown.get(loader.shown.size() - 1));
     }
 
     // --- Declaring the widgets ----------------------------------------------------------------
@@ -917,7 +1014,7 @@ class GrugOwnedScreensTest {
             if (call.argumentId != 0) rows++;
         }
         assertEquals(1, rows, "the rows after a reopen would answer for dropped widgets");
-        assertEquals(1, recorder.count(script.screenClosedFnId), "the close ran once");
+        assertEquals(0, recorder.count(script.screenClosedFnId), "swap screens silently");
         assertSame(screen, GrugOwnedScreens.openScreen());
     }
 

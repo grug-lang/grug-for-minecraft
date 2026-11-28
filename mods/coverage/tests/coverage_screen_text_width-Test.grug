@@ -1,10 +1,8 @@
-# OverlayRenderContext.text_width answers the width the game's own font draws a text at, and a mod
-# screen's own close through Screen.close takes the host away. The overlay's screen_render measures
-# its title and the empty text every frame. Once the screen is up, Z asks its screen_key to arm the
-# close, and Escape then closes it only when the title measured wider than 0 and the empty text
-# measured 0, so a text_width that answered nothing leaves the screen open and fails the test. The
-# close is also the one path a mod's own Escape runs, so it proves that closing a screen takes its
-# host away.
+# OverlayRenderContext.text_width answers the width the game's own font draws a text at. The
+# overlay's screen_render measures its title and the empty text every frame and writes the pair to
+# the mod's own file whenever it changes, so the test reads what the font answered instead of
+# asking the screen to close: an empty text has to measure nothing and the title has to measure
+# something.
 # A loader without a screen host answers an err to Screen.open, so the test returns early there.
 # It ends early on the dedicated server too, whose joined client owns the screen.
 started: bool = false
@@ -17,6 +15,10 @@ export tick(ctx: TestTickContext) {
         if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
             return
         }
+        files: File = File.open(r"files")
+        # The writable directory outlives a run, so the marker starts empty and a later run of the
+        # suite cannot read what this test wrote before.
+        files.write_text("screen_text/widths.txt", "")
         ctx.not_done()
         return
     }
@@ -60,33 +62,26 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        # The frame barrier: the frame that draws the screen is the one whose screen_render measured
-        # the two texts, and the arming key is pressed only after it.
         if not ctx.overlay_drawn() {
             waited = waited + 1
-            ctx.assert(waited < 200, "The screen should draw a frame before it is asked to close.")
+            ctx.assert(waited < 200, "The screen should draw a frame, whose screen_render measures the texts.")
             ctx.not_done()
             return
         }
-        took: bool = ctx.press_screen_key(90, false, false, true)
-        ctx.assert(took, "Z should reach screen_key, which arms the close.")
+        files: File = File.open(r"files")
+        widths: string = files.read_text("screen_text/widths.txt").unwrap()
+        sep: number = String.index_of(widths, ":")
+        ctx.assert(sep > 0, "The frame should have written the title width, a colon and the empty width.")
+        title: number = String.to_number(String.substring(widths, 0, sep)).unwrap()
+        empty: number = String.to_number(String.substring(widths, sep + 1, String.length(widths))).unwrap()
+        ctx.assert(title > 0, "The title should measure wider than nothing.")
+        ctx.assert(empty == 0, "The empty text should measure 0.")
+        ctx.close_screen()
         step = 3
         waited = 0
         ctx.not_done()
         return
     }
 
-    if step == 3 {
-        took: bool = ctx.press_screen_key(256, false, false, true)
-        ctx.assert(took, "Escape should reach screen_key.")
-        step = 4
-        waited = 0
-        ctx.not_done()
-        return
-    }
-
-    if ctx.screen_open() {
-        waited = waited + 1
-        ctx.assert(waited < 200, "The screen should close from its own screen_key, so text_width answered the font's widths.")
-    }
+    ctx.assert(not ctx.screen_open(), "The test's own close should leave no screen open.")
 }

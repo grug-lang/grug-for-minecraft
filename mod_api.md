@@ -362,6 +362,7 @@ Random.new_seeded(seed: number) Random
 .add_text_field(name: string, text: string, x: number, y: number, width: number, height: number) Widget
 .close()
 .open()
+.open_over()
 Screen.new() Screen
 
 ## ScreenInitContext

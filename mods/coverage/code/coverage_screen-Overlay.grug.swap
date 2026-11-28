@@ -1,0 +1,5 @@
+# The text coverage_screen_hot_reload-Test.grug swaps in for the screen overlay (#1752). It exports
+# nothing, so a screen it made is a script that no longer exists: the host has to end every screen of
+# that script's stack rather than leave the game showing one nothing answers for. Kept after the
+# .grug extension so the game does not compile it as a script of its own.
+nothing: bool = true

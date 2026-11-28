@@ -1,0 +1,174 @@
+# A screen opened over the open one is the only one that draws and takes input: the screen below is
+# covered and keeps its widgets, so a press on one of its own widgets does nothing while the other
+# screen is up, while a press on the other screen's button reaches it. The overlay records the screen
+# whose frame drew last (`screen_stack/frame.txt`) and the button a press reached
+# (`screen_stack/widget.txt`), and an export cannot tell which of its script's screens the host asked
+# it on, so the frame file names the screen the mod last opened; the host asking only the top screen
+# is what GrugOwnedScreensTest's recorder proves in Java (#1752).
+# A loader without a screen host answers an err to Screen.open, so the test returns early there, and
+# it ends early on the dedicated server, whose joined client owns the screen.
+started: bool = false
+step: number = 0
+waited: number = 0
+
+export init(ctx: TestInitContext) {
+    ctx.set_max_ticks(2000)
+}
+
+export tick(ctx: TestTickContext) {
+    if not started {
+        started = true
+        if not me.owned_screens_supported() or not me.world_overlay_supported() or me.on_dedicated_server() {
+            return
+        }
+        ctx.not_done()
+        return
+    }
+
+    if step == 0 {
+        if not ctx.world_settled() {
+            waited = waited + 1
+            ctx.assert(waited < 1000, "The world should settle before the screen opens.")
+            ctx.not_done()
+            return
+        }
+        waited = 0
+        if ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "No screen should be open before the test opens its own.")
+            ctx.not_done()
+            return
+        }
+        # Z clears the stack markers and the counters, so the files this test reads are its own.
+        ctx.press_world_key(90, false)
+        # H is the overlay's open key.
+        ctx.press_world_key(72, false)
+        step = 1
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 1 {
+        if not ctx.screen_open() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "H should open the coverage screen.")
+            ctx.not_done()
+            return
+        }
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "screen" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The first screen should draw a frame before the second opens.")
+            ctx.not_done()
+            return
+        }
+        # B arms the open_over its next click asks for.
+        took: bool = ctx.press_screen_key(66, false, false, true)
+        ctx.assert(took, "B should reach screen_key, which arms the open_over.")
+        step = 2
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 2 {
+        # A point inside no widget of either screen, so this press only asks for the open_over.
+        ctx.click_screen(200, 60, 0)
+        step = 3
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 3 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "other" or not ctx.overlay_drawn() {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The screen opened over the first should draw a frame of its own.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(String.index_of(files.read_text("screen_stack/init.txt").unwrap(), ":other") >= 0, "The screen opened over the first should have been initialised as itself.")
+        # The host that came up for the screen opened over the first clears the drawn mark before
+        # its first frame, so the frame that set it again is the new screen's own.
+        ctx.assert(ctx.overlay_first_frame_cleared(), "The screen opened over the first should begin its first frame with the drawn mark clear.")
+        # The first screen's button is under this point, but the first screen is covered: its button
+        # must not take the press, and the file stays empty.
+        files.write_text("screen_stack/widget.txt", "")
+        waited = 0
+        step = 4
+        ctx.not_done()
+        return
+    }
+
+    if step == 4 {
+        ctx.click_screen(40, 20, 0)
+        step = 5
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 5 {
+        files: File = File.open(r"files")
+        ctx.assert(files.read_text("screen_stack/widget.txt").unwrap() == "", "A press on the covered screen's button must not reach it, so the screen below takes no input.")
+        # The other screen's button sits lower, and a press on it proves the top screen does take
+        # one.
+        ctx.click_screen(40, 160, 0)
+        step = 6
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 6 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/widget.txt").unwrap() != "other" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "The other screen's button should take the press the open screen takes.")
+            ctx.not_done()
+            return
+        }
+        ctx.assert(String.index_of(files.read_text("screen_stack/closed.txt").unwrap(), ":") < 0, "Opening a screen over another asks no screen_closed, because no screen ended.")
+        # N arms the close of the screen on top, which brings the first screen back.
+        took: bool = ctx.press_screen_key(78, false, false, true)
+        ctx.assert(took, "N should reach the top screen's screen_key, which arms the close.")
+        step = 7
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 7 {
+        ctx.click_screen(200, 60, 0)
+        step = 8
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    if step == 8 {
+        files: File = File.open(r"files")
+        if files.read_text("screen_stack/frame.txt").unwrap() != "screen" {
+            waited = waited + 1
+            ctx.assert(waited < 200, "Closing the screen on top should show the first screen again.")
+            ctx.not_done()
+            return
+        }
+        # The count the first screen had when it was covered, written by the open_over, and the count
+        # it still has when it comes back: a covered screen drew no frame at all.
+        covered: string = files.read_text("screen_stack/covered.txt").unwrap()
+        ctx.assert(covered != "", "Opening over should record the frame count the covered screen had.")
+        ctx.assert(files.read_text("screen_stack/counts.txt").unwrap() == covered, "A covered screen should draw no frame, so its count is unchanged when it comes back.")
+        ctx.assert(String.index_of(files.read_text("screen_stack/closed.txt").unwrap(), ":") < 0, "Closing a screen the mod asked for asks no screen_closed either.")
+        # Escape ends the whole stack, which leaves no screen for a later test to find.
+        ctx.press_screen_key(256, false, false, true)
+        step = 9
+        waited = 0
+        ctx.not_done()
+        return
+    }
+
+    ctx.assert(not ctx.screen_open(), "Escape should end the stack the test opened.")
+}

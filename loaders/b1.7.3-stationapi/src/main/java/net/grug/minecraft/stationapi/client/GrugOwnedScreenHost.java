@@ -1,6 +1,7 @@
 package net.grug.minecraft.stationapi.client;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.grug.minecraft.core.GrugCore;
 import net.grug.minecraft.core.GrugRunWindow;
 import net.grug.minecraft.grug.GrugListMath;
 import net.grug.minecraft.grug.GrugOverlay;
@@ -413,8 +414,11 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
      */
     boolean pressKey(char character, int key) {
         if (key == Keyboard.KEY_ESCAPE) {
-            if (GrugOverlayHost.pressOwnedScreenKey(this, character, key)) return true;
-            closeScreen();
+            // Escape is the game's close of the whole screen stack wherever the keyboard focus
+            // is, so the mod sees it through screen_key first and the stack ends after the export
+            // returns. A screen_closed that opens a screen again keeps that screen.
+            GrugOverlayHost.pressOwnedScreenKey(this, character, key);
+            GrugOwnedScreens.closeAll(GrugCore.getAdapter());
             return true;
         }
         Map.Entry<GrugWidget, Field> focused = focusedField();
@@ -510,15 +514,6 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
             first++;
         }
         return first;
-    }
-
-    /** Closes this screen the way {@code close_screen} does on this loader. */
-    private void closeScreen() {
-        if (minecraft.currentScreen == this) {
-            // The screen Escape gives up: this version shows the world again, and locks the mouse
-            // with it, and the in-game menu is its own Escape when no screen is open.
-            minecraft.setScreen(null);
-        }
     }
 
     @Override
