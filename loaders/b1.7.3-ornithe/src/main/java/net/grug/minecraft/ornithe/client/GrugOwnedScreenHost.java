@@ -242,18 +242,13 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         for (Field field : fields.values()) {
             field.blink++;
         }
-        // A slider follows the mouse between the press and the release, which is not an event this
-        // version's screens are told about. The drag ends as soon as the button is up, so a click a
-        // test delivered without a release cannot keep moving the handle on later ticks.
+        // A drag ends as soon as the button is up, so a click a test delivered without a release
+        // cannot keep moving the handle on later ticks. The position itself is followed by the
+        // frame and by the release, which are where this version's own slider follows it.
         if (!Mouse.isButtonDown(0)) {
             for (GrugSliderButton slider : sliders) {
                 slider.stopDrag();
             }
-            return;
-        }
-        double mouseX = (double) Mouse.getX() * width / minecraft.width;
-        for (GrugSliderButton slider : sliders) {
-            slider.dragTo(mouseX);
         }
     }
 
@@ -823,6 +818,9 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
         @Override
         protected void renderBackground(Minecraft minecraft, int mouseX, int mouseY) {
             if (!this.visible) return;
+            // This version tells its screens nothing between the press and the release, so a held
+            // handle follows the frame's mouse position here, as this version's own slider does.
+            if (this.dragging) report(mouseX);
             GL11.glBindTexture(3553, minecraft.textureManager.load("/gui/gui.png"));
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
             int handle = this.x + round(this.widget.sliderFraction() * (this.width - 8));
@@ -840,17 +838,15 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
 
         @Override
         public void mouseReleased(int mouseX, int mouseY) {
+            // The release is the last position a drag reports, so a press, drag and release that
+            // all happen between two ticks leaves the handle where the player let go of it.
+            if (this.dragging) report(mouseX);
             this.dragging = false;
         }
 
         /** Stops the drag when the mouse button that started it is no longer down. */
         void stopDrag() {
             this.dragging = false;
-        }
-
-        /** Follows the mouse while the handle is held. */
-        void dragTo(double mouseX) {
-            if (this.dragging) report(mouseX);
         }
 
         /** The fraction the handle was left at, which core turns into the mod's value. */
@@ -898,6 +894,11 @@ public final class GrugOwnedScreenHost extends Screen implements GrugScreenGeome
          */
         void syncFrom(GrugWidget widget) {
             editable = widget.active();
+            if (!editable) {
+                // A field the mod made inactive cannot take a character, so it gives the keyboard
+                // up: the caret stops blinking and the next key reaches screen_key.
+                focused = false;
+            }
             if (widget.textRevision() == revision) return;
             revision = widget.textRevision();
             String value = widget.text() == null ? "" : widget.text();
