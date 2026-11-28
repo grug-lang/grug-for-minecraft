@@ -21,6 +21,14 @@
 step: number = 0
 waited: number = 0
 
+export init(ctx: TestInitContext) {
+    # The default 200 ticks is one budget for the whole test, and this test's ten waits each have
+    # their own 200 poll limit (_wait), so a step that never sees its click would otherwise be cut
+    # off by the shared budget before its own limit names it. The ten bounds add up to 2000, plus
+    # the ticks that only place a block or switch step, so the budget is 2400.
+    ctx.set_max_ticks(2400)
+}
+
 export tick(ctx: TestTickContext) {
     level: Level = ctx.get_client_level()
     origin: Vec3 = ctx.get_origin()
@@ -133,7 +141,8 @@ export tick(ctx: TestTickContext) {
         waited = 0
         ctx.assert(tank.take_liquid(1, true) == 1, "The water tank should give one of its 1000 mB.")
         # An empty bucket on A's 999 mB is refused and leaves the bucket alone, while the same bucket
-        # takes C's whole 1000 mB and becomes a water bucket. Both clicks read the one hand.
+        # takes C's whole 1000 mB and becomes a water bucket. Both clicks read the one hand, and step
+        # 7 asserts the hand then, because the server handles a click after the tick that sent it.
         ctx.set_held_item(player, _bucket())
         ctx.use_block(level, x, y, z)
         ctx.use_block(level, x + 4, y, z)
@@ -150,6 +159,7 @@ export tick(ctx: TestTickContext) {
         }
         waited = 0
         ctx.assert(not far.get_liquid().has(), "The empty bucket should take C's whole 1000 mB.")
+        ctx.assert(_held(player, _water_bucket()), "The refused empty bucket on A's 999 mB should stay in the hand and take C's whole 1000 mB.")
         near: BlockEntity = _tank(level, x, y, z)
         ctx.assert(near.get_liquid_amount() == 999, "An empty bucket on a tank holding under 1000 mB should leave it alone.")
         ctx.assert(near.get_liquid().unwrap() == "minecraft:water", "The refused empty bucket should leave the tank's water alone.")
