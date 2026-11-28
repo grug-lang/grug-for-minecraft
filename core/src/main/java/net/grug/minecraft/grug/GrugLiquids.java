@@ -44,19 +44,7 @@ public final class GrugLiquids {
     static double offer(
             Object blockEntity, String liquid, double amount, double fromSide, boolean fill) {
         LiquidResponse response = callOffer(blockEntity, liquid, amount, fromSide, fill);
-        if (response == null) {
-            return NO_EXPORT;
-        }
-        if (response.kind() != LiquidResponse.Kind.AMOUNT) {
-            reportWrongAnswer("offer_liquid", "an amount");
-            return 0;
-        }
-        double taken = response.amount();
-        if (!Double.isFinite(taken) || taken < 0) {
-            reportWrongAnswer("offer_liquid", "a finite amount of 0 or more");
-            return 0;
-        }
-        return taken;
+        return takenAmount(response, "offer_liquid");
     }
 
     /**
@@ -66,16 +54,44 @@ public final class GrugLiquids {
      */
     static double take(Object blockEntity, double amount, boolean take) {
         LiquidResponse response = callTake(blockEntity, amount, take);
+        return takenAmount(response, "take_liquid");
+    }
+
+    /**
+     * Offers liquid to one block of a store through its {@code offer_liquid_here} export, the
+     * walk's continuation rather than its start.
+     *
+     * @return how much of {@code amount} it took, 0 on a refusal, or {@link #NO_EXPORT}
+     */
+    static double offerHere(
+            Object blockEntity, String liquid, double amount, double fromSide, boolean fill) {
+        LiquidResponse response = callOfferHere(blockEntity, liquid, amount, fromSide, fill);
+        return takenAmount(response, "offer_liquid_here");
+    }
+
+    /**
+     * Asks one block of a store for liquid through its {@code take_liquid_here} export, the walk's
+     * continuation rather than its start.
+     *
+     * @return how much it gave or would give, 0 on a refusal, or {@link #NO_EXPORT}
+     */
+    static double takeHere(Object blockEntity, double amount, boolean take) {
+        LiquidResponse response = callTakeHere(blockEntity, amount, take);
+        return takenAmount(response, "take_liquid_here");
+    }
+
+    /** What an offer or a take of {@code exportName} answers, checked as the host can use it. */
+    private static double takenAmount(LiquidResponse response, String exportName) {
         if (response == null) {
             return NO_EXPORT;
         }
         if (response.kind() != LiquidResponse.Kind.AMOUNT) {
-            reportWrongAnswer("take_liquid", "an amount");
+            reportWrongAnswer(exportName, "an amount");
             return 0;
         }
         double given = response.amount();
         if (!Double.isFinite(given) || given < 0) {
-            reportWrongAnswer("take_liquid", "a finite amount of 0 or more");
+            reportWrongAnswer(exportName, "a finite amount of 0 or more");
             return 0;
         }
         return given;
@@ -153,6 +169,36 @@ public final class GrugLiquids {
         LiquidResponse response = new LiquidResponse("take_liquid");
         long responseId = GrugEntities.addEntity(GrugEntityType.LiquidResponse, response);
         if (!ExportFns.BlockEntity_take_liquid(handle, amount, take, responseId)) {
+            response.close();
+            return null;
+        }
+        return response.finish() ? response : answeredZero();
+    }
+
+    private static LiquidResponse callOfferHere(
+            Object blockEntity, String liquid, double amount, double fromSide, boolean fill) {
+        long handle = handle(blockEntity);
+        if (handle == 0) {
+            return null;
+        }
+        LiquidResponse response = new LiquidResponse("offer_liquid_here");
+        long responseId = GrugEntities.addEntity(GrugEntityType.LiquidResponse, response);
+        if (!ExportFns.BlockEntity_offer_liquid_here(
+                handle, liquid, amount, fromSide, fill, responseId)) {
+            response.close();
+            return null;
+        }
+        return response.finish() ? response : answeredZero();
+    }
+
+    private static LiquidResponse callTakeHere(Object blockEntity, double amount, boolean take) {
+        long handle = handle(blockEntity);
+        if (handle == 0) {
+            return null;
+        }
+        LiquidResponse response = new LiquidResponse("take_liquid_here");
+        long responseId = GrugEntities.addEntity(GrugEntityType.LiquidResponse, response);
+        if (!ExportFns.BlockEntity_take_liquid_here(handle, amount, take, responseId)) {
             response.close();
             return null;
         }

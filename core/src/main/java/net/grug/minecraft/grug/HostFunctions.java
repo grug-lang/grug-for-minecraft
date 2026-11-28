@@ -1719,6 +1719,34 @@ public class HostFunctions {
                 HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount, take);
     }
 
+    public static double BlockEntity_offer_liquid_here(
+            long blockEntityId, String liquid, double amount, double fromSide, boolean fill) {
+        String canonical = requireLiquid("BlockEntity.offer_liquid_here", liquid);
+        if (canonical == null) {
+            return 0;
+        }
+        if (!requireLiquidAmount("BlockEntity.offer_liquid_here", amount)) {
+            return 0;
+        }
+        worldChanged();
+        return GrugLiquids.offerHere(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId),
+                canonical,
+                amount,
+                fromSide,
+                fill);
+    }
+
+    public static double BlockEntity_take_liquid_here(
+            long blockEntityId, double amount, boolean take) {
+        if (!requireLiquidAmount("BlockEntity.take_liquid_here", amount)) {
+            return 0;
+        }
+        worldChanged();
+        return GrugLiquids.takeHere(
+                HostFunctionHelpers.resolveBlockEntity(blockEntityId), amount, take);
+    }
+
     public static long BlockEntity_get_saved_string(long blockEntityId, String name) {
         Object blockEntity = HostFunctionHelpers.resolveBlockEntity(blockEntityId);
         if (!GrugSavedStrings.isHolder(blockEntity)) {

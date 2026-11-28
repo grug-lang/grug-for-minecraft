@@ -370,8 +370,68 @@
 					]
 				},
 				{
+					"name": "offer_liquid_here",
+					"description": "Called when another block entity passes this block entity its share of an offer that a store spanning several blocks is walking, which is BuildCraft's TileTank.actualFill. Its parameters and answer are offer_liquid's, but it takes this block entity's own share: it may hand what is left to the next block of the same store, as TileTank.actualFill recurses into the tank above, but it never goes looking for the store's end the way offer_liquid does. A block whose store spans several blocks therefore implements offer_liquid as the entry point that finds the store's end and starts the walk, and offer_liquid_here as one block's share, and a caller from outside the store calls offer_liquid and not this. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err.",
+					"parameters": [
+						{
+							"name": "liquid",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "fill",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
 					"name": "take_liquid",
 					"description": "Called when a pipe or a script asks this block entity for liquid, which is BuildCraft's ILiquidContainer.empty. The block entity decides how much it gives and answers through the response: answer_amount(n), which is 0 for a refusal, and never more than it holds. amount is the most millibuckets asked for, so a block entity that holds less gives what it has. take is false when the caller only wants to know how much it would get, and true when it should be given, which the block entity does itself: a liquid's name and amount are its own state, so the host moves nothing. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err.",
+					"parameters": [
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "take",
+							"type": {
+								"name": "bool"
+							}
+						},
+						{
+							"name": "response",
+							"type": {
+								"name": "LiquidResponse"
+							}
+						}
+					]
+				},
+				{
+					"name": "take_liquid_here",
+					"description": "Called when another block entity passes this block entity its share of a draw that a store spanning several blocks is walking, which is BuildCraft's TileTank.actualEmtpy. Its parameters and answer are take_liquid's, but it gives this block entity's own share: it may hand what is still wanted to the next block of the same store, as TileTank.actualEmtpy recurses into the tank below, but it never goes looking for the store's end the way take_liquid does. A block whose store spans several blocks therefore implements take_liquid as the entry point that finds the store's end and starts the walk, and take_liquid_here as one block's share, and a caller from outside the store calls take_liquid and not this. The response is valid during this call only, is answered once, and has to be answered: an export that returns without answering is an err.",
 					"parameters": [
 						{
 							"name": "amount",
@@ -960,6 +1020,38 @@
 						}
 					]
 				},
+				"offer_liquid_here": {
+					"description": "Offers liquid to this block entity's own share of a store through its offer_liquid_here export, which is BuildCraft's TileTank.actualFill. It takes the same arguments and answers the same way as offer_liquid, but it is the walk's continuation rather than its start: a store that spans several blocks implements offer_liquid as the entry point that finds the store's end and walks it, and this is one block's share. A script calls offer_liquid, not this. The answer is how much of amount this block took: 0 on a refusal, and -1 when the block entity has no offer_liquid_here export.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "liquid",
+							"type": {
+								"name": "string"
+							}
+						},
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "from_side",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "fill",
+							"type": {
+								"name": "bool"
+							}
+						}
+					]
+				},
 				"receive_energy": {
 					"description": "Adds energy to a receiver's store, up to its max_stored, and returns how much was stored. Energy that does not fit is lost. The amount must be a whole number from 0 to 2147483647. Reported when the block entity is not a receiver.",
 					"return_type": {
@@ -1196,6 +1288,26 @@
 				},
 				"take_liquid": {
 					"description": "Asks this block entity for liquid through its take_liquid export, which is BuildCraft's ILiquidContainer.empty. The answer is how much of amount it gave, which is never more than it holds: 0 on a refusal and -1 when the block entity has no take_liquid export. With take false it asks and changes nothing, answering how much it would give, so a pipe that only wants to know what a source holds does not empty it.",
+					"return_type": {
+						"name": "number"
+					},
+					"parameters": [
+						{
+							"name": "amount",
+							"type": {
+								"name": "number"
+							}
+						},
+						{
+							"name": "take",
+							"type": {
+								"name": "bool"
+							}
+						}
+					]
+				},
+				"take_liquid_here": {
+					"description": "Asks this block entity's own share of a store for liquid through its take_liquid_here export, which is BuildCraft's TileTank.actualEmtpy. It takes the same arguments and answers the same way as take_liquid, but it is the walk's continuation rather than its start: a store that spans several blocks implements take_liquid as the entry point that finds the store's end and walks it, and this is one block's share. A script calls take_liquid, not this. The answer is how much of amount this block gave, which is never more than it holds: 0 on a refusal and -1 when the block entity has no take_liquid_here export. With take false it asks and changes nothing.",
 					"return_type": {
 						"name": "number"
 					},

@@ -1,0 +1,53 @@
+# Covers a column of tanks as one store, as TileTank.empty and actualEmtpy make it in BuildCraft
+# 2.2.14: the draw enters at the top tank, whatever tank received it, which gives what it has and
+# draws the rest from the tank below, so a column empties from the top down.
+export tick(ctx: TestTickContext) {
+    level: Level = ctx.get_client_level()
+    origin: Vec3 = ctx.get_origin()
+    x: number = origin.x()
+    y: number = origin.y() + 22
+    z: number = origin.z()
+
+    level.place_block(x, y, z, "grug:tank")
+    level.place_block(x, y + 1, z, "grug:tank")
+    level.place_block(x, y + 2, z, "grug:tank")
+    bottom: BlockEntity = level.get_block_entity(x, y, z).unwrap()
+    middle: BlockEntity = level.get_block_entity(x, y + 1, z).unwrap()
+    top: BlockEntity = level.get_block_entity(x, y + 2, z).unwrap()
+    bottom.set_saved_string("liquid", "minecraft:water")
+    bottom.set_saved_number("amount", 3000)
+    middle.set_saved_string("liquid", "minecraft:water")
+    middle.set_saved_number("amount", 16000)
+    top.set_saved_string("liquid", "minecraft:water")
+    top.set_saved_number("amount", 2000)
+
+    # take false walks the column and changes nothing: the top tank's 2000 is what a 1000 draw would
+    # give, and it would not touch the tanks below.
+    ctx.assert(bottom.take_liquid(1000, false) == 1000, "A dry take should answer what the top tank holds.")
+    ctx.assert(bottom.get_liquid_amount() == 3000, "A dry take should change nothing.")
+    ctx.assert(middle.get_liquid_amount() == 16000, "A dry take should change nothing.")
+    ctx.assert(top.get_liquid_amount() == 2000, "A dry take should change nothing.")
+
+    # The top tank gives first, and the middle covers what it could not.
+    ctx.assert(bottom.take_liquid(5000, true) == 5000, "The column should give the 5000 it was asked for.")
+    ctx.assert(top.get_liquid_amount() == 0, "The top tank should give its 2000 first.")
+    ctx.assert(middle.get_liquid_amount() == 13000, "The middle tank should give the 3000 the top could not.")
+    ctx.assert(bottom.get_liquid_amount() == 3000, "The bottom tank should keep its 3000.")
+
+    # The rest comes out of the middle and then the bottom, top down.
+    ctx.assert(top.take_liquid(20000, true) == 16000, "The column should give the 16000 it still holds.")
+    ctx.assert(middle.get_liquid_amount() == 0, "The middle tank should be empty.")
+    ctx.assert(bottom.get_liquid_amount() == 0, "The bottom tank should be empty.")
+    ctx.assert(not bottom.get_liquid().has(), "An emptied column should hold no liquid.")
+    ctx.assert(top.take_liquid(1, true) == 0, "An empty column should give nothing.")
+
+    # actualEmtpy never looks at the liquid, so a column holding two answers with their sum. That is a
+    # quirk of the reference and the port keeps it.
+    bottom.set_saved_string("liquid", "minecraft:water")
+    bottom.set_saved_number("amount", 1000)
+    middle.set_saved_string("liquid", "minecraft:lava")
+    middle.set_saved_number("amount", 500)
+    ctx.assert(top.take_liquid(2000, true) == 1500, "The column should give both liquids' amounts.")
+    ctx.assert(middle.get_liquid_amount() == 0, "The middle tank should be empty.")
+    ctx.assert(bottom.get_liquid_amount() == 0, "The bottom tank should be empty.")
+}
