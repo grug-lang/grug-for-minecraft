@@ -155,6 +155,9 @@ EXCLUDED_CLASSES = {
     "ArsenicOverlayRendererMixin",
     "BlockRenderManagerMixin",
     "WorldChunkMixin",
+    # Fixes Alpha's GUI scale from a test (#1752). A mixin, so unmeasurable for the reason above;
+    # the override it reads lives in GrugGuiScale, which the game run measures.
+    "WindowMixin",
     "BlockEntityAccess",
     "BlockWithEntityMixin",
     "ChunkMixin",

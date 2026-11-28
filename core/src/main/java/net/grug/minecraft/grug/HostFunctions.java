@@ -4992,6 +4992,48 @@ public class HostFunctions {
         GrugWorldOverlay.pressBindingForTest(mod, id);
     }
 
+    /**
+     * Test only: sets the client's GUI scale, so a capture can be taken at the size it needs rather
+     * than the one the client happens to start with. The value is a whole number from 1 to 3, which
+     * is every scale the game's own option offers at the runner's window; anything else is reported
+     * and not clamped, because a silently different size would move the capture it was meant to
+     * fix.
+     */
+    @GrugGenerated("asks the adapter for the client's GUI: a unit test has no window")
+    public static void TestTickContext_set_gui_scale(long contextId, double scale) {
+        if (!requireTickContext("TestTickContext.set_gui_scale", contextId)) return;
+        if (!Double.isFinite(scale) || scale != Math.floor(scale) || scale < 1 || scale > 3) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.set_gui_scale: The scale has to be a whole number from 1 to"
+                            + " 3, and was "
+                            + scale
+                            + ".");
+            return;
+        }
+        GrugCore.getAdapter().setGuiScale((int) scale);
+    }
+
+    /**
+     * Test only: presses and releases a key through the client's own key handling, so a binding the
+     * game itself polls sees it, which {@code press_world_key} does not reach. The key is the upper
+     * case character code of a letter or a digit, the same number {@code press_world_key} takes.
+     */
+    @GrugGenerated("asks the adapter to press a game key: a unit test has no client")
+    public static void TestTickContext_press_game_key(long contextId, double key) {
+        if (!requireTickContext("TestTickContext.press_game_key", contextId)) return;
+        if (!Double.isFinite(key) || key != Math.floor(key) || !GrugWorldKeys.tracked((int) key)) {
+            Grug.hostFunctionErrorHappened(
+                    Grug.statePtr,
+                    "TestTickContext.press_game_key: The key has to be the upper case character"
+                            + " code of a letter or a digit, and was "
+                            + key
+                            + ".");
+            return;
+        }
+        GrugCore.getAdapter().pressGameKey((int) key);
+    }
+
     public static double OverlayScrollContext_screen_width(long contextId) {
         if (!requireOverlayScrollContext("OverlayScrollContext.screen_width", contextId))
             return 0.0;

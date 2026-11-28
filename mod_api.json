@@ -5503,6 +5503,17 @@
 						}
 					]
 				},
+				"press_game_key": {
+					"description": "Presses and releases a key through the client's own key handling, the same path a physical press takes, so a binding the game itself polls sees it, which press_world_key does not reach. One call is one press and its release, so nothing stays held. The key is the upper case character code of a letter or a digit, the same number press_world_key takes, and this loader translates it to the key code its own game uses: a GLFW key code on 1.20.6, and an LWJGL2 Keyboard code before it. A port run does not need this entry: press_world_key reaches the port's own grug binding. Any other number is reported and not pressed. On a dedicated server there is no client to press it on, so it is reported. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "key",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
+				},
 				"press_screen_key": {
 					"description": "Presses a key on the screen that is open, through the same path a real key press takes, and answers whether an overlay took it. True means an overlay took the press, so the screen never saw it; false means no overlay took it, even when the screen handled the key itself. The key is the number OverlayKeyContext.key answers, and the press types the character that number produces, as a real press does: a digit or the space bar types itself, a letter types its lower case letter, and a number below 128 that names no key (59 for ;) types itself as a character only. A number from 128 up is not a character. The keys with no character of their own that OverlayKeyContext.key names are 256 to 269 except 258 and 259, and a press of one of them is a press of that key: 1.20.6 hands its own code to the screen, so 256 is Escape, 262 is the right arrow and 261 is delete, while a loader before 1.20.6 looks it up by name and has one for each. Any other number from 128 up names no key, and pressing one is a host function error on every loader; that includes 258 and 259, Tab and GLFW's own backspace code. With `ctrl` held it types no character. `shift` says whether shift is held for the press, and it changes the character as a real shift press does on a US keyboard: a letter is typed as its upper case letter (a press of 77 types M rather than m), a digit as the symbol above it (a press of 49 types ! rather than 1), and a punctuation character as its shifted symbol (a press of 59 types : rather than ;), so a test can type a shifted character and a text field can extend its selection with the same press. The key is released again after the press when `release` is true; with `release` false it stays held, so pressing the same number again is a key repeat, which an overlay is asked about and reads through OverlayKeyContext.repeat(), until a press with `release` true lets go. On a dedicated server the press is forwarded to the joined client (#1094), which presses the key on its own screen. Test only. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
 					"return_type": {
@@ -5690,6 +5701,17 @@
 					"return_type": {
 						"name": "bool"
 					}
+				},
+				"set_gui_scale": {
+					"description": "Test only: sets the client's GUI scale, so a test can prove what a screen looks like at a size other than the one this loader happens to start with. The scale is a whole number from 1 to 3, and anything else, including 0 for automatic and a fraction, is reported and not set rather than clamped. Setting it makes the game recompute its GUI size and lay the open screen out again, exactly as changing the option does, and the value holds until the test sets it again. The options file is not written, and no shipped default or the options screen changes. On a dedicated server there is no client window, so it is reported. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",
+					"parameters": [
+						{
+							"name": "scale",
+							"type": {
+								"name": "number"
+							}
+						}
+					]
 				},
 				"set_held_item": {
 					"description": "Test only: puts one of the item in the player's selected hotbar slot, replacing what was there. Only legal on the context tick() was passed, while that call is running: a context saved for later is refused.",

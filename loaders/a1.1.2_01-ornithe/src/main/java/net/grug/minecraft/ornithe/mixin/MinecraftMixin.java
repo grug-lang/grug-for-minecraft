@@ -1,6 +1,7 @@
 package net.grug.minecraft.ornithe.mixin;
 
 import net.grug.minecraft.core.GrugConnectAddress;
+import net.grug.minecraft.core.GrugGameKeyQueue;
 import net.grug.minecraft.core.GrugMissingClientMod;
 import net.grug.minecraft.grug.GrugOwnedScreen;
 import net.grug.minecraft.grug.GrugOwnedScreens;
@@ -18,11 +19,13 @@ import net.minecraft.client.entity.mob.player.ClientPlayerEntity;
 import net.minecraft.client.gui.GameGui;
 import net.minecraft.world.World;
 
+import org.lwjgl.input.Keyboard;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Minecraft.class)
@@ -85,6 +88,32 @@ public abstract class MinecraftMixin implements GrugClientAccess {
     private void grug$afterClientTick(CallbackInfo ci) {
         net.grug.minecraft.ornithe.control.GrugControlAlphaClient.afterClientTick(
                 (Minecraft) (Object) this);
+    }
+
+    /**
+     * Test only: one press a test queued for the game's own key loop is delivered in place of the
+     * keyboard's next event, so the loop body below handles it exactly as it handles a physical
+     * press (#1752). With nothing queued LWJGL 2's own answer stands, as it always did.
+     */
+    @Redirect(
+            method = "tick",
+            at = @At(value = "INVOKE", target = "Lorg/lwjgl/input/Keyboard;next()Z"))
+    private boolean grug$gameKeyNext() {
+        return GrugGameKeyQueue.next(Keyboard::next);
+    }
+
+    @Redirect(
+            method = "tick",
+            at = @At(value = "INVOKE", target = "Lorg/lwjgl/input/Keyboard;getEventKey()I"))
+    private int grug$gameKeyEventKey() {
+        return GrugGameKeyQueue.eventKey(Keyboard.getEventKey());
+    }
+
+    @Redirect(
+            method = "tick",
+            at = @At(value = "INVOKE", target = "Lorg/lwjgl/input/Keyboard;getEventKeyState()Z"))
+    private boolean grug$gameKeyEventKeyState() {
+        return GrugGameKeyQueue.eventKeyState(Keyboard.getEventKeyState());
     }
 
     @Inject(method = "tick", at = @At("HEAD"))

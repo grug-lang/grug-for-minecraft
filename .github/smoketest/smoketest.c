@@ -3829,8 +3829,15 @@ REGISTER("TestTickContext", "screen_open", TTC_screen_open);
 // screen does (1.2.5 leaves an empty screen up there, which loader_name == "1.2.5-forge" tests branch on).
 #define PANEL_W 176
 #define PANEL_H 166
+#define WIDTH_PX 1280
+#define HEIGHT_PX 720
 #define WINDOW_W 427
 #define WINDOW_H 240
+// The GUI scale the fake window answers its size at, which the CI runner's window, 1280 by 720,
+// gives 427 by 240 at scale 3. TestTickContext.set_gui_scale changes it, as the game's own option
+// does, so a test that sets one reads the size that follows.
+static int gui_scale = 3;
+static int scaled_window_edge(int raw) { return (raw + gui_scale - 1) / gui_scale; }
 // A screen a mod owns is the client's own screen while it is open, so it answers the screen's
 // geometry, its press, key and wheel passes and its frame, and the section that owns it is below.
 // make_overlays binds the screens a script's member scope creates to the entity that script makes.
@@ -3838,13 +3845,21 @@ static double gui_geometry(int which) {  // 0 left, 1 top, 2 width, 3 height, 4 
     if (mod_screen_open()) return mod_screen_geometry(which);
     if (!screen_is_open) return 0;
     switch (which) {
-    case 0: return (WINDOW_W - PANEL_W) / 2;
-    case 1: return (WINDOW_H - PANEL_H) / 2;
+    case 0: return (scaled_window_edge(WIDTH_PX) - PANEL_W) / 2;
+    case 1: return (scaled_window_edge(HEIGHT_PX) - PANEL_H) / 2;
     case 2: return PANEL_W;
     case 3: return PANEL_H;
-    default: return WINDOW_W;
+    default: return scaled_window_edge(WIDTH_PX);
     }
 }
+static union grug_value TTC_set_gui_scale(ARGS) {
+    UNUSED;
+    double scale = a[1]._number;
+    if (!is_whole(scale) || scale < 1 || scale > 3) return fail("TestTickContext.set_gui_scale: The scale has to be a whole number from 1 to 3, and was %g.", scale);
+    gui_scale = (int) scale;
+    return none();
+}
+REGISTER("TestTickContext", "set_gui_scale", TTC_set_gui_scale);
 static union grug_value TTC_gui_left(ARGS) { UNUSED; return num(gui_geometry(0)); }
 REGISTER("TestTickContext", "gui_left", TTC_gui_left);
 static union grug_value TTC_gui_top(ARGS) { UNUSED; return num(gui_geometry(1)); }
@@ -4464,6 +4479,25 @@ static union grug_value TTC_open_inventory(ARGS) {
     return none();
 }
 REGISTER("TestTickContext", "open_inventory", TTC_open_inventory);
+// One press of a letter or digit key through the game's own key handling, which a binding the game
+// polls itself reads. The smoketest models the one binding a committed test presses: the game's own
+// default inventory key, E, opens the inventory while no screen is open. Every other key is
+// accepted and changes nothing, as a key no binding of the game's own uses does.
+static union grug_value TTC_press_game_key(ARGS) {
+    UNUSED;
+    double key = a[1]._number;
+    bool tracked = is_whole(key) && ((key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9'));
+    if (!tracked) return fail("TestTickContext.press_game_key: The key has to be the upper case character code of a letter or a digit, and was %g.", key);
+    if (key == 'E' && !screen_is_open) {
+        screen_is_open = true;
+        screen_gui = 0;
+        screen_be = 0;
+        carried_has = false;
+        note_screen_opened();
+    }
+    return none();
+}
+REGISTER("TestTickContext", "press_game_key", TTC_press_game_key);
 static union grug_value TTC_overlay_drawn(ARGS) { UNUSED; return boolean(overlay_drawn); }
 REGISTER("TestTickContext", "overlay_drawn", TTC_overlay_drawn);
 // The defect the most recent frame's screen_list_row export reported, or empty when none did. A
