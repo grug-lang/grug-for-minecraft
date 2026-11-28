@@ -234,6 +234,7 @@ static bool mod_screen_key(double key, double character, bool ctrl, bool shift, 
 static bool mod_screen_scroll(double x, double y, double delta);
 static void mod_screen_render(void);
 static void mod_screen_close_open(void);
+static void note_screen_closed(void);
 static void screen_creation_begin(void);
 static void screen_creation_end(void* entity);
 static void free_test_state(void) {
@@ -4202,8 +4203,12 @@ REGISTER("TestInitContext", "stall", TTC_stall);
 static union grug_value TTC_close_screen(ARGS) {
     UNUSED;
     if (carried_has) stubbed = true;  // the carried stack is not handed back to the player
+    bool container = screen_is_open;
     mod_screen_close_open();
     screen_is_open = false;
+    // A container screen's close runs the same hook a mod screen's does, so the drawn mark it left
+    // does not outlive it.
+    if (container) note_screen_closed();
     carried_has = false;
     return none();
 }
@@ -4328,6 +4333,15 @@ static void note_screen_opened(void) {
     overlay_first_frame_recorded = false;
     overlay_first_frame_cleared = false;
     overlay_key_held = false;
+}
+
+// A closed screen leaves nothing behind: the game's screen-closed hook clears the drawn mark and
+// invalidates the first-frame record, so a test cannot read the closed screen's frame as the mark
+// of the next screen it opens.
+static void note_screen_closed(void) {
+    overlay_drawn = false;
+    overlay_first_frame_recorded = false;
+    overlay_first_frame_cleared = false;
 }
 static union grug_value TTC_open_inventory(ARGS) {
     UNUSED;
@@ -4654,6 +4668,10 @@ struct owned_screen {
     struct owned_widget** widgets;
     size_t nwidgets, capwidgets;
     bool open;
+    // Which open time this is, as GrugOwnedScreen.generation counts them: a row answer that
+    // reopens the same screen ends the frame pass, because the widgets the pass copied were the
+    // dropped open time's.
+    unsigned generation;
 };
 
 // The screens every overlay script made, and the one that is the client's current screen. A screen
@@ -4670,9 +4688,6 @@ static struct owned_screen* widget_screen_running;
 // True only around grug_create_entity for an Overlay file, which is the member scope a screen may be
 // made in. A block entity's or a test's member scope is refused, as the host refuses it.
 static bool creating_overlay_script;
-// A screen export's own err, which is a frame-level defect rather than a grug call's error: it is
-// recorded and fails the test after its frame.
-static char screen_defect[4096];
 // The Overlay script's screen_* exports, looked up once for every script.
 static uint64_t screen_init_fn = UINT64_MAX, screen_render_fn = UINT64_MAX, screen_click_fn = UINT64_MAX;
 static uint64_t screen_key_fn = UINT64_MAX, screen_scroll_fn = UINT64_MAX, screen_widget_changed_fn = UINT64_MAX;
@@ -4756,7 +4771,6 @@ static void clear_screens(void) {
     widget_ctx_running = 0;
     widget_screen_running = NULL;
     creating_overlay_script = false;
-    screen_defect[0] = 0;
     last_row_error[0] = 0;
     frame_asked_a_row = false;
 }
@@ -4863,6 +4877,7 @@ static void end_open_time(struct owned_screen* s) {
     if (open_owned_screen == s) open_owned_screen = NULL;
     s->open = false;
     drop_widgets(s);
+    note_screen_closed();
     call_screen_export(s, screen_closed_fn, NULL, 0);
 }
 static void mod_screen_close_open(void) {
@@ -4917,11 +4932,12 @@ static union grug_value Screen_open(ARGS) {
     screen_gui = 0;
     screen_be = 0;
     carried_has = false;
-    // A mod-owned screen is not one of the screens an overlay draws on (the player's inventory and
-    // every screen a container opens), so opening it neither clears the overlay drawn mark nor
-    // starts a new first-frame record, which belong to the container screen's own frame pass. The
-    // world key that opened it has done its work, so no world key is held from here.
-    overlay_key_held = false;
+    // A mod-owned screen is one of the client's own screens, so its init runs the hook every
+    // screen's init runs: the drawn mark and the first-frame record start again and the previous
+    // screen's row defect is forgotten (GrugOwnedScreens.open clears it). The world key that opened
+    // it has done its work, so no world key is held from here.
+    note_screen_opened();
+    if (!s->open) s->generation += 1;
     s->open = true;
     open_owned_screen = s;
     run_screen_init(s);
@@ -5487,6 +5503,7 @@ static void ask_row(struct owned_screen* s, uint64_t widget_handle, int index) {
 static void mod_screen_render(void) {
     struct owned_screen* s = open_owned_screen;
     if (!s || !s->open) return;
+    unsigned generation = s->generation;
     frame_asked_a_row = false;
     struct owned_widget** widgets = NULL;
     size_t nwidgets = 0, capwidgets = 0;
@@ -5508,16 +5525,16 @@ static void mod_screen_render(void) {
             int last = list_last_visible(scroll, rows, row_height, height);
             for (int row = first; row <= last; row++) {
                 ask_row(s, handle, row);
-                // A row answer may close the screen, which frees the widgets this frame copies, so
-                // nothing is read again before this check.
-                if (open_owned_screen != s || !s->open) {
+                // A row answer may close the screen or reopen it, which frees or replaces the
+                // widgets this frame copied, so nothing is read again before this check.
+                if (open_owned_screen != s || !s->open || s->generation != generation) {
                     free(widgets);
                     return;
                 }
             }
         }
     free(widgets);
-    if (open_owned_screen != s || !s->open) return;
+    if (open_owned_screen != s || !s->open || s->generation != generation) return;
     if (screen_render_fn != UINT64_MAX) {
         uint64_t c = new_obj(K_OVERLAY_RENDER);
         union grug_value arg = id(c);
@@ -6185,7 +6202,6 @@ static int run_test(const char* label, uint64_t file_id, uint64_t tick_fn, uint6
         bool completed = grug_call_export_fn(g_state, entity, tick_fn, &arg, 1);
         if (completed && !bg_missing[0]) { render_overlays(); mod_screen_render(); }
         if (bg_missing[0]) { report("FAIL", label, "%s", bg_missing); rc = 1; }
-        else if (screen_defect[0]) { report("FAIL", label, "%s", screen_defect); rc = 1; }
         else if (!completed) {
             if (expected_error && strstr(last_msg, expected_error)) { report(stubbed ? "STUBBED" : "PASS", label, "%s", ""); break; }
             if (expected_error) report("FAIL", label, "expected an error containing '%s', but got: %s", expected_error, last_msg);
