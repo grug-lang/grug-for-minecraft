@@ -10,14 +10,24 @@
 # instead, so only a client observes the frame it changes: a dedicated server presses its own copy
 # and the joined client draws nothing.
 started: bool = false
+skipped: bool = false
 pressed: bool = false
 turned_off: bool = false
 waited: number = 0
 cleared_at: number = 0
 
 export tick(ctx: TestTickContext) {
+    if skipped {
+        return
+    }
     if not started {
         if not me.world_overlay_supported() or me.on_dedicated_server() {
+            # A real press reaches the joined client over the test-control channel, but this call
+            # asks the overlay script of the process the test runs in, so on a dedicated server it
+            # flips the server's copy and the client that draws the frame sees nothing. There is
+            # nothing to observe there, so the whole test is skipped and the client legs are where
+            # it asserts.
+            skipped = true
             started = true
             return
         }
