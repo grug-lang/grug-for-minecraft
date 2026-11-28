@@ -46,8 +46,10 @@ export tick(ctx: TestTickContext) {
             ctx.not_done()
             return
         }
-        # P gives the list more rows than its viewport shows and Q arms the one-shot reopen from
-        # screen_scroll.
+        # C selects the normal row mode, because a test that runs before this one may have left the
+        # overlay in another mode. P gives the list more rows than its viewport shows and Q arms the
+        # one-shot reopen from screen_scroll.
+        ctx.press_world_key(67, false)
         ctx.press_world_key(80, false)
         ctx.press_world_key(81, false)
         step = 1
