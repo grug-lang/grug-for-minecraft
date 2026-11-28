@@ -1,0 +1,7 @@
+# A fractional bound is reported rather than rounded to a size the caller did not ask for (#1752).
+export tick(ctx: TestTickContext) {
+    stream: Random = Random.new_seeded(1.0)
+
+    ctx.expect_error("The bound has to be a whole number from 1 to")
+    value: number = stream.next_int(1.5)
+}

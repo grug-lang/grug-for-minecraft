@@ -1,0 +1,13 @@
+# File.try_write_text is the same write as write_text for a caller that keeps what it has either way
+# (#1752): a write the filesystem refuses answers false and leaves what was there, while the host's
+# own refusals (a path it does not allow, a case clash, the cap) are still reported as errors.
+export tick(ctx: TestTickContext) {
+    files: File = File.open(r"files")
+
+    ctx.assert(files.try_write_text("try/kept.txt", "kept"), "An allowed write should answer true.")
+    ctx.assert(files.read_text("try/kept.txt").unwrap() == "kept", "A try_write_text that answered true should read back what it wrote.")
+
+    files.write_text("try/occupied/keep.txt", "inside")
+    ctx.assert(not files.try_write_text("try/occupied", "replacement"), "A write the filesystem refuses should answer false rather than raise.")
+    ctx.assert(files.read_text("try/occupied/keep.txt").unwrap() == "inside", "A refused try_write_text should leave what was there.")
+}

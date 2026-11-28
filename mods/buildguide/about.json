@@ -133,18 +133,13 @@
 					"tracking_issue": 1752
 				},
 				{
-					"what": "A config file the host refuses to write (an unwritable files directory) reports a host function error on the first world frame, and the values the overlay read stay in use; the reference catches the IOException, prints it and keeps the values it had.",
-					"why": "File.write_text reports a refused write as a host function error rather than as a value a grug script can catch. The error happens once, because the config is marked loaded before the write, so it does not block a frame after the first.",
-					"tracking_issue": 1752
-				},
-				{
-					"what": "A new set's random colours and the Visualization tab's two Set random buttons come from the level's own random, where the reference draws each from a new Random, so either here shifts the game's random sequence and the two screens' draws differ from the reference's.",
-					"why": "mod_api.json has no entry for a random stream a mod owns, and the level's is the one entry grug offers; a general seeded random is the entry that would let a mod own one, and the colours either source produces are as arbitrary.",
-					"tracking_issue": 1752
-				},
-				{
 					"what": "The Shape and Shape list dropdowns are a list drawn inside their parent screen, where the reference opens a DropdownOverlayScreen of its own over it, with its own chrome, close button and tab states: the V hides itself, the X and the fifteen rows take its place, and the parent's own widgets and texts step aside while the list is up.",
 					"why": "The host's Screen holds one screen at a time, and opening another closes the one that is open (#1760's gap 2), so a screen over its parent has no entry; a list inside the parent needs no new API and keeps the state the parent was opened with.",
+					"tracking_issue": 1752
+				},
+				{
+					"what": "A save or a load of the persistence file that fails is silent, where the reference sends \"Build Guide persistence failed to save: \" or \"Build Guide persistence failed to load: \" and the exception's message to the player: a refused save leaves the state to be retried on the next close and a failed load keeps what the state already applied, but neither failure is told to anyone.",
+					"why": "mod_api.json has no entry that sends a message to the player, so the port has no way to say what the reference's sendChatMessage says. The next close retrying a refused save already matches BaseScreen.onScreenClosed leaving shouldUpdatePersistence set, so the retry is not the gap; the missing client-message entry is, and the deviation goes when that entry lands.",
 					"tracking_issue": 1752
 				}
 			]
